@@ -2,7 +2,7 @@
 
 ## 1. Nombre del proyecto
 
-**Asistencia** es un sistema para gestionar eventos, sus cronogramas, formularios de registro/asistencia y reportes de participación.
+**Asistencia** es un sistema para gestionar eventos, cronogramas, formularios de registro/asistencia y reportes de participación.
 
 El proyecto nace para permitir que una institución u organización pueda crear eventos con una o varias fechas, compartir formularios mediante enlace corto o código QR, registrar participantes y controlar la asistencia por cada fecha del evento.
 
@@ -18,6 +18,7 @@ Construir una aplicación web que permita:
 - Controlar la apertura y cierre de cada fecha del cronograma para evitar registros fuera del periodo válido.
 - Generar enlaces cortos y códigos QR para compartir formularios.
 - Emitir reportes de participantes, eventos y asistencias individuales por evento y por fecha.
+- Proteger el panel de administración mediante usuario, contraseña, roles y permisos.
 
 ## 3. Ecosistema técnico previsto
 
@@ -31,9 +32,120 @@ El proyecto se desarrollará usando el ecosistema definido para los proyectos ac
 - Backend/API en Cloudflare Workers.
 - Base de datos SQLite mediante Cloudflare D1.
 
-Las tecnologías concretas del frontend y backend se definirán durante la fase inicial de arquitectura, priorizando simplicidad, mantenibilidad y compatibilidad con Cloudflare.
+Las tecnologías concretas del frontend y backend se definirán durante la fase inicial de arquitectura, priorizando simplicidad, mantenibilidad, seguridad y compatibilidad con Cloudflare.
 
-## 4. Conceptos principales del dominio
+## 4. Acceso administrativo
+
+La aplicación tendrá un panel administrativo protegido por login.
+
+El ingreso al sistema de gestión debe realizarse con:
+
+- Usuario o correo electrónico.
+- Contraseña.
+- Sesión segura.
+- Roles y permisos.
+
+Los formularios públicos de asistencia serán accesibles mediante enlace corto y QR sin login administrativo, pero solo permitirán registrar asistencia cuando la fecha correspondiente del cronograma esté abierta.
+
+## 5. Roles iniciales
+
+### Administrador
+
+Usuario con acceso general al sistema.
+
+Puede:
+
+- Ver todos los eventos.
+- Crear, actualizar, activar y desactivar eventos.
+- Administrar cronogramas de todos los eventos.
+- Abrir y cerrar fechas del cronograma.
+- Crear, clonar y administrar formularios.
+- Generar enlaces cortos y códigos QR.
+- Ver reportes de todos los eventos.
+- Administrar catálogos.
+- Administrar parámetros.
+- Administrar roles.
+- Crear y administrar usuarios del sistema.
+
+### Supervisor
+
+Usuario operativo que administra únicamente sus propios eventos.
+
+Puede:
+
+- Crear eventos.
+- Ver solo los eventos que él mismo creó.
+- Actualizar, activar y desactivar sus propios eventos.
+- Administrar cronogramas de sus propios eventos.
+- Abrir y cerrar fechas de sus propios eventos.
+- Crear, clonar y administrar formularios de sus propios eventos.
+- Generar enlaces cortos y códigos QR de sus propios eventos.
+- Ver reportes de sus propios eventos.
+
+No puede:
+
+- Crear usuarios del sistema.
+- Ver eventos de otros supervisores.
+- Modificar eventos de otros supervisores.
+- Administrar roles, usuarios o parámetros globales.
+
+## 6. Interfaz esperada
+
+Luego del login, la pantalla principal debe ser responsiva y con estilo tipo Bootstrap.
+
+Debe incluir:
+
+- Menú lateral responsivo.
+- Área central para mostrar el contenido de cada sección.
+- Barra superior o encabezado compacto.
+- Información del usuario autenticado.
+- Opción de cierre de sesión.
+
+La aplicación debe funcionar correctamente en:
+
+- PC.
+- Tablet.
+- Celulares.
+
+Los formularios públicos de asistencia deben ser especialmente cómodos en dispositivos móviles.
+
+## 7. Menús iniciales
+
+### Configuración
+
+Sección para administración interna del sistema.
+
+Debe contener:
+
+- **Catálogo:** tablas maestras del sistema.
+- **Parámetros:** reglas de negocio y valores configurables.
+- **Roles:** roles y permisos del sistema.
+- **Usuarios:** registro y administración de usuarios para inicio de sesión.
+
+### Eventos
+
+Sección para la gestión completa de eventos.
+
+Debe permitir:
+
+- Crear eventos.
+- Ver eventos.
+- Actualizar eventos.
+- Activar y desactivar eventos.
+- Crear y gestionar cronogramas.
+- Crear, clonar y gestionar formularios de asistencia.
+- Abrir y cerrar fechas del cronograma.
+- Generar enlace corto y QR.
+
+### Reportes
+
+Sección para consultar resultados y asistencias.
+
+El primer reporte relevante será:
+
+- Lista de asistencia por evento y por fecha del cronograma.
+
+## 8. Conceptos principales del dominio
 
 ### Evento
 
@@ -44,6 +156,7 @@ Datos esperados:
 - Título del evento.
 - Descripción.
 - Estado del evento.
+- Usuario creador.
 - Datos de organización o responsable.
 - Fechas de creación y actualización.
 
@@ -58,7 +171,8 @@ Datos esperados:
 - Fecha.
 - Hora de inicio.
 - Hora de fin.
-- Estado: abierto o cerrado.
+- Estado administrativo.
+- Estado de asistencia: abierto o cerrado.
 - Orden dentro del evento.
 
 Ejemplo:
@@ -122,7 +236,7 @@ Cuando se genere un formulario, el sistema debe crear:
 
 Estos elementos deben facilitar el registro de asistentes desde celulares durante el desarrollo del evento.
 
-## 5. Estados clave
+## 9. Estados clave
 
 ### Estado de fecha del cronograma
 
@@ -137,20 +251,31 @@ Estados iniciales sugeridos:
 
 - Borrador.
 - Publicado.
+- Activo.
+- Inactivo.
 - Finalizado.
 - Archivado.
 
 Estos estados se validarán durante el diseño funcional.
 
-## 6. Flujos principales
+## 10. Flujos principales
+
+### Flujo de acceso administrativo
+
+1. El usuario ingresa a la pantalla de login.
+2. Digita su usuario o correo y contraseña.
+3. El sistema valida credenciales.
+4. El sistema crea una sesión segura.
+5. El sistema carga el panel según el rol del usuario.
 
 ### Flujo de creación de evento
 
-1. El administrador crea un evento.
-2. Define el cronograma con una o varias fechas.
-3. Crea o clona el formulario de asistencia.
-4. El sistema genera enlace corto y QR.
-5. El administrador comparte el enlace o QR con los asistentes.
+1. El administrador o supervisor crea un evento.
+2. El sistema registra al usuario creador.
+3. Define el cronograma con una o varias fechas.
+4. Crea o clona el formulario de asistencia.
+5. El sistema genera enlace corto y QR.
+6. El usuario comparte el enlace o QR con los asistentes.
 
 ### Flujo de registro de participante nuevo
 
@@ -172,7 +297,7 @@ Estos estados se validarán durante el diseño funcional.
 
 ### Flujo de control de apertura y cierre
 
-1. El administrador ingresa al evento.
+1. El usuario autorizado ingresa al evento.
 2. Revisa el cronograma.
 3. Abre la fecha activa cuando inicia la sesión.
 4. Cierra la fecha cuando termina la sesión.
@@ -180,26 +305,34 @@ Estos estados se validarán durante el diseño funcional.
 
 ### Flujo de reportes
 
-1. El administrador selecciona un evento.
+1. El usuario autorizado selecciona un evento.
 2. Consulta participantes inscritos y asistencias.
 3. Filtra por fecha, sesión o participante.
-4. Exporta o visualiza reportes según la necesidad.
+4. Visualiza la lista de asistencia.
+5. Exporta resultados cuando esta funcionalidad esté implementada.
 
-## 7. Reglas iniciales del negocio
+## 11. Reglas iniciales del negocio
 
 - Un participante se identifica principalmente por su tipo y número de documento.
 - Un participante puede asistir a múltiples eventos.
 - Un evento puede tener múltiples fechas o sesiones.
+- Un evento pertenece a un usuario creador.
+- Un administrador puede ver todos los eventos.
+- Un supervisor solo puede ver eventos creados por él mismo.
 - Una asistencia pertenece a un participante, a un evento y a una fecha específica del cronograma.
 - No debe existir más de una asistencia del mismo participante para la misma fecha del cronograma.
 - Si la fecha del cronograma está cerrada, el formulario no debe aceptar asistencias.
 - El formulario debe poder mostrar información dinámica según el evento y la fecha seleccionada.
 - La clonación de formularios debe reutilizar campos y configuración, pero generar una nueva instancia asociada al evento correspondiente.
 
-## 8. Modelo de datos inicial sugerido
+## 12. Modelo de datos inicial sugerido
 
 Tablas iniciales candidatas:
 
+- `users`
+- `roles`
+- `user_roles`
+- `auth_sessions`
 - `events`
 - `event_sessions`
 - `participants`
@@ -207,12 +340,21 @@ Tablas iniciales candidatas:
 - `form_fields`
 - `attendance_records`
 - `short_links`
+- `system_catalogs`
+- `system_parameters`
+- `audit_logs`
 
 Este modelo es preliminar y deberá convertirse en migraciones reales cuando se defina la estructura del backend y la base de datos D1.
 
-## 9. Módulos funcionales previstos
+## 13. Módulos funcionales previstos
 
+- Inicio de sesión.
 - Panel de administración.
+- Gestión de roles y permisos.
+- Gestión de usuarios.
+- Configuración.
+- Catálogos.
+- Parámetros.
 - Gestión de eventos.
 - Gestión de cronograma.
 - Gestión de formularios.
@@ -224,35 +366,42 @@ Este modelo es preliminar y deberá convertirse en migraciones reales cuando se 
 - Reportes.
 - Exportación de datos.
 
-## 10. Prioridades iniciales
+## 14. Prioridades iniciales
 
 Para una primera versión funcional se recomienda avanzar en este orden:
 
 1. Base del proyecto y configuración del repositorio.
 2. Definición de arquitectura para Cloudflare Workers, Pages y D1.
 3. Modelo de datos y migraciones iniciales.
-4. CRUD de eventos.
-5. CRUD de fechas o sesiones del cronograma.
-6. Formulario público básico.
-7. Registro de participantes.
-8. Registro de asistencia con validación de estado abierto/cerrado.
-9. Generación de QR y enlace corto.
-10. Reportes iniciales.
+4. Autenticación, sesiones, roles y permisos.
+5. Layout administrativo responsivo.
+6. CRUD de usuarios para administrador.
+7. CRUD de eventos.
+8. CRUD de fechas o sesiones del cronograma.
+9. Control de apertura y cierre de fechas.
+10. Formulario público básico.
+11. Registro de participantes.
+12. Registro de asistencia con validación de estado abierto/cerrado.
+13. Generación de QR y enlace corto.
+14. Reporte inicial de lista de asistencia.
 
-## 11. Decisiones pendientes
+## 15. Decisiones pendientes
 
 - Framework frontend a utilizar.
 - Estructura final del Worker/API.
 - Estrategia de autenticación para administradores.
+- Estrategia final de hash de contraseñas compatible con Cloudflare Workers.
+- Duración de sesiones.
+- Reglas de bloqueo por intentos fallidos de login.
 - Campos obligatorios del participante.
 - Campos personalizables por formulario.
 - Formato de exportación de reportes.
 - Estrategia de generación y persistencia de enlaces cortos.
 - Diseño visual inicial del panel y del formulario público.
 
-## 12. Estado actual
+## 16. Estado actual
 
 - Carpeta local creada: `D:\PROYECTOS\asistencia`.
 - Repositorio GitHub creado: `https://github.com/pantezana/asistencia.git`.
-- Proyecto en fase de inicialización y documentación base.
-
+- Proyecto en fase de documentación funcional inicial.
+- Especificaciones funcionales iniciales documentadas en `docs/especificaciones-funcionales.md`.
