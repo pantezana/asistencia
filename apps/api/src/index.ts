@@ -1,9 +1,10 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { getEventBySlug, getOpenSessionForEvent, listEventSessions } from "./db";
-import type { Env } from "./types";
+import { createSession, getSessionUser, requireAuth, revokeCurrentSession, verifyPassword } from "./auth";
+import { getEventBySlug, getOpenSessionForEvent, getUserForLogin, listEventSessions } from "./db";
+import type { AppContext } from "./types";
 
-const app = new Hono<{ Bindings: Env }>();
+const app = new Hono<AppContext>();
 
 app.use(
   "/api/*",
@@ -21,6 +22,52 @@ app.get("/api/health", (c) =>
     timestamp: new Date().toISOString()
   })
 );
+
+app.post("/api/auth/login", async (c) => {
+  const body = await c.req.json<{ login?: string; password?: string }>().catch(() => null);
+  const login = body?.login?.trim();
+  const password = body?.password;
+
+  if (!login || !password) {
+    return c.json({ ok: false, message: "Ingrese usuario y contraseña." }, 400);
+  }
+
+  const user = await getUserForLogin(c.env.DB, login);
+
+  if (!user || !(await verifyPassword(password, user.password_hash))) {
+    return c.json({ ok: false, message: "Credenciales inválidas." }, 401);
+  }
+
+  await createSession(c, user.id);
+  await c.env.DB.prepare("UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = ?").bind(user.id).run();
+
+  return c.json({
+    ok: true,
+    user: {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      full_name: user.full_name,
+      status: user.status,
+      roles: user.roles ? user.roles.split(",") : []
+    }
+  });
+});
+
+app.get("/api/auth/me", async (c) => {
+  const user = await getSessionUser(c);
+
+  if (!user) {
+    return c.json({ ok: false, user: null }, 401);
+  }
+
+  return c.json({ ok: true, user });
+});
+
+app.post("/api/auth/logout", async (c) => {
+  await revokeCurrentSession(c);
+  return c.json({ ok: true });
+});
 
 app.get("/api/public/forms/:slug", async (c) => {
   const slug = c.req.param("slug");
@@ -55,6 +102,12 @@ app.get("/api/public/forms/:slug", async (c) => {
   });
 });
 
+app.use("/api/admin/*", requireAuth());
+
+app.get("/api/admin/me", (c) => {
+  return c.json({ ok: true, user: c.get("user") });
+});
+
 app.get("/api/admin/events/:eventId/sessions", async (c) => {
   const eventId = c.req.param("eventId");
   const sessions = await listEventSessions(c.env.DB, eventId);
@@ -63,6 +116,19 @@ app.get("/api/admin/events/:eventId/sessions", async (c) => {
     ok: true,
     sessions: sessions.results
   });
+});
+
+app.onError((error, c) => {
+  console.error(error);
+
+  return c.json(
+    {
+      ok: false,
+      message: "Error interno del servidor.",
+      detail: c.env.APP_ENV === "development" ? error.message : undefined
+    },
+    500
+  );
 });
 
 app.notFound((c) => c.json({ ok: false, message: "Ruta no encontrada." }, 404));

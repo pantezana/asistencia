@@ -1,4 +1,4 @@
-import type { EventSummary, OpenSession } from "./types";
+import type { DbUserWithPassword, EventSummary, OpenSession } from "./types";
 
 export async function getEventBySlug(db: D1Database, slug: string) {
   return db
@@ -57,4 +57,26 @@ export async function listEventSessions(db: D1Database, eventId: string) {
     )
     .bind(eventId)
     .all();
+}
+
+export async function getUserForLogin(db: D1Database, login: string) {
+  return db
+    .prepare(
+      `SELECT
+        u.id,
+        u.username,
+        u.email,
+        u.full_name,
+        u.password_hash,
+        u.status,
+        GROUP_CONCAT(r.role_key) AS roles
+       FROM users u
+       LEFT JOIN user_roles ur ON ur.user_id = u.id
+       LEFT JOIN roles r ON r.id = ur.role_id AND r.status = 'active'
+       WHERE (LOWER(u.username) = LOWER(?) OR LOWER(u.email) = LOWER(?))
+         AND u.status = 'active'
+       GROUP BY u.id`
+    )
+    .bind(login, login)
+    .first<DbUserWithPassword>();
 }

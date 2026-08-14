@@ -93,3 +93,13 @@ Primera base técnica creada para iniciar desarrollo incremental:
 - Worker API con healthcheck y formulario público por slug.
 - Frontend React/Vite responsivo inicial.
 - Migraciones iniciales para eventos, módulos, sesiones, formularios, participantes, catálogos y asistencias.
+- Autenticación inicial con roles `administrador` y `supervisor`.
+
+## Credencial Temporal
+
+La migración `0003_auth_roles_usuarios.sql` crea un usuario administrador inicial para bootstrap:
+
+- Usuario: `admin`
+- Contraseña temporal: `AdminTemporal2026!`
+
+Esta contraseña debe cambiarse apenas se implemente la gestión administrativa de usuarios.

@@ -102,6 +102,21 @@ select {
   justify-content: space-between;
 }
 
+.user-menu {
+  align-items: flex-end;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.user-menu span {
+  font-weight: 800;
+}
+
+.user-menu small {
+  color: #667085;
+}
+
 h1,
 h2,
 h3,
@@ -237,6 +252,33 @@ dd {
   padding: 20px;
 }
 
+.login-page {
+  align-items: center;
+  background: #f5f7fb;
+  display: flex;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 20px;
+}
+
+.login-panel {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgb(15 23 42 / 0.06);
+  display: grid;
+  gap: 24px;
+  max-width: 460px;
+  padding: 28px;
+  width: 100%;
+}
+
+.login-panel p {
+  color: #4b5563;
+  line-height: 1.5;
+  margin-bottom: 0;
+}
+
 .public-form {
   max-width: 760px;
   padding: 28px;
@@ -289,6 +331,16 @@ select {
   font-size: 17px;
   line-height: 1.5;
   margin-bottom: 0;
+}
+
+.form-error {
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+  border-radius: 8px;
+  color: #be123c;
+  font-weight: 700;
+  margin: 0;
+  padding: 10px 12px;
 }
 
 @media (max-width: 800px) {

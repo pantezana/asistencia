@@ -23,6 +23,8 @@ Objetivo:
 - Roles administrador y supervisor.
 - Protección de rutas API.
 
+Estado: implementado inicialmente.
+
 ## Parte 3. Gestión de eventos
 
 Objetivo:

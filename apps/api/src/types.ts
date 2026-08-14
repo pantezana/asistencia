@@ -4,6 +4,32 @@ export type Env = {
   CORS_ORIGIN: string;
 };
 
+export type SessionUser = {
+  id: string;
+  username: string;
+  email: string;
+  full_name: string;
+  status: string;
+  roles: string[];
+};
+
+export type DbUserWithPassword = {
+  id: string;
+  username: string;
+  email: string;
+  full_name: string;
+  password_hash: string;
+  status: string;
+  roles: string | null;
+};
+
+export type AppContext = {
+  Bindings: Env;
+  Variables: {
+    user: SessionUser;
+  };
+};
+
 export type EventSummary = {
   id: string;
   title: string;
