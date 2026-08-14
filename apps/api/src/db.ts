@@ -294,7 +294,7 @@ export async function getPublicFormStructure(db: D1Database, formId: string) {
            FROM system_catalog_items i
            INNER JOIN system_catalogs c ON c.id = i.catalog_id
            WHERE c.catalog_key = ? AND i.status = 'active'
-           ORDER BY i.name
+           ORDER BY CASE WHEN UPPER(i.name) LIKE 'OTRO%' THEN 1 ELSE 0 END, i.name
            LIMIT 2500`
         )
         .bind(catalogKey)
@@ -480,7 +480,7 @@ export async function listCatalogItems(db: D1Database, catalogKey: string) {
        FROM system_catalog_items i
        INNER JOIN system_catalogs c ON c.id = i.catalog_id
        WHERE c.catalog_key = ?
-       ORDER BY i.name
+       ORDER BY CASE WHEN UPPER(i.name) LIKE 'OTRO%' THEN 1 ELSE 0 END, i.name
        LIMIT 500`
     )
     .bind(catalogKey)
