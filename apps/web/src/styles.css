@@ -327,6 +327,17 @@ dd {
   padding: 0 6px;
 }
 
+.field-note {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  color: #1d4ed8;
+  font-size: 14px;
+  line-height: 1.4;
+  margin: 0;
+  padding: 10px 12px;
+}
+
 .confirm-panel {
   border: 1px solid #e2e8f0;
   border-radius: 8px;

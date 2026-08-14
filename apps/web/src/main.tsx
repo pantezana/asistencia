@@ -757,7 +757,29 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
   }
 
   function updateField(fieldKey: string, value: string) {
-    setFields((current) => ({ ...current, [fieldKey]: value }));
+    setFields((current) => {
+      if (fieldKey === "ubicacion_pais" && !isPeru(value)) {
+        const { ubicacion_departamento, ubicacion_provincia, ubicacion_distrito, ...rest } = current;
+        return { ...rest, [fieldKey]: value };
+      }
+
+      return { ...current, [fieldKey]: value };
+    });
+  }
+
+  function isPeru(value: string | undefined) {
+    return (value ?? "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim()
+      .toUpperCase() === "PERU";
+  }
+
+  function isOptionalForeignLocationField(fieldKey: string) {
+    return (
+      ["ubicacion_departamento", "ubicacion_provincia", "ubicacion_distrito"].includes(fieldKey) &&
+      !isPeru(fields.ubicacion_pais)
+    );
   }
 
   function nextPublicSection(event: React.FormEvent<HTMLFormElement>, sectionCount: number) {
@@ -867,11 +889,18 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
             {currentPublicSection ? (
               <fieldset className="public-section" key={currentPublicSection.id}>
                 <legend>{currentPublicSection.title}</legend>
+                {currentPublicSection.fields.some((field) => field.field_key === "ubicacion_pais") && fields.ubicacion_pais && !isPeru(fields.ubicacion_pais) ? (
+                  <p className="field-note">Para paises distintos de Peru no se requiere departamento, provincia ni distrito.</p>
+                ) : null}
                 {currentPublicSection.fields.map((field) => {
                   if (
                     field.field_key === "datos_generales_tipo_docidentidad" ||
                     field.field_key === "datos_generales_numero_documento"
                   ) {
+                    return null;
+                  }
+
+                  if (isOptionalForeignLocationField(field.field_key)) {
                     return null;
                   }
 
@@ -886,7 +915,7 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
                         <select
                           value={fields[field.field_key] ?? ""}
                           onChange={(event) => updateField(field.field_key, event.target.value)}
-                          required={Boolean(field.is_required)}
+                          required={Boolean(field.is_required) && !isOptionalForeignLocationField(field.field_key)}
                         >
                           <option value="">Seleccione</option>
                           {options.map((item) => (
@@ -904,7 +933,7 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
                         type={field.field_type === "date" ? "date" : "text"}
                         value={fields[field.field_key] ?? ""}
                         onChange={(event) => updateField(field.field_key, event.target.value)}
-                        required={Boolean(field.is_required)}
+                        required={Boolean(field.is_required) && !isOptionalForeignLocationField(field.field_key)}
                       />
                     </label>
                   );
