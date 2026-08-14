@@ -1,0 +1,42 @@
+{
+  "name": "asistencia",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Gestion de eventos, formularios publicos de asistencia y reportes.",
+  "type": "module",
+  "scripts": {
+    "dev": "npm run dev:web",
+    "dev:api": "wrangler dev apps/api/src/index.ts --config apps/api/wrangler.toml --local --port 8787",
+    "dev:web": "vite --host 0.0.0.0",
+    "build": "npm run build:web",
+    "build:web": "vite build",
+    "typecheck": "tsc --noEmit",
+    "preview:web": "vite preview --host 0.0.0.0",
+    "db:migrate:local": "wrangler d1 migrations apply asistencia-db --local --config apps/api/wrangler.toml",
+    "db:migrate:remote": "wrangler d1 migrations apply asistencia-db --remote --config apps/api/wrangler.toml",
+    "deploy:api": "wrangler deploy --config apps/api/wrangler.toml",
+    "deploy:web": "wrangler pages deploy apps/web/dist --project-name asistencia",
+    "deploy": "npm run build && npm run deploy:api && npm run deploy:web"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pantezana/asistencia.git"
+  },
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@vitejs/plugin-react": "^5.0.0",
+    "hono": "^4.9.2",
+    "qrcode": "^1.5.4",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "vite": "^7.1.2"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250814.0",
+    "@types/qrcode": "^1.5.5",
+    "@types/react": "^19.1.10",
+    "@types/react-dom": "^19.1.7",
+    "typescript": "^5.9.2",
+    "wrangler": "^4.29.1"
+  }
+}
