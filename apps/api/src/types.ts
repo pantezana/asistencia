@@ -63,3 +63,55 @@ export type AdminEvent = EventSummary & {
   session_count: number;
   open_session_count: number;
 };
+
+export type AdminForm = {
+  id: string;
+  event_id: string;
+  event_title: string;
+  name: string;
+  status: string;
+  short_link_slug: string;
+  welcome_title_template: string;
+  cloned_from_form_id: string | null;
+  section_count: number;
+  field_count: number;
+};
+
+export type FormSection = {
+  id: string;
+  section_key: string;
+  title: string;
+  order_index: number;
+};
+
+export type FormField = {
+  id: string;
+  section_id: string;
+  field_key: string;
+  label: string;
+  field_type: string;
+  catalog_key: string | null;
+  is_required: number;
+  order_index: number;
+  config: string;
+};
+
+export type Catalog = {
+  id: string;
+  catalog_key: string;
+  name: string;
+  description: string | null;
+  status: string;
+  item_count: number;
+  active_item_count: number;
+};
+
+export type CatalogItem = {
+  id: string;
+  catalog_id: string;
+  parent_item_id: string | null;
+  source_id: string | null;
+  name: string;
+  description: string | null;
+  status: string;
+};

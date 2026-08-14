@@ -57,6 +57,48 @@ type AdminSession = {
   module_title: string;
 };
 
+type AdminForm = {
+  id: string;
+  event_title: string;
+  name: string;
+  status: string;
+  short_link_slug: string;
+  welcome_title_template: string;
+  cloned_from_form_id: string | null;
+  section_count: number;
+  field_count: number;
+};
+
+type FormField = {
+  id: string;
+  label: string;
+  field_type: string;
+  catalog_key: string | null;
+  is_required: number;
+};
+
+type FormSection = {
+  id: string;
+  title: string;
+  fields: FormField[];
+};
+
+type Catalog = {
+  id: string;
+  catalog_key: string;
+  name: string;
+  status: string;
+  item_count: number;
+  active_item_count: number;
+};
+
+type CatalogItem = {
+  id: string;
+  name: string;
+  description: string | null;
+  status: string;
+};
+
 function App() {
   const path = window.location.pathname;
 
@@ -72,6 +114,13 @@ function AdminShell() {
   const [loading, setLoading] = React.useState(true);
   const [events, setEvents] = React.useState<AdminEvent[]>([]);
   const [sessions, setSessions] = React.useState<AdminSession[]>([]);
+  const [forms, setForms] = React.useState<AdminForm[]>([]);
+  const [selectedFormId, setSelectedFormId] = React.useState<string | null>(null);
+  const [formSections, setFormSections] = React.useState<FormSection[]>([]);
+  const [catalogs, setCatalogs] = React.useState<Catalog[]>([]);
+  const [selectedCatalogKey, setSelectedCatalogKey] = React.useState<string | null>(null);
+  const [catalogItems, setCatalogItems] = React.useState<CatalogItem[]>([]);
+  const [newCatalogItemName, setNewCatalogItemName] = React.useState("");
   const [selectedEventId, setSelectedEventId] = React.useState<string | null>(null);
   const [actionMessage, setActionMessage] = React.useState<string | null>(null);
 
@@ -86,6 +135,8 @@ function AdminShell() {
   React.useEffect(() => {
     if (user) {
       void loadEvents();
+      void loadForms();
+      void loadCatalogs();
     }
   }, [user]);
 
@@ -94,6 +145,18 @@ function AdminShell() {
       void loadSessions(selectedEventId);
     }
   }, [selectedEventId]);
+
+  React.useEffect(() => {
+    if (selectedFormId) {
+      void loadFormDetail(selectedFormId);
+    }
+  }, [selectedFormId]);
+
+  React.useEffect(() => {
+    if (selectedCatalogKey) {
+      void loadCatalogItems(selectedCatalogKey);
+    }
+  }, [selectedCatalogKey]);
 
   if (loading) {
     return <PublicMessage title="Asistencia" message="Validando sesión..." />;
@@ -123,6 +186,94 @@ function AdminShell() {
     setSessions(payload.sessions);
   }
 
+  async function loadForms() {
+    const response = await fetch("/api/admin/forms", { credentials: "include" });
+    if (!response.ok) return;
+    const payload = (await response.json()) as { forms: AdminForm[] };
+    setForms(payload.forms);
+    setSelectedFormId((current) => current ?? payload.forms[0]?.id ?? null);
+  }
+
+  async function loadFormDetail(formId: string) {
+    const response = await fetch(`/api/admin/forms/${formId}`, { credentials: "include" });
+    if (!response.ok) return;
+    const payload = (await response.json()) as { sections: FormSection[] };
+    setFormSections(payload.sections);
+  }
+
+  async function cloneSelectedForm() {
+    if (!selectedFormId) return;
+    const response = await fetch(`/api/admin/forms/${selectedFormId}/clone`, {
+      method: "POST",
+      credentials: "include"
+    });
+
+    if (!response.ok) {
+      setActionMessage("No se pudo clonar el formulario.");
+      return;
+    }
+
+    const payload = (await response.json()) as { form: AdminForm };
+    setActionMessage("Formulario clonado como borrador.");
+    await loadForms();
+    setSelectedFormId(payload.form.id);
+  }
+
+  async function changeFormStatus(form: AdminForm, status: "active" | "inactive" | "draft") {
+    const response = await fetch(`/api/admin/forms/${form.id}/status`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status })
+    });
+
+    setActionMessage(response.ok ? "Estado del formulario actualizado." : "No se pudo actualizar el formulario.");
+    await loadForms();
+  }
+
+  async function loadCatalogs() {
+    const response = await fetch("/api/admin/catalogs", { credentials: "include" });
+    if (!response.ok) return;
+    const payload = (await response.json()) as { catalogs: Catalog[] };
+    setCatalogs(payload.catalogs);
+    setSelectedCatalogKey((current) => current ?? payload.catalogs[0]?.catalog_key ?? null);
+  }
+
+  async function loadCatalogItems(catalogKey: string) {
+    const response = await fetch(`/api/admin/catalogs/${catalogKey}/items`, { credentials: "include" });
+    if (!response.ok) return;
+    const payload = (await response.json()) as { items: CatalogItem[] };
+    setCatalogItems(payload.items);
+  }
+
+  async function addCatalogItem(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedCatalogKey || !newCatalogItemName.trim()) return;
+    const response = await fetch(`/api/admin/catalogs/${selectedCatalogKey}/items`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: newCatalogItemName.trim() })
+    });
+
+    if (response.ok) {
+      setNewCatalogItemName("");
+      await loadCatalogs();
+      await loadCatalogItems(selectedCatalogKey);
+    }
+  }
+
+  async function toggleCatalogItem(item: CatalogItem) {
+    if (!selectedCatalogKey) return;
+    await fetch(`/api/admin/catalog-items/${item.id}/status`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: item.status === "active" ? "inactive" : "active" })
+    });
+    await loadCatalogItems(selectedCatalogKey);
+  }
+
   async function changeSessionState(session: AdminSession, action: "open" | "close") {
     if (!selectedEventId) return;
     setActionMessage(null);
@@ -144,6 +295,8 @@ function AdminShell() {
 
   const selectedEvent = events.find((event) => event.id === selectedEventId) ?? events[0];
   const openSession = sessions.find((session) => session.attendance_status === "open");
+  const selectedForm = forms.find((form) => form.id === selectedFormId) ?? forms[0];
+  const selectedCatalog = catalogs.find((catalog) => catalog.catalog_key === selectedCatalogKey) ?? catalogs[0];
 
   return (
     <div className="app-shell">
@@ -270,6 +423,140 @@ function AdminShell() {
                 ))}
               </tbody>
             </table>
+          </div>
+        </section>
+
+        <section className="workspace-section" id="formularios">
+          <div className="section-heading">
+            <div>
+              <p className="eyebrow">Plantillas y formularios</p>
+              <h2>Formularios de asistencia</h2>
+            </div>
+            <div className="actions">
+              <button className="button secondary" type="button" onClick={cloneSelectedForm} disabled={!selectedForm}>
+                Clonar formulario
+              </button>
+            </div>
+          </div>
+
+          <div className="split-grid">
+            <div className="list-panel">
+              {forms.map((form) => (
+                <button
+                  className={`list-row ${form.id === selectedForm?.id ? "selected" : ""}`}
+                  key={form.id}
+                  type="button"
+                  onClick={() => setSelectedFormId(form.id)}
+                >
+                  <strong>{form.name}</strong>
+                  <span>{form.section_count} secciones · {form.field_count} campos</span>
+                  <small>{form.status}</small>
+                </button>
+              ))}
+            </div>
+
+            <div className="detail-panel">
+              {selectedForm ? (
+                <>
+                  <div className="detail-heading">
+                    <div>
+                      <h3>{selectedForm.name}</h3>
+                      <p>{selectedForm.event_title}</p>
+                    </div>
+                    <span className={`status ${selectedForm.status === "active" ? "open" : "closed"}`}>
+                      {selectedForm.status}
+                    </span>
+                  </div>
+                  <div className="detail-actions">
+                    <a className="button secondary" href={`/f/${selectedForm.short_link_slug}`}>Ver público</a>
+                    <button className="button secondary" type="button" onClick={() => changeFormStatus(selectedForm, "active")}>
+                      Activar
+                    </button>
+                    <button className="button secondary" type="button" onClick={() => changeFormStatus(selectedForm, "inactive")}>
+                      Inactivar
+                    </button>
+                  </div>
+                  <div className="form-structure">
+                    {formSections.map((section) => (
+                      <div className="structure-section" key={section.id}>
+                        <h4>{section.title}</h4>
+                        <div className="field-grid">
+                          {section.fields.map((field) => (
+                            <div className="field-chip" key={field.id}>
+                              <strong>{field.label}</strong>
+                              <span>{field.field_type}{field.catalog_key ? ` · ${field.catalog_key}` : ""}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <p className="blocked-message">No hay formularios configurados.</p>
+              )}
+            </div>
+          </div>
+        </section>
+
+        <section className="workspace-section" id="configuracion">
+          <div className="section-heading">
+            <div>
+              <p className="eyebrow">Configuración</p>
+              <h2>Catálogos</h2>
+            </div>
+          </div>
+
+          <div className="split-grid">
+            <div className="list-panel compact-list">
+              {catalogs.map((catalog) => (
+                <button
+                  className={`list-row ${catalog.catalog_key === selectedCatalog?.catalog_key ? "selected" : ""}`}
+                  key={catalog.id}
+                  type="button"
+                  onClick={() => setSelectedCatalogKey(catalog.catalog_key)}
+                >
+                  <strong>{catalog.catalog_key}</strong>
+                  <span>{catalog.active_item_count} activos de {catalog.item_count}</span>
+                </button>
+              ))}
+            </div>
+
+            <div className="detail-panel">
+              {selectedCatalog ? (
+                <>
+                  <div className="detail-heading">
+                    <div>
+                      <h3>{selectedCatalog.catalog_key}</h3>
+                      <p>Mantenimiento básico de opciones para campos tipo select.</p>
+                    </div>
+                  </div>
+                  <form className="inline-form" onSubmit={addCatalogItem}>
+                    <input
+                      value={newCatalogItemName}
+                      onChange={(event) => setNewCatalogItemName(event.target.value)}
+                      placeholder="Nuevo elemento"
+                    />
+                    <button className="button" type="submit">Agregar</button>
+                  </form>
+                  <div className="catalog-items">
+                    {catalogItems.map((item) => (
+                      <div className="catalog-item" key={item.id}>
+                        <div>
+                          <strong>{item.name}</strong>
+                          <span>{item.description}</span>
+                        </div>
+                        <button className="button secondary table-action" type="button" onClick={() => toggleCatalogItem(item)}>
+                          {item.status === "active" ? "Inactivar" : "Activar"}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <p className="blocked-message">No hay catálogos configurados.</p>
+              )}
+            </div>
           </div>
         </section>
       </main>

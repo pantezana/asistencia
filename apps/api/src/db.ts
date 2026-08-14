@@ -1,4 +1,15 @@
-import type { AdminEvent, DbUserWithPassword, EventSummary, OpenSession, SessionUser } from "./types";
+import type {
+  AdminEvent,
+  AdminForm,
+  Catalog,
+  CatalogItem,
+  DbUserWithPassword,
+  EventSummary,
+  FormField,
+  FormSection,
+  OpenSession,
+  SessionUser
+} from "./types";
 
 function canSeeAllEvents(user: SessionUser) {
   return user.roles.includes("administrador");
@@ -161,6 +172,231 @@ export async function closeEventSession(db: D1Database, eventId: string, session
        WHERE id = ? AND event_id = ?`
     )
     .bind(sessionId, eventId)
+    .run();
+
+  return result.meta.changes > 0;
+}
+
+export async function listAdminForms(db: D1Database, user: SessionUser) {
+  const whereSql = canSeeAllEvents(user) ? "" : "WHERE e.created_by_user_id = ?";
+  const statement = db.prepare(
+    `SELECT
+      f.id,
+      f.event_id,
+      e.title AS event_title,
+      f.name,
+      f.status,
+      f.short_link_slug,
+      f.welcome_title_template,
+      f.cloned_from_form_id,
+      COUNT(DISTINCT fs.id) AS section_count,
+      COUNT(DISTINCT ff.id) AS field_count
+     FROM forms f
+     INNER JOIN events e ON e.id = f.event_id
+     LEFT JOIN form_sections fs ON fs.form_id = f.id
+     LEFT JOIN form_fields ff ON ff.form_id = f.id
+     ${whereSql}
+     GROUP BY f.id
+     ORDER BY f.created_at DESC`
+  );
+
+  return canSeeAllEvents(user) ? statement.all<AdminForm>() : statement.bind(user.id).all<AdminForm>();
+}
+
+export async function getAdminForm(db: D1Database, formId: string, user: SessionUser) {
+  const whereSql = canSeeAllEvents(user) ? "WHERE f.id = ?" : "WHERE f.id = ? AND e.created_by_user_id = ?";
+  const statement = db.prepare(
+    `SELECT
+      f.id,
+      f.event_id,
+      e.title AS event_title,
+      f.name,
+      f.status,
+      f.short_link_slug,
+      f.welcome_title_template,
+      f.cloned_from_form_id,
+      COUNT(DISTINCT fs.id) AS section_count,
+      COUNT(DISTINCT ff.id) AS field_count
+     FROM forms f
+     INNER JOIN events e ON e.id = f.event_id
+     LEFT JOIN form_sections fs ON fs.form_id = f.id
+     LEFT JOIN form_fields ff ON ff.form_id = f.id
+     ${whereSql}
+     GROUP BY f.id`
+  );
+
+  return canSeeAllEvents(user)
+    ? statement.bind(formId).first<AdminForm>()
+    : statement.bind(formId, user.id).first<AdminForm>();
+}
+
+export async function getFormStructure(db: D1Database, formId: string) {
+  const [sections, fields] = await Promise.all([
+    db
+      .prepare(
+        `SELECT id, section_key, title, order_index
+         FROM form_sections
+         WHERE form_id = ?
+         ORDER BY order_index`
+      )
+      .bind(formId)
+      .all<FormSection>(),
+    db
+      .prepare(
+        `SELECT id, section_id, field_key, label, field_type, catalog_key, is_required, order_index, config
+         FROM form_fields
+         WHERE form_id = ?
+         ORDER BY order_index`
+      )
+      .bind(formId)
+      .all<FormField>()
+  ]);
+
+  return {
+    sections: sections.results.map((section) => ({
+      ...section,
+      fields: fields.results.filter((field) => field.section_id === section.id)
+    }))
+  };
+}
+
+export async function updateFormStatus(db: D1Database, formId: string, status: string) {
+  const result = await db
+    .prepare("UPDATE forms SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+    .bind(status, formId)
+    .run();
+
+  return result.meta.changes > 0;
+}
+
+export async function cloneForm(db: D1Database, sourceFormId: string, user: SessionUser) {
+  const source = await getAdminForm(db, sourceFormId, user);
+
+  if (!source) {
+    return null;
+  }
+
+  const suffix = crypto.randomUUID().slice(0, 8);
+  const cloneId = `form_clone_${suffix}`;
+  const slug = `${source.short_link_slug}-copia-${suffix}`;
+  const now = "CURRENT_TIMESTAMP";
+  const sections = await db
+    .prepare("SELECT id, section_key, title, order_index FROM form_sections WHERE form_id = ? ORDER BY order_index")
+    .bind(sourceFormId)
+    .all<FormSection>();
+  const fields = await db
+    .prepare(
+      "SELECT id, section_id, field_key, label, field_type, catalog_key, is_required, order_index, config FROM form_fields WHERE form_id = ? ORDER BY order_index"
+    )
+    .bind(sourceFormId)
+    .all<FormField>();
+
+  const statements = [
+    db
+      .prepare(
+        `INSERT INTO forms (id, event_id, name, status, short_link_slug, welcome_title_template, cloned_from_form_id)
+         VALUES (?, ?, ?, 'draft', ?, ?, ?)`
+      )
+      .bind(cloneId, source.event_id, `${source.name} - copia`, slug, source.welcome_title_template, source.id)
+  ];
+
+  for (const section of sections.results) {
+    const newSectionId = `${section.id}_${suffix}`;
+    statements.push(
+      db
+        .prepare(
+          `INSERT INTO form_sections (id, form_id, section_key, title, order_index, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ${now}, ${now})`
+        )
+        .bind(newSectionId, cloneId, section.section_key, section.title, section.order_index)
+    );
+
+    for (const field of fields.results.filter((item) => item.section_id === section.id)) {
+      statements.push(
+        db
+          .prepare(
+            `INSERT INTO form_fields (id, form_id, section_id, field_key, label, field_type, catalog_key, is_required, order_index, config, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ${now}, ${now})`
+          )
+          .bind(
+            `${field.id}_${suffix}`,
+            cloneId,
+            newSectionId,
+            field.field_key,
+            field.label,
+            field.field_type,
+            field.catalog_key,
+            field.is_required,
+            field.order_index,
+            field.config
+          )
+      );
+    }
+  }
+
+  await db.batch(statements);
+  return getAdminForm(db, cloneId, user);
+}
+
+export async function listCatalogs(db: D1Database) {
+  return db
+    .prepare(
+      `SELECT
+        c.id,
+        c.catalog_key,
+        c.name,
+        c.description,
+        c.status,
+        COUNT(i.id) AS item_count,
+        COUNT(CASE WHEN i.status = 'active' THEN 1 END) AS active_item_count
+       FROM system_catalogs c
+       LEFT JOIN system_catalog_items i ON i.catalog_id = c.id
+       GROUP BY c.id
+       ORDER BY c.catalog_key`
+    )
+    .all<Catalog>();
+}
+
+export async function listCatalogItems(db: D1Database, catalogKey: string) {
+  return db
+    .prepare(
+      `SELECT i.id, i.catalog_id, i.parent_item_id, i.source_id, i.name, i.description, i.status
+       FROM system_catalog_items i
+       INNER JOIN system_catalogs c ON c.id = i.catalog_id
+       WHERE c.catalog_key = ?
+       ORDER BY i.name
+       LIMIT 500`
+    )
+    .bind(catalogKey)
+    .all<CatalogItem>();
+}
+
+export async function createCatalogItem(db: D1Database, catalogKey: string, name: string, description?: string) {
+  const catalog = await db
+    .prepare("SELECT id FROM system_catalogs WHERE catalog_key = ?")
+    .bind(catalogKey)
+    .first<{ id: string }>();
+
+  if (!catalog) {
+    return null;
+  }
+
+  const itemId = `catitem_${catalogKey}_${crypto.randomUUID().slice(0, 12)}`;
+  await db
+    .prepare(
+      `INSERT INTO system_catalog_items (id, catalog_id, name, description, status)
+       VALUES (?, ?, ?, ?, 'active')`
+    )
+    .bind(itemId, catalog.id, name, description ?? name)
+    .run();
+
+  return itemId;
+}
+
+export async function updateCatalogItemStatus(db: D1Database, itemId: string, status: string) {
+  const result = await db
+    .prepare("UPDATE system_catalog_items SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+    .bind(status, itemId)
     .run();
 
   return result.meta.changes > 0;

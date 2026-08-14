@@ -3,13 +3,22 @@ import { cors } from "hono/cors";
 import { createSession, getSessionUser, requireAuth, revokeCurrentSession, verifyPassword } from "./auth";
 import {
   closeEventSession,
+  cloneForm,
+  createCatalogItem,
   getEventBySlug,
+  getAdminForm,
+  getFormStructure,
   getOpenSessionForEvent,
   getUserForLogin,
   listAdminEvents,
+  listAdminForms,
+  listCatalogItems,
+  listCatalogs,
   listEventModules,
   listEventSessions,
   openEventSession,
+  updateCatalogItemStatus,
+  updateFormStatus,
   userCanManageEvent
 } from "./db";
 import type { AppContext } from "./types";
@@ -161,6 +170,97 @@ app.get("/api/admin/events/:eventId/sessions", async (c) => {
     ok: true,
     sessions: sessions.results
   });
+});
+
+app.get("/api/admin/forms", async (c) => {
+  const forms = await listAdminForms(c.env.DB, c.get("user"));
+  return c.json({ ok: true, forms: forms.results });
+});
+
+app.get("/api/admin/forms/:formId", async (c) => {
+  const formId = c.req.param("formId");
+  const form = await getAdminForm(c.env.DB, formId, c.get("user"));
+
+  if (!form) {
+    return c.json({ ok: false, message: "Formulario no encontrado o no autorizado." }, 404);
+  }
+
+  const structure = await getFormStructure(c.env.DB, formId);
+  return c.json({ ok: true, form, ...structure });
+});
+
+app.post("/api/admin/forms/:formId/clone", async (c) => {
+  const formId = c.req.param("formId");
+  const form = await cloneForm(c.env.DB, formId, c.get("user"));
+
+  if (!form) {
+    return c.json({ ok: false, message: "Formulario no encontrado o no autorizado." }, 404);
+  }
+
+  return c.json({ ok: true, form });
+});
+
+app.post("/api/admin/forms/:formId/status", async (c) => {
+  const formId = c.req.param("formId");
+  const body = await c.req.json<{ status?: string }>().catch(() => null);
+  const status = body?.status;
+
+  if (!status || !["draft", "active", "inactive"].includes(status)) {
+    return c.json({ ok: false, message: "Estado inválido." }, 400);
+  }
+
+  const form = await getAdminForm(c.env.DB, formId, c.get("user"));
+
+  if (!form) {
+    return c.json({ ok: false, message: "Formulario no encontrado o no autorizado." }, 404);
+  }
+
+  await updateFormStatus(c.env.DB, formId, status);
+  return c.json({ ok: true });
+});
+
+app.get("/api/admin/catalogs", async (c) => {
+  const catalogs = await listCatalogs(c.env.DB);
+  return c.json({ ok: true, catalogs: catalogs.results });
+});
+
+app.get("/api/admin/catalogs/:catalogKey/items", async (c) => {
+  const items = await listCatalogItems(c.env.DB, c.req.param("catalogKey"));
+  return c.json({ ok: true, items: items.results });
+});
+
+app.post("/api/admin/catalogs/:catalogKey/items", async (c) => {
+  const body = await c.req.json<{ name?: string; description?: string }>().catch(() => null);
+  const name = body?.name?.trim();
+
+  if (!name) {
+    return c.json({ ok: false, message: "Ingrese el nombre del elemento." }, 400);
+  }
+
+  const itemId = await createCatalogItem(c.env.DB, c.req.param("catalogKey"), name, body?.description?.trim());
+
+  if (!itemId) {
+    return c.json({ ok: false, message: "Catálogo no encontrado." }, 404);
+  }
+
+  return c.json({ ok: true, itemId });
+});
+
+app.post("/api/admin/catalog-items/:itemId/status", async (c) => {
+  const body = await c.req.json<{ status?: string }>().catch(() => null);
+  const status = body?.status;
+
+  if (!status || !["active", "inactive"].includes(status)) {
+    return c.json({ ok: false, message: "Estado inválido." }, 400);
+  }
+
+  const changed = await updateCatalogItemStatus(c.env.DB, c.req.param("itemId"), status);
+
+  if (!changed) {
+    return c.json({ ok: false, message: "Elemento no encontrado." }, 404);
+  }
+
+  return c.json({ ok: true });
 });
 
 app.post("/api/admin/events/:eventId/sessions/:sessionId/open", async (c) => {
