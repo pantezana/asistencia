@@ -686,6 +686,10 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
   const [districts, setDistricts] = React.useState<LocationOption[]>([]);
   const [selectedDepartmentId, setSelectedDepartmentId] = React.useState("");
   const [selectedProvinceId, setSelectedProvinceId] = React.useState("");
+  const [organizationProvinces, setOrganizationProvinces] = React.useState<LocationOption[]>([]);
+  const [organizationDistricts, setOrganizationDistricts] = React.useState<LocationOption[]>([]);
+  const [selectedOrganizationDepartmentId, setSelectedOrganizationDepartmentId] = React.useState("");
+  const [selectedOrganizationProvinceId, setSelectedOrganizationProvinceId] = React.useState("");
   const [message, setMessage] = React.useState<string | null>(null);
   const [submitting, setSubmitting] = React.useState(false);
 
@@ -785,6 +789,33 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
         return { ...rest, [fieldKey]: value };
       }
 
+      if (fieldKey === "organizacion_pais" && !isPeru(value)) {
+        const { organizacion_departamento, organizacion_provincia, organizacion_distrito, ...rest } = current;
+        setSelectedOrganizationDepartmentId("");
+        setSelectedOrganizationProvinceId("");
+        setOrganizationProvinces([]);
+        setOrganizationDistricts([]);
+        return { ...rest, [fieldKey]: value };
+      }
+
+      if (fieldKey === "organizacion_pertenece_a_organizacion" && value !== "SI") {
+        const {
+          organizacion_tipo_de_organizacion,
+          organizacion_ruc,
+          organizacion_organizacion,
+          organizacion_pais,
+          organizacion_departamento,
+          organizacion_provincia,
+          organizacion_distrito,
+          ...rest
+        } = current;
+        setSelectedOrganizationDepartmentId("");
+        setSelectedOrganizationProvinceId("");
+        setOrganizationProvinces([]);
+        setOrganizationDistricts([]);
+        return { ...rest, [fieldKey]: value };
+      }
+
       return { ...current, [fieldKey]: value };
     });
   }
@@ -835,6 +866,52 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
     updateField("ubicacion_distrito", district?.name ?? "");
   }
 
+  async function selectOrganizationDepartment(departmentId: string) {
+    const department = departments.find((item) => item.id === departmentId);
+    setSelectedOrganizationDepartmentId(departmentId);
+    setSelectedOrganizationProvinceId("");
+    setOrganizationDistricts([]);
+    setFields((current) => ({
+      ...current,
+      organizacion_departamento: department?.name ?? "",
+      organizacion_provincia: "",
+      organizacion_distrito: ""
+    }));
+
+    if (!departmentId) {
+      setOrganizationProvinces([]);
+      return;
+    }
+
+    const response = await fetch(`/api/public/location/provinces?departmentId=${encodeURIComponent(departmentId)}`);
+    const payload = (await response.json()) as { provinces: LocationOption[] };
+    setOrganizationProvinces(response.ok ? payload.provinces : []);
+  }
+
+  async function selectOrganizationProvince(provinceId: string) {
+    const province = organizationProvinces.find((item) => item.id === provinceId);
+    setSelectedOrganizationProvinceId(provinceId);
+    setFields((current) => ({
+      ...current,
+      organizacion_provincia: province?.name ?? "",
+      organizacion_distrito: ""
+    }));
+
+    if (!provinceId) {
+      setOrganizationDistricts([]);
+      return;
+    }
+
+    const response = await fetch(`/api/public/location/districts?provinceId=${encodeURIComponent(provinceId)}`);
+    const payload = (await response.json()) as { districts: LocationOption[] };
+    setOrganizationDistricts(response.ok ? payload.districts : []);
+  }
+
+  function selectOrganizationDistrict(districtId: string) {
+    const district = organizationDistricts.find((item) => item.id === districtId);
+    updateField("organizacion_distrito", district?.name ?? "");
+  }
+
   function isPeru(value: string | undefined) {
     return (value ?? "")
       .normalize("NFD")
@@ -847,6 +924,25 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
     return (
       ["ubicacion_departamento", "ubicacion_provincia", "ubicacion_distrito"].includes(fieldKey) &&
       !isPeru(fields.ubicacion_pais)
+    );
+  }
+
+  function isOrganizationDetailField(fieldKey: string) {
+    return [
+      "organizacion_tipo_de_organizacion",
+      "organizacion_ruc",
+      "organizacion_organizacion",
+      "organizacion_pais",
+      "organizacion_departamento",
+      "organizacion_provincia",
+      "organizacion_distrito"
+    ].includes(fieldKey);
+  }
+
+  function isOptionalOrganizationLocationField(fieldKey: string) {
+    return (
+      ["organizacion_departamento", "organizacion_provincia", "organizacion_distrito"].includes(fieldKey) &&
+      !isPeru(fields.organizacion_pais)
     );
   }
 
@@ -1002,6 +1098,9 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
                 {currentPublicSection.fields.some((field) => field.field_key === "ubicacion_pais") && fields.ubicacion_pais && !isPeru(fields.ubicacion_pais) ? (
                   <p className="field-note">Para paises distintos de Peru no se requiere departamento, provincia ni distrito.</p>
                 ) : null}
+                {currentPublicSection.fields.some((field) => field.field_key === "organizacion_pais") && fields.organizacion_pais && !isPeru(fields.organizacion_pais) ? (
+                  <p className="field-note">Para sedes fuera de Peru no se requiere departamento, provincia ni distrito.</p>
+                ) : null}
                 {false && currentPublicSection.section_key === "actividad" ? (
                   <label>
                     Es Productor Agrario, Pecuario o Forestal
@@ -1027,13 +1126,24 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
                     return null;
                   }
 
-                  if (isOptionalForeignLocationField(field.field_key)) {
+	                  if (isOptionalForeignLocationField(field.field_key)) {
+	                    return null;
+	                  }
+
+                  if (
+                    isOrganizationDetailField(field.field_key) &&
+                    fields.organizacion_pertenece_a_organizacion !== "SI"
+                  ) {
                     return null;
                   }
 
-                  if (isActivityProductField(field.field_key) && fields.actividad_es_productor_agrario_pecuario_forestal !== "SI") {
+                  if (isOptionalOrganizationLocationField(field.field_key)) {
                     return null;
                   }
+
+	                  if (isActivityProductField(field.field_key) && fields.actividad_es_productor_agrario_pecuario_forestal !== "SI") {
+	                    return null;
+	                  }
 
                   if (field.field_key === "ubicacion_departamento") {
 	                    return (
@@ -1072,7 +1182,7 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
                     );
                   }
 
-                  if (field.field_key === "ubicacion_distrito") {
+	                  if (field.field_key === "ubicacion_distrito") {
                     return (
                       <label key={field.id}>
                         {field.label}
@@ -1088,22 +1198,91 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
                           ))}
                         </select>
                       </label>
+	                    );
+	                  }
+
+                  if (field.field_key === "organizacion_departamento") {
+                    return (
+                      <label key={field.id}>
+                        {field.label}
+                        <select
+                          value={selectedOrganizationDepartmentId}
+                          onChange={(event) => void selectOrganizationDepartment(event.target.value)}
+                          required={isPeru(fields.organizacion_pais)}
+                        >
+                          <option value="">Seleccione departamento</option>
+                          {departments.map((item) => (
+                            <option key={item.id} value={item.id}>{item.name}</option>
+                          ))}
+                        </select>
+                      </label>
                     );
                   }
 
-                  if (field.field_type === "select" || field.field_type === "radio") {
+                  if (field.field_key === "organizacion_provincia") {
+                    return (
+                      <label key={field.id}>
+                        {field.label}
+                        <select
+                          value={selectedOrganizationProvinceId}
+                          onChange={(event) => void selectOrganizationProvince(event.target.value)}
+                          required={isPeru(fields.organizacion_pais)}
+                          disabled={!selectedOrganizationDepartmentId}
+                        >
+                          <option value="">Seleccione provincia</option>
+                          {organizationProvinces.map((item) => (
+                            <option key={item.id} value={item.id}>{item.name}</option>
+                          ))}
+                        </select>
+                      </label>
+                    );
+                  }
+
+                  if (field.field_key === "organizacion_distrito") {
+                    return (
+                      <label key={field.id}>
+                        {field.label}
+                        <select
+                          value={organizationDistricts.find((item) => item.name === fields.organizacion_distrito)?.id ?? ""}
+                          onChange={(event) => selectOrganizationDistrict(event.target.value)}
+                          required={isPeru(fields.organizacion_pais)}
+                          disabled={!selectedOrganizationProvinceId}
+                        >
+                          <option value="">Seleccione distrito</option>
+                          {organizationDistricts.map((item) => (
+                            <option key={item.id} value={item.id}>{item.name}</option>
+                          ))}
+                        </select>
+                      </label>
+                    );
+                  }
+
+	                  if (field.field_type === "select" || field.field_type === "radio") {
                     const options = field.field_type === "radio"
                       ? [{ id: "si", name: "SI" }, { id: "no", name: "NO" }]
                       : data.catalogs?.[field.catalog_key ?? ""] ?? [];
 
                     return (
                       <React.Fragment key={field.id}>
+                      {field.field_key === "organizacion_pais" ? (
+                        <p className="field-note">Ubicación de la sede de su organización</p>
+                      ) : null}
                       <label>
-	                        {field.field_key === "actividad_actividad_del_productor" ? "Cuál es su actividad" : field.label}
-	                        <select
-                          value={fields[field.field_key] ?? ""}
-                          onChange={(event) => updateField(field.field_key, event.target.value)}
-	                          required={Boolean(field.is_required) && !isOptionalForeignLocationField(field.field_key) && !isActivityProductField(field.field_key)}
+                        {field.field_key === "actividad_actividad_del_productor"
+                          ? "Cuál es su actividad"
+                          : field.field_key === "organizacion_pertenece_a_organizacion"
+                            ? "Pertenece a una organización"
+                            : field.label}
+		                        <select
+	                          value={fields[field.field_key] ?? ""}
+	                          onChange={(event) => updateField(field.field_key, event.target.value)}
+		                          required={
+                              Boolean(field.is_required) &&
+                              !isOptionalForeignLocationField(field.field_key) &&
+                              !isOptionalOrganizationLocationField(field.field_key) &&
+                              !isActivityProductField(field.field_key) &&
+                              field.field_key !== "organizacion_ruc"
+                            }
                         >
                           <option value="">Seleccione</option>
                           {options.map((item) => (
@@ -1136,12 +1315,17 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
 
                   return (
                     <label key={field.id}>
-                      {field.label}
+                      {field.field_key === "organizacion_pertenece_a_organizacion" ? "Pertenece a una organización" : field.label}
                       <input
                         type={field.field_type === "date" ? "date" : "text"}
                         value={fields[field.field_key] ?? ""}
                         onChange={(event) => updateField(field.field_key, event.target.value)}
-                        required={Boolean(field.is_required) && !isOptionalForeignLocationField(field.field_key)}
+                        required={
+                          Boolean(field.is_required) &&
+                          !isOptionalForeignLocationField(field.field_key) &&
+                          !isOptionalOrganizationLocationField(field.field_key) &&
+                          field.field_key !== "organizacion_ruc"
+                        }
                       />
                     </label>
                   );
