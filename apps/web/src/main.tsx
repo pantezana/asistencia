@@ -7,6 +7,10 @@ type PublicFormResponse = {
   canRegister: boolean;
   message?: string;
   welcomeTitle?: string;
+  form?: {
+    id: string;
+    name: string;
+  };
   event?: {
     title: string;
     start_date: string;
@@ -20,6 +24,32 @@ type PublicFormResponse = {
     end_time: string;
     module_title: string;
   } | null;
+  sections?: PublicFormSection[];
+  catalogs?: Record<string, CatalogItem[]>;
+};
+
+type PublicFormSection = {
+  id: string;
+  title: string;
+  fields: PublicFormField[];
+};
+
+type PublicFormField = {
+  id: string;
+  field_key: string;
+  label: string;
+  field_type: string;
+  catalog_key: string | null;
+  is_required: number;
+  config: string;
+};
+
+type PublicParticipant = {
+  id: string;
+  first_name: string;
+  paternal_last_name: string | null;
+  maternal_last_name: string | null;
+  email: string | null;
 };
 
 type SessionUser = {
@@ -639,6 +669,13 @@ function Metric({ label, value }: { label: string; value: string }) {
 function PublicAttendanceForm({ slug }: { slug: string }) {
   const [data, setData] = React.useState<PublicFormResponse | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+  const [documentType, setDocumentType] = React.useState("DNI/CEDULA");
+  const [documentNumber, setDocumentNumber] = React.useState("");
+  const [fields, setFields] = React.useState<Record<string, string>>({});
+  const [participant, setParticipant] = React.useState<PublicParticipant | null>(null);
+  const [step, setStep] = React.useState<"document" | "existing" | "new" | "done">("document");
+  const [message, setMessage] = React.useState<string | null>(null);
+  const [submitting, setSubmitting] = React.useState(false);
 
   React.useEffect(() => {
     fetch(`/api/public/forms/${slug}`)
@@ -651,6 +688,75 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
       .then(setData)
       .catch((err: Error) => setError(err.message));
   }, [slug]);
+
+  async function identify(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSubmitting(true);
+    setMessage(null);
+
+    const response = await fetch(`/api/public/forms/${slug}/identify`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ documentType, documentNumber })
+    });
+    const payload = (await response.json()) as {
+      message?: string;
+      exists?: boolean;
+      participant?: PublicParticipant | null;
+      alreadyRegistered?: boolean;
+    };
+
+    setSubmitting(false);
+
+    if (!response.ok) {
+      setMessage(payload.message ?? "No se pudo validar el documento.");
+      return;
+    }
+
+    if (payload.alreadyRegistered) {
+      setStep("done");
+      setMessage("Su asistencia ya fue registrada para esta sesion.");
+      return;
+    }
+
+    if (payload.exists && payload.participant) {
+      setParticipant(payload.participant);
+      setStep("existing");
+      return;
+    }
+
+    setParticipant(null);
+    setFields((current) => ({
+      ...current,
+      datos_generales_tipo_docidentidad: documentType,
+      datos_generales_numero_documento: documentNumber
+    }));
+    setStep("new");
+  }
+
+  async function submitAttendance(event?: React.FormEvent<HTMLFormElement>) {
+    event?.preventDefault();
+    setSubmitting(true);
+    setMessage(null);
+
+    const response = await fetch(`/api/public/forms/${slug}/attendance`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ documentType, documentNumber, participantId: participant?.id, fields })
+    });
+    const payload = (await response.json()) as { message?: string };
+
+    setSubmitting(false);
+    setMessage(payload.message ?? (response.ok ? "Asistencia registrada correctamente." : "No se pudo registrar la asistencia."));
+
+    if (response.ok) {
+      setStep("done");
+    }
+  }
+
+  function updateField(fieldKey: string, value: string) {
+    setFields((current) => ({ ...current, [fieldKey]: value }));
+  }
 
   if (error) {
     return <PublicMessage title="Formulario no disponible" message={error} />;
@@ -680,10 +786,13 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
           <span>{data.openSession.start_time} - {data.openSession.end_time}</span>
         </div>
 
-        <form className="document-form">
+        {message ? <p className={step === "done" ? "form-success" : "form-error"}>{message}</p> : null}
+
+        {step === "document" ? (
+        <form className="document-form" onSubmit={identify}>
           <label>
             Tipo de documento
-            <select defaultValue="DNI/CEDULA">
+            <select value={documentType} onChange={(event) => setDocumentType(event.target.value)}>
               <option>DNI/CEDULA</option>
               <option>CARNET EXTRANJERIA</option>
               <option>PASAPORTE</option>
@@ -692,10 +801,90 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
           </label>
           <label>
             Número de documento
-            <input type="text" inputMode="numeric" placeholder="Ingrese su documento" />
+            <input
+              type="text"
+              inputMode="numeric"
+              placeholder="Ingrese su documento"
+              value={documentNumber}
+              onChange={(event) => setDocumentNumber(event.target.value)}
+              required
+            />
           </label>
-          <button className="button" type="button">Continuar</button>
+          <button className="button" type="submit" disabled={submitting}>
+            {submitting ? "Validando..." : "Continuar"}
+          </button>
         </form>
+        ) : null}
+
+        {step === "existing" && participant ? (
+          <div className="confirm-panel">
+            <h2>Confirme su asistencia</h2>
+            <p>{participant.first_name} {participant.paternal_last_name ?? ""} {participant.maternal_last_name ?? ""}</p>
+            <div className="actions">
+              <button className="button" type="button" onClick={() => void submitAttendance()} disabled={submitting}>
+                {submitting ? "Registrando..." : "Confirmar asistencia"}
+              </button>
+              <button className="button secondary" type="button" onClick={() => setStep("document")}>
+                Cambiar documento
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {step === "new" ? (
+          <form className="document-form" onSubmit={submitAttendance}>
+            {(data.sections ?? []).map((section) => (
+              <fieldset className="public-section" key={section.id}>
+                <legend>{section.title}</legend>
+                {section.fields.map((field) => {
+                  if (
+                    field.field_key === "datos_generales_tipo_docidentidad" ||
+                    field.field_key === "datos_generales_numero_documento"
+                  ) {
+                    return null;
+                  }
+
+                  if (field.field_type === "select" || field.field_type === "radio") {
+                    const options = field.field_type === "radio"
+                      ? [{ id: "si", name: "SI" }, { id: "no", name: "NO" }]
+                      : data.catalogs?.[field.catalog_key ?? ""] ?? [];
+
+                    return (
+                      <label key={field.id}>
+                        {field.label}
+                        <select
+                          value={fields[field.field_key] ?? ""}
+                          onChange={(event) => updateField(field.field_key, event.target.value)}
+                          required={Boolean(field.is_required)}
+                        >
+                          <option value="">Seleccione</option>
+                          {options.map((item) => (
+                            <option key={item.id} value={item.name}>{item.name}</option>
+                          ))}
+                        </select>
+                      </label>
+                    );
+                  }
+
+                  return (
+                    <label key={field.id}>
+                      {field.label}
+                      <input
+                        type={field.field_type === "date" ? "date" : "text"}
+                        value={fields[field.field_key] ?? ""}
+                        onChange={(event) => updateField(field.field_key, event.target.value)}
+                        required={Boolean(field.is_required)}
+                      />
+                    </label>
+                  );
+                })}
+              </fieldset>
+            ))}
+            <button className="button" type="submit" disabled={submitting}>
+              {submitting ? "Registrando..." : "Registrar asistencia"}
+            </button>
+          </form>
+        ) : null}
       </section>
     </main>
   );

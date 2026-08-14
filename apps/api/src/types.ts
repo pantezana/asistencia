@@ -115,3 +115,14 @@ export type CatalogItem = {
   description: string | null;
   status: string;
 };
+
+export type Participant = {
+  id: string;
+  document_type: string;
+  document_number: string;
+  first_name: string;
+  paternal_last_name: string | null;
+  maternal_last_name: string | null;
+  email: string | null;
+  phone: string | null;
+};

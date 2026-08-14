@@ -5,11 +5,16 @@ import {
   closeEventSession,
   cloneForm,
   createCatalogItem,
+  createParticipant,
+  findParticipantByDocument,
+  getActiveFormBySlug,
   getEventBySlug,
   getAdminForm,
   getFormStructure,
   getOpenSessionForEvent,
+  getPublicFormStructure,
   getUserForLogin,
+  hasAttendance,
   listAdminEvents,
   listAdminForms,
   listCatalogItems,
@@ -17,6 +22,7 @@ import {
   listEventModules,
   listEventSessions,
   openEventSession,
+  registerAttendance,
   updateCatalogItemStatus,
   updateFormStatus,
   userCanManageEvent
@@ -91,18 +97,22 @@ app.post("/api/auth/logout", async (c) => {
 app.get("/api/public/forms/:slug", async (c) => {
   const slug = c.req.param("slug");
   const event = await getEventBySlug(c.env.DB, slug);
+  const form = await getActiveFormBySlug(c.env.DB, slug);
 
-  if (!event) {
+  if (!event || !form) {
     return c.json({ ok: false, message: "Formulario no encontrado." }, 404);
   }
 
   const openSession = await getOpenSessionForEvent(c.env.DB, event.id);
   const sessions = await listEventSessions(c.env.DB, event.id);
+  const structure = await getPublicFormStructure(c.env.DB, form.id);
 
   if (!openSession) {
     return c.json({
       ok: true,
       event,
+      form,
+      ...structure,
       openSession: null,
       sessions: sessions.results,
       canRegister: false,
@@ -114,11 +124,101 @@ app.get("/api/public/forms/:slug", async (c) => {
   return c.json({
     ok: true,
     event,
+    form,
+    ...structure,
     openSession,
     sessions: sessions.results,
     canRegister: true,
     welcomeTitle: `Bienvenido a ${event.title} - ${openSession.title}: ${openSession.theme}`
   });
+});
+
+app.post("/api/public/forms/:slug/identify", async (c) => {
+  const slug = c.req.param("slug");
+  const event = await getEventBySlug(c.env.DB, slug);
+  const form = await getActiveFormBySlug(c.env.DB, slug);
+
+  if (!event || !form) {
+    return c.json({ ok: false, message: "Formulario no encontrado." }, 404);
+  }
+
+  const openSession = await getOpenSessionForEvent(c.env.DB, event.id);
+
+  if (!openSession) {
+    return c.json({ ok: false, message: "No se puede registrar asistencia en este momento. Comuníquese con el organizador del evento." }, 409);
+  }
+
+  const body = await c.req.json<{ documentType?: string; documentNumber?: string }>().catch(() => null);
+  const documentType = body?.documentType?.trim();
+  const documentNumber = body?.documentNumber?.trim();
+
+  if (!documentType || !documentNumber) {
+    return c.json({ ok: false, message: "Ingrese tipo y número de documento." }, 400);
+  }
+
+  const participant = await findParticipantByDocument(c.env.DB, documentType, documentNumber);
+  const alreadyRegistered = participant ? await hasAttendance(c.env.DB, openSession.id, participant.id) : false;
+
+  return c.json({ ok: true, exists: Boolean(participant), participant, alreadyRegistered });
+});
+
+app.post("/api/public/forms/:slug/attendance", async (c) => {
+  const slug = c.req.param("slug");
+  const event = await getEventBySlug(c.env.DB, slug);
+  const form = await getActiveFormBySlug(c.env.DB, slug);
+
+  if (!event || !form) {
+    return c.json({ ok: false, message: "Formulario no encontrado." }, 404);
+  }
+
+  const openSession = await getOpenSessionForEvent(c.env.DB, event.id);
+
+  if (!openSession) {
+    return c.json({ ok: false, message: "No se puede registrar asistencia en este momento. Comuníquese con el organizador del evento." }, 409);
+  }
+
+  const body = await c.req.json<{
+    documentType?: string;
+    documentNumber?: string;
+    participantId?: string;
+    fields?: Record<string, string>;
+  }>().catch(() => null);
+  const documentType = body?.documentType?.trim();
+  const documentNumber = body?.documentNumber?.trim();
+
+  if (!documentType || !documentNumber) {
+    return c.json({ ok: false, message: "Ingrese tipo y número de documento." }, 400);
+  }
+
+  let participant = await findParticipantByDocument(c.env.DB, documentType, documentNumber);
+  let participantId = participant?.id;
+
+  if (!participantId) {
+    const fields = body?.fields ?? {};
+    const firstName = fields.datos_generales_nombres?.trim();
+
+    if (!firstName) {
+      return c.json({ ok: false, message: "Ingrese los nombres del participante." }, 400);
+    }
+
+    participantId = await createParticipant(c.env.DB, {
+      documentType,
+      documentNumber,
+      firstName,
+      paternalLastName: fields.datos_generales_paterno?.trim(),
+      maternalLastName: fields.datos_generales_materno?.trim(),
+      email: fields.datos_generales_correo_electronico?.trim(),
+      phone: fields.datos_generales_celular?.trim(),
+      profileData: fields
+    });
+  }
+
+  if (await hasAttendance(c.env.DB, openSession.id, participantId)) {
+    return c.json({ ok: true, alreadyRegistered: true, message: "Su asistencia ya fue registrada para esta sesión." });
+  }
+
+  await registerAttendance(c.env.DB, openSession, participantId, form.id);
+  return c.json({ ok: true, alreadyRegistered: false, message: "Asistencia registrada correctamente." });
 });
 
 app.use("/api/admin/*", requireAuth());

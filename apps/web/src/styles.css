@@ -312,6 +312,34 @@ dd {
   gap: 14px;
 }
 
+.public-section {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 16px;
+}
+
+.public-section legend {
+  color: #17202a;
+  font-weight: 800;
+  padding: 0 6px;
+}
+
+.confirm-panel {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+
+.confirm-panel h2 {
+  font-size: 20px;
+  margin-bottom: 0;
+}
+
 label {
   color: #344054;
   display: grid;

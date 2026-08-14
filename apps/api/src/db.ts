@@ -8,6 +8,7 @@ import type {
   FormField,
   FormSection,
   OpenSession,
+  Participant,
   SessionUser
 } from "./types";
 
@@ -24,6 +25,18 @@ export async function getEventBySlug(db: D1Database, slug: string) {
     )
     .bind(slug)
     .first<EventSummary>();
+}
+
+export async function getActiveFormBySlug(db: D1Database, slug: string) {
+  return db
+    .prepare(
+      `SELECT id, event_id, name, status, short_link_slug, welcome_title_template
+       FROM forms
+       WHERE short_link_slug = ? AND status = 'active'
+       LIMIT 1`
+    )
+    .bind(slug)
+    .first<{ id: string; event_id: string; name: string; status: string; short_link_slug: string; welcome_title_template: string }>();
 }
 
 export async function getOpenSessionForEvent(db: D1Database, eventId: string) {
@@ -258,6 +271,108 @@ export async function getFormStructure(db: D1Database, formId: string) {
       fields: fields.results.filter((field) => field.section_id === section.id)
     }))
   };
+}
+
+export async function getPublicFormStructure(db: D1Database, formId: string) {
+  const structure = await getFormStructure(db, formId);
+  const catalogKeys = Array.from(
+    new Set(
+      structure.sections
+        .flatMap((section) => section.fields)
+        .map((field) => field.catalog_key)
+        .filter((key): key is string => Boolean(key))
+    )
+  );
+  const catalogs: Record<string, CatalogItem[]> = {};
+
+  await Promise.all(
+    catalogKeys.map(async (catalogKey) => {
+      const items = await db
+        .prepare(
+          `SELECT i.id, i.catalog_id, i.parent_item_id, i.source_id, i.name, i.description, i.status
+           FROM system_catalog_items i
+           INNER JOIN system_catalogs c ON c.id = i.catalog_id
+           WHERE c.catalog_key = ? AND i.status = 'active'
+           ORDER BY i.name
+           LIMIT 2500`
+        )
+        .bind(catalogKey)
+        .all<CatalogItem>();
+      catalogs[catalogKey] = items.results;
+    })
+  );
+
+  return { ...structure, catalogs };
+}
+
+export async function findParticipantByDocument(db: D1Database, documentType: string, documentNumber: string) {
+  return db
+    .prepare(
+      `SELECT id, document_type, document_number, first_name, paternal_last_name, maternal_last_name, email, phone
+       FROM participants
+       WHERE document_type = ? AND document_number = ?
+       LIMIT 1`
+    )
+    .bind(documentType, documentNumber)
+    .first<Participant>();
+}
+
+export async function hasAttendance(db: D1Database, sessionId: string, participantId: string) {
+  const row = await db
+    .prepare("SELECT id FROM attendance_records WHERE session_id = ? AND participant_id = ? LIMIT 1")
+    .bind(sessionId, participantId)
+    .first<{ id: string }>();
+
+  return Boolean(row);
+}
+
+export async function registerAttendance(db: D1Database, openSession: OpenSession, participantId: string, formId: string) {
+  const attendanceId = `att_${crypto.randomUUID()}`;
+
+  await db
+    .prepare(
+      `INSERT INTO attendance_records (id, event_id, module_id, session_id, participant_id, form_id)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    )
+    .bind(attendanceId, openSession.event_id, openSession.module_id, openSession.id, participantId, formId)
+    .run();
+
+  return attendanceId;
+}
+
+export async function createParticipant(db: D1Database, input: {
+  documentType: string;
+  documentNumber: string;
+  firstName: string;
+  paternalLastName?: string;
+  maternalLastName?: string;
+  email?: string;
+  phone?: string;
+  profileData: Record<string, unknown>;
+}) {
+  const participantId = `par_${crypto.randomUUID()}`;
+
+  await db
+    .prepare(
+      `INSERT INTO participants (
+        id, document_type, document_number, first_name, paternal_last_name, maternal_last_name, email, phone, profile_data
+       )
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+    .bind(
+      participantId,
+      input.documentType,
+      input.documentNumber,
+      input.firstName,
+      input.paternalLastName ?? null,
+      input.maternalLastName ?? null,
+      input.email ?? null,
+      input.phone ?? null,
+      JSON.stringify(input.profileData)
+    )
+    .run();
+
+  return participantId;
 }
 
 export async function updateFormStatus(db: D1Database, formId: string, status: string) {
