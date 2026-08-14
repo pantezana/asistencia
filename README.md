@@ -67,6 +67,7 @@ Para un Worker conectado a GitHub en Cloudflare, usar:
 - Directorio raíz: `/`
 
 El comando `npx wrangler deploy` lee el `wrangler.toml` de la raíz del repositorio.
+El Worker sirve el frontend desde `apps/web/dist` mediante Workers Static Assets, manteniendo `/api/*` como rutas del backend.
 
 Desplegar API desde local:
 

@@ -1,5 +1,6 @@
 export type Env = {
   DB: D1Database;
+  ASSETS: Fetcher;
   APP_ENV: string;
   CORS_ORIGIN: string;
 };

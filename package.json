@@ -10,7 +10,7 @@
     "dev:web": "vite --host 0.0.0.0",
     "build": "npm run build:web",
     "build:worker": "wrangler deploy --dry-run",
-    "build:cloudflare": "npm run typecheck && npm run build:worker",
+    "build:cloudflare": "npm run typecheck && npm run build && npm run build:worker",
     "build:web": "vite build",
     "typecheck": "tsc --noEmit",
     "preview:web": "vite preview --host 0.0.0.0",

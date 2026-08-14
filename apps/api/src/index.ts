@@ -131,6 +131,14 @@ app.onError((error, c) => {
   );
 });
 
-app.notFound((c) => c.json({ ok: false, message: "Ruta no encontrada." }, 404));
+app.notFound((c) => {
+  const url = new URL(c.req.url);
+
+  if (!url.pathname.startsWith("/api/")) {
+    return c.env.ASSETS.fetch(c.req.raw);
+  }
+
+  return c.json({ ok: false, message: "Ruta no encontrada." }, 404);
+});
 
 export default app;
