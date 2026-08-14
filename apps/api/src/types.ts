@@ -57,3 +57,9 @@ export type OpenSession = {
   status: string;
   attendance_status: string;
 };
+
+export type AdminEvent = EventSummary & {
+  module_count: number;
+  session_count: number;
+  open_session_count: number;
+};

@@ -30,6 +30,33 @@ type SessionUser = {
   roles: string[];
 };
 
+type AdminEvent = {
+  id: string;
+  title: string;
+  start_date: string;
+  end_date: string;
+  start_time: string;
+  end_time: string;
+  status: string;
+  short_link_slug: string;
+  module_count: number;
+  session_count: number;
+  open_session_count: number;
+};
+
+type AdminSession = {
+  id: string;
+  sequence: number;
+  title: string;
+  theme: string;
+  session_date: string;
+  start_time: string;
+  end_time: string;
+  status: string;
+  attendance_status: string;
+  module_title: string;
+};
+
 function App() {
   const path = window.location.pathname;
 
@@ -43,6 +70,10 @@ function App() {
 function AdminShell() {
   const [user, setUser] = React.useState<SessionUser | null>(null);
   const [loading, setLoading] = React.useState(true);
+  const [events, setEvents] = React.useState<AdminEvent[]>([]);
+  const [sessions, setSessions] = React.useState<AdminSession[]>([]);
+  const [selectedEventId, setSelectedEventId] = React.useState<string | null>(null);
+  const [actionMessage, setActionMessage] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     fetch("/api/auth/me", { credentials: "include" })
@@ -51,6 +82,18 @@ function AdminShell() {
       .catch(() => setUser(null))
       .finally(() => setLoading(false));
   }, []);
+
+  React.useEffect(() => {
+    if (user) {
+      void loadEvents();
+    }
+  }, [user]);
+
+  React.useEffect(() => {
+    if (selectedEventId) {
+      void loadSessions(selectedEventId);
+    }
+  }, [selectedEventId]);
 
   if (loading) {
     return <PublicMessage title="Asistencia" message="Validando sesión..." />;
@@ -64,6 +107,43 @@ function AdminShell() {
     await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
     setUser(null);
   }
+
+  async function loadEvents() {
+    const response = await fetch("/api/admin/events", { credentials: "include" });
+    if (!response.ok) return;
+    const payload = (await response.json()) as { events: AdminEvent[] };
+    setEvents(payload.events);
+    setSelectedEventId((current) => current ?? payload.events[0]?.id ?? null);
+  }
+
+  async function loadSessions(eventId: string) {
+    const response = await fetch(`/api/admin/events/${eventId}/sessions`, { credentials: "include" });
+    if (!response.ok) return;
+    const payload = (await response.json()) as { sessions: AdminSession[] };
+    setSessions(payload.sessions);
+  }
+
+  async function changeSessionState(session: AdminSession, action: "open" | "close") {
+    if (!selectedEventId) return;
+    setActionMessage(null);
+    const response = await fetch(`/api/admin/events/${selectedEventId}/sessions/${session.id}/${action}`, {
+      method: "POST",
+      credentials: "include"
+    });
+
+    if (!response.ok) {
+      const payload = (await response.json()) as { message?: string };
+      setActionMessage(payload.message ?? "No se pudo actualizar la sesión.");
+      return;
+    }
+
+    setActionMessage(action === "open" ? "Sesión abierta correctamente." : "Sesión cerrada correctamente.");
+    await loadEvents();
+    await loadSessions(selectedEventId);
+  }
+
+  const selectedEvent = events.find((event) => event.id === selectedEventId) ?? events[0];
+  const openSession = sessions.find((session) => session.attendance_status === "open");
 
   return (
     <div className="app-shell">
@@ -97,46 +177,99 @@ function AdminShell() {
         </header>
 
         <section className="summary-grid" aria-label="Resumen del sistema">
-          <Metric label="Eventos" value="1" />
-          <Metric label="Módulos" value="5" />
-          <Metric label="Sesiones" value="14" />
-          <Metric label="Sesión abierta" value="0" />
+          <Metric label="Eventos" value={String(events.length)} />
+          <Metric label="Módulos" value={String(selectedEvent?.module_count ?? 0)} />
+          <Metric label="Sesiones" value={String(selectedEvent?.session_count ?? 0)} />
+          <Metric label="Sesión abierta" value={openSession ? String(openSession.sequence) : "0"} />
         </section>
 
         <section className="workspace-section" id="eventos">
           <div className="section-heading">
             <div>
               <p className="eyebrow">Evento de prueba</p>
-              <h2>Inauguración OTCA</h2>
+              <h2>{selectedEvent?.title ?? "Eventos"}</h2>
             </div>
             <div className="actions">
-              <a className="button secondary" href="/f/inauguracion-otca">Abrir formulario</a>
+              {selectedEvent ? (
+                <a className="button secondary" href={`/f/${selectedEvent.short_link_slug}`}>Abrir formulario</a>
+              ) : null}
               <button className="button" type="button">Crear evento</button>
             </div>
           </div>
 
-          <div className="event-panel">
-            <div>
-              <h3>Comunidad de Práctica en Manejo Forestal Comunitario Amazónico</h3>
-              <p>
-                Estructura inicial lista para administrar módulos, sesiones, formularios clonables,
-                enlace corto, QR y reportes exportables.
-              </p>
+          {selectedEvent ? (
+            <div className="event-panel">
+              <div>
+                <h3>{selectedEvent.title}</h3>
+                <p>
+                  Estructura inicial lista para administrar módulos, sesiones, formularios clonables,
+                  enlace corto, QR y reportes exportables.
+                </p>
+              </div>
+              <dl>
+                <div>
+                  <dt>Periodo</dt>
+                  <dd>{selectedEvent.start_date} - {selectedEvent.end_date}</dd>
+                </div>
+                <div>
+                  <dt>Horario</dt>
+                  <dd>{selectedEvent.start_time} - {selectedEvent.end_time}</dd>
+                </div>
+                <div>
+                  <dt>Estado</dt>
+                  <dd>
+                    <span className={`status ${openSession ? "open" : "closed"}`}>
+                      {openSession ? "Abierto" : "Cerrado"}
+                    </span>
+                  </dd>
+                </div>
+              </dl>
             </div>
-            <dl>
-              <div>
-                <dt>Periodo</dt>
-                <dd>21/08/2026 - 21/11/2026</dd>
-              </div>
-              <div>
-                <dt>Horario</dt>
-                <dd>08:00 - 17:00</dd>
-              </div>
-              <div>
-                <dt>Estado</dt>
-                <dd><span className="status closed">Cerrado</span></dd>
-              </div>
-            </dl>
+          ) : null}
+
+          {actionMessage ? <p className="form-success">{actionMessage}</p> : null}
+
+          <div className="session-table-wrap">
+            <table className="session-table">
+              <thead>
+                <tr>
+                  <th>Sesión</th>
+                  <th>Módulo</th>
+                  <th>Tema</th>
+                  <th>Fecha</th>
+                  <th>Horario</th>
+                  <th>Estado</th>
+                  <th>Acción</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sessions.map((session) => (
+                  <tr key={session.id}>
+                    <td>{session.sequence}</td>
+                    <td>{session.module_title}</td>
+                    <td>{session.theme}</td>
+                    <td>{session.session_date}</td>
+                    <td>{session.start_time} - {session.end_time}</td>
+                    <td>
+                      <span className={`status ${session.attendance_status === "open" ? "open" : "closed"}`}>
+                        {session.attendance_status === "open" ? "Abierto" : "Cerrado"}
+                      </span>
+                    </td>
+                    <td>
+                      {session.attendance_status === "open" ? (
+                        <button className="button secondary table-action" type="button" onClick={() => changeSessionState(session, "close")}>
+                          Cerrar
+                        </button>
+                      ) : (
+                        <button className="button table-action" type="button" onClick={() => changeSessionState(session, "open")}>
+                          Abrir
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </section>
       </main>

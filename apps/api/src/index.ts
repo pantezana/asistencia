@@ -1,7 +1,17 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { createSession, getSessionUser, requireAuth, revokeCurrentSession, verifyPassword } from "./auth";
-import { getEventBySlug, getOpenSessionForEvent, getUserForLogin, listEventSessions } from "./db";
+import {
+  closeEventSession,
+  getEventBySlug,
+  getOpenSessionForEvent,
+  getUserForLogin,
+  listAdminEvents,
+  listEventModules,
+  listEventSessions,
+  openEventSession,
+  userCanManageEvent
+} from "./db";
 import type { AppContext } from "./types";
 
 const app = new Hono<AppContext>();
@@ -108,14 +118,85 @@ app.get("/api/admin/me", (c) => {
   return c.json({ ok: true, user: c.get("user") });
 });
 
+app.get("/api/admin/events", async (c) => {
+  const events = await listAdminEvents(c.env.DB, c.get("user"));
+
+  return c.json({
+    ok: true,
+    events: events.results
+  });
+});
+
+app.get("/api/admin/events/:eventId", async (c) => {
+  const eventId = c.req.param("eventId");
+  const canManage = await userCanManageEvent(c.env.DB, eventId, c.get("user"));
+
+  if (!canManage) {
+    return c.json({ ok: false, message: "Evento no encontrado o no autorizado." }, 404);
+  }
+
+  const [modules, sessions] = await Promise.all([
+    listEventModules(c.env.DB, eventId),
+    listEventSessions(c.env.DB, eventId)
+  ]);
+
+  return c.json({
+    ok: true,
+    modules: modules.results,
+    sessions: sessions.results
+  });
+});
+
 app.get("/api/admin/events/:eventId/sessions", async (c) => {
   const eventId = c.req.param("eventId");
+  const canManage = await userCanManageEvent(c.env.DB, eventId, c.get("user"));
+
+  if (!canManage) {
+    return c.json({ ok: false, message: "Evento no encontrado o no autorizado." }, 404);
+  }
+
   const sessions = await listEventSessions(c.env.DB, eventId);
 
   return c.json({
     ok: true,
     sessions: sessions.results
   });
+});
+
+app.post("/api/admin/events/:eventId/sessions/:sessionId/open", async (c) => {
+  const eventId = c.req.param("eventId");
+  const sessionId = c.req.param("sessionId");
+  const canManage = await userCanManageEvent(c.env.DB, eventId, c.get("user"));
+
+  if (!canManage) {
+    return c.json({ ok: false, message: "Evento no encontrado o no autorizado." }, 404);
+  }
+
+  const result = await openEventSession(c.env.DB, eventId, sessionId);
+
+  if (!result.ok) {
+    return c.json(result, 404);
+  }
+
+  return c.json({ ok: true });
+});
+
+app.post("/api/admin/events/:eventId/sessions/:sessionId/close", async (c) => {
+  const eventId = c.req.param("eventId");
+  const sessionId = c.req.param("sessionId");
+  const canManage = await userCanManageEvent(c.env.DB, eventId, c.get("user"));
+
+  if (!canManage) {
+    return c.json({ ok: false, message: "Evento no encontrado o no autorizado." }, 404);
+  }
+
+  const changed = await closeEventSession(c.env.DB, eventId, sessionId);
+
+  if (!changed) {
+    return c.json({ ok: false, message: "Sesión no encontrada." }, 404);
+  }
+
+  return c.json({ ok: true });
 });
 
 app.onError((error, c) => {
