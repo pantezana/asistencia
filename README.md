@@ -54,6 +54,18 @@ Build frontend:
 npm run build
 ```
 
+Validar Worker para Cloudflare:
+
+```bash
+npm run build:worker
+```
+
+Para una integración de Worker conectado a GitHub en Cloudflare, usar como comando de compilación:
+
+```bash
+npm run build:cloudflare
+```
+
 Desplegar API:
 
 ```bash

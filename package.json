@@ -9,6 +9,8 @@
     "dev:api": "wrangler dev apps/api/src/index.ts --config apps/api/wrangler.toml --local --port 8787",
     "dev:web": "vite --host 0.0.0.0",
     "build": "npm run build:web",
+    "build:worker": "wrangler deploy --dry-run --config apps/api/wrangler.toml",
+    "build:cloudflare": "npm run typecheck && npm run build:worker",
     "build:web": "vite build",
     "typecheck": "tsc --noEmit",
     "preview:web": "vite preview --host 0.0.0.0",
@@ -24,19 +26,19 @@
   },
   "license": "UNLICENSED",
   "dependencies": {
-    "@vitejs/plugin-react": "^5.0.0",
-    "hono": "^4.9.2",
+    "@vitejs/plugin-react": "^6.0.5",
+    "hono": "^4.13.2",
     "qrcode": "^1.5.4",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
-    "vite": "^7.1.2"
+    "vite": "^8.2.1"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20250814.0",
-    "@types/qrcode": "^1.5.5",
-    "@types/react": "^19.1.10",
-    "@types/react-dom": "^19.1.7",
-    "typescript": "^5.9.2",
-    "wrangler": "^4.29.1"
+    "@cloudflare/workers-types": "^5.20260814.1",
+    "@types/qrcode": "^1.5.6",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "typescript": "^7.0.2",
+    "wrangler": "^4.123.0"
   }
 }
