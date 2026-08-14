@@ -1002,7 +1002,7 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
                 {currentPublicSection.fields.some((field) => field.field_key === "ubicacion_pais") && fields.ubicacion_pais && !isPeru(fields.ubicacion_pais) ? (
                   <p className="field-note">Para paises distintos de Peru no se requiere departamento, provincia ni distrito.</p>
                 ) : null}
-                {currentPublicSection.section_key === "actividad" ? (
+                {false && currentPublicSection.section_key === "actividad" ? (
                   <label>
                     Es Productor Agrario, Pecuario o Forestal
                     <select
@@ -1016,7 +1016,7 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
                     </select>
                   </label>
                 ) : null}
-                {currentPublicSection.section_key === "actividad" && fields.actividad_es_productor_agrario_pecuario_forestal === "SI" ? (
+                {false && currentPublicSection.section_key === "actividad" && fields.actividad_es_productor_agrario_pecuario_forestal === "SI" ? (
                   <p className="field-note">Seleccione sus productos: debe elegir al menos una opción.</p>
                 ) : null}
                 {currentPublicSection.fields.map((field) => {
@@ -1096,9 +1096,10 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
                       ? [{ id: "si", name: "SI" }, { id: "no", name: "NO" }]
                       : data.catalogs?.[field.catalog_key ?? ""] ?? [];
 
-	                    return (
-	                      <label key={field.id}>
-                        {field.field_key === "actividad_actividad_del_productor" ? "Actividad" : field.label}
+                    return (
+                      <React.Fragment key={field.id}>
+                      <label>
+	                        {field.field_key === "actividad_actividad_del_productor" ? "Cuál es su actividad" : field.label}
 	                        <select
                           value={fields[field.field_key] ?? ""}
                           onChange={(event) => updateField(field.field_key, event.target.value)}
@@ -1110,6 +1111,26 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
                           ))}
                         </select>
                       </label>
+                      {field.field_key === "actividad_actividad_del_productor" ? (
+                        <>
+                          <label>
+                            Es Productor Agrario, Pecuario o Forestal
+                            <select
+                              value={fields.actividad_es_productor_agrario_pecuario_forestal ?? ""}
+                              onChange={(event) => updateProducerAnswer(event.target.value)}
+                              required
+                            >
+                              <option value="">Seleccione</option>
+                              <option value="SI">SI</option>
+                              <option value="NO">NO</option>
+                            </select>
+                          </label>
+                          {fields.actividad_es_productor_agrario_pecuario_forestal === "SI" ? (
+                            <p className="field-note">Seleccione sus productos: debe elegir al menos una opcion.</p>
+                          ) : null}
+                        </>
+                      ) : null}
+                      </React.Fragment>
                     );
                   }
 
