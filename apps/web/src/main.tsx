@@ -30,6 +30,7 @@ type PublicFormResponse = {
 
 type PublicFormSection = {
   id: string;
+  section_key: string;
   title: string;
   fields: PublicFormField[];
 };
@@ -852,6 +853,11 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
   function nextPublicSection(event: React.FormEvent<HTMLFormElement>, sectionCount: number) {
     event.preventDefault();
 
+    if (currentPublicSection?.section_key === "actividad" && !isActivitySectionValid()) {
+      setMessage("Seleccione al menos un producto agrario, pecuario o forestal, o responda NO.");
+      return;
+    }
+
     if (publicSectionIndex >= sectionCount - 1) {
       void submitAttendance();
       return;
@@ -860,6 +866,43 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
     setPublicSectionIndex((current) => current + 1);
     setMessage(null);
     window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function isActivityProductField(fieldKey: string) {
+    return [
+      "actividad_producto_agrario",
+      "actividad_productos_pecuario",
+      "actividad_productos_forestales"
+    ].includes(fieldKey);
+  }
+
+  function isActivitySectionValid() {
+    if (fields.actividad_es_productor_agrario_pecuario_forestal !== "SI") {
+      return true;
+    }
+
+    return Boolean(
+      fields.actividad_producto_agrario ||
+      fields.actividad_productos_pecuario ||
+      fields.actividad_productos_forestales
+    );
+  }
+
+  function updateProducerAnswer(value: string) {
+    setFields((current) => {
+      if (value !== "SI") {
+        const {
+          actividad_producto_agrario,
+          actividad_productos_pecuario,
+          actividad_productos_forestales,
+          ...rest
+        } = current;
+        return { ...rest, actividad_es_productor_agrario_pecuario_forestal: value };
+      }
+
+      return { ...current, actividad_es_productor_agrario_pecuario_forestal: value };
+    });
+    setMessage(null);
   }
 
   if (error) {
@@ -959,6 +1002,23 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
                 {currentPublicSection.fields.some((field) => field.field_key === "ubicacion_pais") && fields.ubicacion_pais && !isPeru(fields.ubicacion_pais) ? (
                   <p className="field-note">Para paises distintos de Peru no se requiere departamento, provincia ni distrito.</p>
                 ) : null}
+                {currentPublicSection.section_key === "actividad" ? (
+                  <label>
+                    Es Productor Agrario, Pecuario o Forestal
+                    <select
+                      value={fields.actividad_es_productor_agrario_pecuario_forestal ?? ""}
+                      onChange={(event) => updateProducerAnswer(event.target.value)}
+                      required
+                    >
+                      <option value="">Seleccione</option>
+                      <option value="SI">SI</option>
+                      <option value="NO">NO</option>
+                    </select>
+                  </label>
+                ) : null}
+                {currentPublicSection.section_key === "actividad" && fields.actividad_es_productor_agrario_pecuario_forestal === "SI" ? (
+                  <p className="field-note">Seleccione sus productos: debe elegir al menos una opción.</p>
+                ) : null}
                 {currentPublicSection.fields.map((field) => {
                   if (
                     field.field_key === "datos_generales_tipo_docidentidad" ||
@@ -971,11 +1031,15 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
                     return null;
                   }
 
+                  if (isActivityProductField(field.field_key) && fields.actividad_es_productor_agrario_pecuario_forestal !== "SI") {
+                    return null;
+                  }
+
                   if (field.field_key === "ubicacion_departamento") {
-                    return (
-                      <label key={field.id}>
+	                    return (
+	                      <label key={field.id}>
                         {field.label}
-                        <select
+	                        <select
                           value={selectedDepartmentId}
                           onChange={(event) => void selectDepartment(event.target.value)}
                           required={isPeru(fields.ubicacion_pais)}
@@ -1032,13 +1096,13 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
                       ? [{ id: "si", name: "SI" }, { id: "no", name: "NO" }]
                       : data.catalogs?.[field.catalog_key ?? ""] ?? [];
 
-                    return (
-                      <label key={field.id}>
-                        {field.label}
-                        <select
+	                    return (
+	                      <label key={field.id}>
+                        {field.field_key === "actividad_actividad_del_productor" ? "Actividad" : field.label}
+	                        <select
                           value={fields[field.field_key] ?? ""}
                           onChange={(event) => updateField(field.field_key, event.target.value)}
-                          required={Boolean(field.is_required) && !isOptionalForeignLocationField(field.field_key)}
+	                          required={Boolean(field.is_required) && !isOptionalForeignLocationField(field.field_key) && !isActivityProductField(field.field_key)}
                         >
                           <option value="">Seleccione</option>
                           {options.map((item) => (
