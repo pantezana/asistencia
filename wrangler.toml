@@ -1,0 +1,13 @@
+name = "asistencia"
+main = "apps/api/src/index.ts"
+compatibility_date = "2026-08-14"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "asistencia-db"
+database_id = "REEMPLAZAR_CON_DATABASE_ID_D1"
+migrations_dir = "migrations"
+
+[vars]
+APP_ENV = "development"
+CORS_ORIGIN = "http://localhost:5173"

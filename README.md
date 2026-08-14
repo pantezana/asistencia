@@ -10,7 +10,7 @@ Aplicación para gestionar eventos, módulos, sesiones, formularios públicos de
 - `seeds`: configuraciones semilla extraídas desde Excel.
 - `docs`: contexto y especificaciones funcionales.
 
-## Desarrollo local
+## Desarrollo Local
 
 Instalar dependencias:
 
@@ -32,7 +32,7 @@ npm run dev:web
 
 El frontend queda en `http://localhost:5173` y proxy hacia el Worker local en `http://127.0.0.1:8787`.
 
-## Base de datos
+## Base De Datos
 
 Aplicar migraciones locales:
 
@@ -43,7 +43,7 @@ npm run db:migrate:local
 Antes de desplegar en Cloudflare se debe:
 
 1. Crear la base D1 `asistencia-db`.
-2. Reemplazar `database_id` en `apps/api/wrangler.toml`.
+2. Reemplazar `database_id` en `wrangler.toml` y `apps/api/wrangler.toml`.
 3. Ejecutar migraciones remotas con `npm run db:migrate:remote`.
 
 ## Despliegue
@@ -60,25 +60,27 @@ Validar Worker para Cloudflare:
 npm run build:worker
 ```
 
-Para una integración de Worker conectado a GitHub en Cloudflare, usar como comando de compilación:
+Para un Worker conectado a GitHub en Cloudflare, usar:
 
-```bash
-npm run build:cloudflare
-```
+- Comando de compilación: `npm run build:cloudflare`
+- Comando de despliegue: `npx wrangler deploy`
+- Directorio raíz: `/`
 
-Desplegar API:
+El comando `npx wrangler deploy` lee el `wrangler.toml` de la raíz del repositorio.
+
+Desplegar API desde local:
 
 ```bash
 npm run deploy:api
 ```
 
-Desplegar Pages:
+Desplegar Pages desde local:
 
 ```bash
 npm run deploy:web
 ```
 
-Despliegue completo:
+Despliegue completo desde local:
 
 ```bash
 npm run deploy
