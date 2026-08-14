@@ -1,0 +1,557 @@
+{
+  "metadata": {
+    "source_file": "C:\\Users\\USUARIO\\Downloads\\FormularioAsistencia.xlsx",
+    "source_sheet": "formulario",
+    "description": "Configuración inicial de prueba extraída del Excel FormularioAsistencia.xlsx.",
+    "field_count": 28,
+    "section_count": 4,
+    "catalog_file": "seeds/catalogos-formulario-asistencia.json"
+  },
+  "event": {
+    "title": "Inauguración: Comunidad de Práctica en Manejo Forestal Comunitario Amazónico, en el marco de la OTCA",
+    "status": "draft",
+    "visibility": "private_admin_public_form",
+    "created_by_role": "administrador_o_supervisor",
+    "notes": "Evento de prueba. Las 12 fechas/sesiones requieren fechas y horas reales antes de publicación."
+  },
+  "sessions": [
+    {
+      "sequence": 1,
+      "title": "Sesión 1",
+      "date": null,
+      "start_time": null,
+      "end_time": null,
+      "status": "draft",
+      "attendance_status": "closed"
+    },
+    {
+      "sequence": 2,
+      "title": "Sesión 2",
+      "date": null,
+      "start_time": null,
+      "end_time": null,
+      "status": "draft",
+      "attendance_status": "closed"
+    },
+    {
+      "sequence": 3,
+      "title": "Sesión 3",
+      "date": null,
+      "start_time": null,
+      "end_time": null,
+      "status": "draft",
+      "attendance_status": "closed"
+    },
+    {
+      "sequence": 4,
+      "title": "Sesión 4",
+      "date": null,
+      "start_time": null,
+      "end_time": null,
+      "status": "draft",
+      "attendance_status": "closed"
+    },
+    {
+      "sequence": 5,
+      "title": "Sesión 5",
+      "date": null,
+      "start_time": null,
+      "end_time": null,
+      "status": "draft",
+      "attendance_status": "closed"
+    },
+    {
+      "sequence": 6,
+      "title": "Sesión 6",
+      "date": null,
+      "start_time": null,
+      "end_time": null,
+      "status": "draft",
+      "attendance_status": "closed"
+    },
+    {
+      "sequence": 7,
+      "title": "Sesión 7",
+      "date": null,
+      "start_time": null,
+      "end_time": null,
+      "status": "draft",
+      "attendance_status": "closed"
+    },
+    {
+      "sequence": 8,
+      "title": "Sesión 8",
+      "date": null,
+      "start_time": null,
+      "end_time": null,
+      "status": "draft",
+      "attendance_status": "closed"
+    },
+    {
+      "sequence": 9,
+      "title": "Sesión 9",
+      "date": null,
+      "start_time": null,
+      "end_time": null,
+      "status": "draft",
+      "attendance_status": "closed"
+    },
+    {
+      "sequence": 10,
+      "title": "Sesión 10",
+      "date": null,
+      "start_time": null,
+      "end_time": null,
+      "status": "draft",
+      "attendance_status": "closed"
+    },
+    {
+      "sequence": 11,
+      "title": "Sesión 11",
+      "date": null,
+      "start_time": null,
+      "end_time": null,
+      "status": "draft",
+      "attendance_status": "closed"
+    },
+    {
+      "sequence": 12,
+      "title": "Sesión 12",
+      "date": null,
+      "start_time": null,
+      "end_time": null,
+      "status": "draft",
+      "attendance_status": "closed"
+    }
+  ],
+  "form": {
+    "name": "Formulario de asistencia - Inauguración OTCA",
+    "status": "draft",
+    "short_link_slug": "inauguracion-otca",
+    "welcome_title_template": "Bienvenido a {{event.title}} - {{session.title}}",
+    "sections": [
+      {
+        "key": "datos_generales",
+        "title": "Datos generales",
+        "order": 1,
+        "fields": [
+          {
+            "key": "datos_generales_tipo_docidentidad",
+            "label": "Tipo Doc.Identidad",
+            "source_label": "Tipo Doc.Identidad",
+            "type": "select",
+            "source_type": "Combo SELECT",
+            "catalog_key": "tipodocumento",
+            "required": true,
+            "order": 1
+          },
+          {
+            "key": "datos_generales_numero_documento",
+            "label": "Número Documento",
+            "source_label": "Número Documento",
+            "type": "text",
+            "source_type": "Textbox",
+            "catalog_key": null,
+            "required": true,
+            "order": 2
+          },
+          {
+            "key": "datos_generales_nombres",
+            "label": "Nombres",
+            "source_label": "Nombres",
+            "type": "text",
+            "source_type": "Textbox",
+            "catalog_key": null,
+            "required": true,
+            "order": 3
+          },
+          {
+            "key": "datos_generales_paterno",
+            "label": "Paterno",
+            "source_label": "Paterno",
+            "type": "text",
+            "source_type": "Textbox",
+            "catalog_key": null,
+            "required": true,
+            "order": 4
+          },
+          {
+            "key": "datos_generales_materno",
+            "label": "Materno",
+            "source_label": "Materno",
+            "type": "text",
+            "source_type": "Textbox",
+            "catalog_key": null,
+            "required": true,
+            "order": 5
+          },
+          {
+            "key": "datos_generales_sexo",
+            "label": "Sexo",
+            "source_label": "Sexo",
+            "type": "select",
+            "source_type": "Combo SELECT",
+            "catalog_key": "sexo",
+            "required": true,
+            "order": 6
+          },
+          {
+            "key": "datos_generales_fecha_nac",
+            "label": "Fecha Nac",
+            "source_label": "Fecha Nac",
+            "type": "date",
+            "source_type": "Selector de Fecha",
+            "catalog_key": null,
+            "required": true,
+            "order": 7
+          },
+          {
+            "key": "datos_generales_correo_electronico",
+            "label": "Correo Electrónico",
+            "source_label": "Correo Electrónico",
+            "type": "text",
+            "source_type": "Textbox",
+            "catalog_key": null,
+            "required": true,
+            "order": 8
+          },
+          {
+            "key": "datos_generales_celular",
+            "label": "Celular",
+            "source_label": "Celular",
+            "type": "text",
+            "source_type": "Textbox",
+            "catalog_key": null,
+            "required": true,
+            "order": 9
+          },
+          {
+            "key": "datos_generales_tipo_participante",
+            "label": "Tipo Participante",
+            "source_label": "Tipo Participante",
+            "type": "select",
+            "source_type": "Combo SELECT",
+            "catalog_key": "tipoparticipante",
+            "required": true,
+            "order": 10
+          },
+          {
+            "key": "datos_generales_etnia",
+            "label": "Etnia",
+            "source_label": "Etnia",
+            "type": "select",
+            "source_type": "Combo SELECT",
+            "catalog_key": "etnia",
+            "required": true,
+            "order": 11
+          }
+        ]
+      },
+      {
+        "key": "ubicacion",
+        "title": "Ubicación",
+        "order": 2,
+        "fields": [
+          {
+            "key": "ubicacion_pais",
+            "label": "País",
+            "source_label": "País",
+            "type": "select",
+            "source_type": "Combo SELECT",
+            "catalog_key": "pais",
+            "required": true,
+            "order": 12
+          },
+          {
+            "key": "ubicacion_departamento",
+            "label": "Departamento",
+            "source_label": "Departamento",
+            "type": "select",
+            "source_type": "Combo SELECT",
+            "catalog_key": "departamento",
+            "required": true,
+            "order": 13
+          },
+          {
+            "key": "ubicacion_provincia",
+            "label": "Provincia",
+            "source_label": "Provincia",
+            "type": "select",
+            "source_type": "Combo SELECT",
+            "catalog_key": "provincia",
+            "required": true,
+            "order": 14
+          },
+          {
+            "key": "ubicacion_distrito",
+            "label": "Distrito",
+            "source_label": "Distrito",
+            "type": "select",
+            "source_type": "Combo SELECT",
+            "catalog_key": "distrito",
+            "required": true,
+            "order": 15
+          },
+          {
+            "key": "ubicacion_direccion",
+            "label": "Dirección",
+            "source_label": "Dirección",
+            "type": "text",
+            "source_type": "Textbox",
+            "catalog_key": null,
+            "required": true,
+            "order": 16
+          }
+        ]
+      },
+      {
+        "key": "actividad",
+        "title": "Actividad",
+        "order": 3,
+        "fields": [
+          {
+            "key": "actividad_actividad_del_productor",
+            "label": "Actividad del Productor",
+            "source_label": "Actividad del Productor",
+            "type": "select",
+            "source_type": "Combo SELECT",
+            "catalog_key": "actividadproductor",
+            "required": true,
+            "order": 17
+          },
+          {
+            "key": "actividad_producto_agrario",
+            "label": "Producto Agrario",
+            "source_label": "Producto Agrario",
+            "type": "select",
+            "source_type": "Combo SELECT",
+            "catalog_key": "prodagrario",
+            "required": true,
+            "order": 18
+          },
+          {
+            "key": "actividad_productos_pecuario",
+            "label": "Productos Pecuario",
+            "source_label": "Productos Pecuario",
+            "type": "select",
+            "source_type": "Combo SELECT",
+            "catalog_key": "prodpecuario",
+            "required": true,
+            "order": 19
+          },
+          {
+            "key": "actividad_productos_forestales",
+            "label": "Productos Forestales",
+            "source_label": "Productos Forestales",
+            "type": "select",
+            "source_type": "Combo SELECT",
+            "catalog_key": "prodforestal",
+            "required": true,
+            "order": 20
+          }
+        ]
+      },
+      {
+        "key": "organizacion",
+        "title": "Organización",
+        "order": 4,
+        "fields": [
+          {
+            "key": "organizacion_pertenece_a_organizacion",
+            "label": "Pertenece a Organización",
+            "source_label": "Pertenece a Organización",
+            "type": "radio",
+            "source_type": "Radio Bottom (SI - NO)",
+            "catalog_key": null,
+            "required": true,
+            "order": 21,
+            "options": [
+              "SI",
+              "NO"
+            ]
+          },
+          {
+            "key": "organizacion_tipo_de_organizacion",
+            "label": "Tipo de Organización",
+            "source_label": "Tipo de Organización",
+            "type": "select",
+            "source_type": "Combo SELECT",
+            "catalog_key": "tipoorganizacion",
+            "required": true,
+            "order": 22
+          },
+          {
+            "key": "organizacion_ruc",
+            "label": "RUC",
+            "source_label": "RUC",
+            "type": "text",
+            "source_type": "Textbox",
+            "catalog_key": null,
+            "required": true,
+            "order": 23
+          },
+          {
+            "key": "organizacion_organizacion",
+            "label": "Organización",
+            "source_label": "Organización",
+            "type": "text",
+            "source_type": "Textbox",
+            "catalog_key": null,
+            "required": true,
+            "order": 24
+          },
+          {
+            "key": "organizacion_pais",
+            "label": "País",
+            "source_label": "País",
+            "type": "select",
+            "source_type": "Combo SELECT",
+            "catalog_key": "pais",
+            "required": true,
+            "order": 25
+          },
+          {
+            "key": "organizacion_departamento",
+            "label": "Departamento",
+            "source_label": "Departamento",
+            "type": "select",
+            "source_type": "Combo SELECT",
+            "catalog_key": "departamento",
+            "required": true,
+            "order": 26
+          },
+          {
+            "key": "organizacion_provincia",
+            "label": "Provincia",
+            "source_label": "Provincia",
+            "type": "select",
+            "source_type": "Combo SELECT",
+            "catalog_key": "provincia",
+            "required": true,
+            "order": 27
+          },
+          {
+            "key": "organizacion_distrito",
+            "label": "Distrito",
+            "source_label": "Distrito",
+            "type": "select",
+            "source_type": "Combo SELECT",
+            "catalog_key": "distrito",
+            "required": true,
+            "order": 28
+          }
+        ]
+      }
+    ],
+    "catalog_requirements": [
+      {
+        "catalog_key": "actividadproductor",
+        "source_sheet": "actividadproductor",
+        "entry_count": 13,
+        "used_by_fields": [
+          "actividad_actividad_del_productor"
+        ]
+      },
+      {
+        "catalog_key": "departamento",
+        "source_sheet": "departamento",
+        "entry_count": 25,
+        "used_by_fields": [
+          "ubicacion_departamento",
+          "organizacion_departamento"
+        ]
+      },
+      {
+        "catalog_key": "distrito",
+        "source_sheet": "distrito",
+        "entry_count": 1891,
+        "used_by_fields": [
+          "ubicacion_distrito",
+          "organizacion_distrito"
+        ]
+      },
+      {
+        "catalog_key": "etnia",
+        "source_sheet": "etnia",
+        "entry_count": 4,
+        "used_by_fields": [
+          "datos_generales_etnia"
+        ]
+      },
+      {
+        "catalog_key": "pais",
+        "source_sheet": "pais",
+        "entry_count": 217,
+        "used_by_fields": [
+          "ubicacion_pais",
+          "organizacion_pais"
+        ]
+      },
+      {
+        "catalog_key": "prodagrario",
+        "source_sheet": "prodagrario",
+        "entry_count": 22,
+        "used_by_fields": [
+          "actividad_producto_agrario"
+        ]
+      },
+      {
+        "catalog_key": "prodforestal",
+        "source_sheet": "prodforestal",
+        "entry_count": 17,
+        "used_by_fields": [
+          "actividad_productos_forestales"
+        ]
+      },
+      {
+        "catalog_key": "prodpecuario",
+        "source_sheet": "prodpecuario",
+        "entry_count": 13,
+        "used_by_fields": [
+          "actividad_productos_pecuario"
+        ]
+      },
+      {
+        "catalog_key": "provincia",
+        "source_sheet": "provincia",
+        "entry_count": 196,
+        "used_by_fields": [
+          "ubicacion_provincia",
+          "organizacion_provincia"
+        ]
+      },
+      {
+        "catalog_key": "sexo",
+        "source_sheet": "sexo",
+        "entry_count": 3,
+        "used_by_fields": [
+          "datos_generales_sexo"
+        ]
+      },
+      {
+        "catalog_key": "tipodocumento",
+        "source_sheet": "tipodocumento",
+        "entry_count": 4,
+        "used_by_fields": [
+          "datos_generales_tipo_docidentidad"
+        ]
+      },
+      {
+        "catalog_key": "tipoorganizacion",
+        "source_sheet": "tipoorganizacion",
+        "entry_count": 6,
+        "used_by_fields": [
+          "organizacion_tipo_de_organizacion"
+        ]
+      },
+      {
+        "catalog_key": "tipoparticipante",
+        "source_sheet": "tipoparticipante",
+        "entry_count": 13,
+        "used_by_fields": [
+          "datos_generales_tipo_participante"
+        ]
+      }
+    ]
+  }
+}

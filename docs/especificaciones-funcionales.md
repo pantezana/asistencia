@@ -273,7 +273,53 @@ Reglas:
 - El enlace y el QR deben poder compartirse fuera del sistema.
 - El acceso público no debe exponer funciones administrativas.
 
-## 13. Participantes
+## 13. Gestión de catálogos
+
+Los campos tipo `select` de los formularios deben obtener sus opciones desde catálogos mantenibles.
+
+La sección **Configuración > Catálogo** debe permitir:
+
+- Crear catálogos.
+- Ver catálogos.
+- Actualizar nombre y descripción de catálogos.
+- Activar o desactivar catálogos.
+- Agregar elementos a un catálogo.
+- Actualizar elementos de un catálogo.
+- Activar o desactivar elementos de un catálogo.
+
+Reglas:
+
+- Los elementos de catálogo deben tener estado activo/inactivo.
+- Los formularios públicos solo deben mostrar elementos activos.
+- No se debe eliminar físicamente un elemento usado por formularios, participantes o asistencias.
+- Los catálogos jerárquicos deben soportar dependencias entre elementos.
+- Para ubicación, inicialmente se requiere jerarquía país, departamento, provincia y distrito.
+
+## 14. Formulario de prueba inicial
+
+El primer formulario de prueba corresponde al evento:
+
+**Inauguración: Comunidad de Práctica en Manejo Forestal Comunitario Amazónico, en el marco de la OTCA**
+
+Características:
+
+- 12 fechas o sesiones.
+- 4 secciones de formulario.
+- 28 campos.
+- 13 catálogos iniciales extraídos desde Excel.
+- Enlace corto sugerido: `inauguracion-otca`.
+- Título dinámico sugerido: `Bienvenido a {{event.title}} - {{session.title}}`.
+
+Documentación específica:
+
+- `docs/formulario-prueba-inauguracion-otca.md`
+
+Seeds creados:
+
+- `seeds/primer-evento-inauguracion-otca.json`
+- `seeds/catalogos-formulario-asistencia.json`
+
+## 15. Participantes
 
 El sistema debe mantener una base general de participantes.
 
@@ -297,7 +343,7 @@ Reglas:
 - Si el participante ya existe, no debe duplicarse.
 - Un participante puede asistir a varios eventos.
 
-## 14. Asistencia
+## 16. Asistencia
 
 La asistencia se registra por participante, evento y fecha del cronograma.
 
@@ -316,7 +362,7 @@ Reglas:
 - No debe permitirse doble asistencia del mismo participante en la misma fecha.
 - El sistema debe responder claramente cuando la asistencia ya fue registrada.
 
-## 15. Reporte: lista de asistencia
+## 17. Reporte: lista de asistencia
 
 El primer reporte relevante será la **lista de asistencia**.
 
@@ -332,7 +378,7 @@ Debe permitir:
 
 El administrador podrá consultar listas de cualquier evento. El supervisor solo podrá consultar listas de sus propios eventos.
 
-## 16. Modelo de datos inicial ampliado
+## 18. Modelo de datos inicial ampliado
 
 Tablas candidatas:
 
@@ -348,12 +394,13 @@ Tablas candidatas:
 - `attendance_records`
 - `short_links`
 - `system_catalogs`
+- `system_catalog_items`
 - `system_parameters`
 - `audit_logs`
 
 Este modelo todavía debe validarse antes de crear las migraciones de Cloudflare D1.
 
-## 17. Prioridades de desarrollo actualizadas
+## 19. Prioridades de desarrollo actualizadas
 
 Orden sugerido para iniciar el desarrollo:
 
@@ -366,13 +413,15 @@ Orden sugerido para iniciar el desarrollo:
 7. Implementar CRUD de usuarios para administrador.
 8. Implementar CRUD de eventos.
 9. Implementar cronograma con apertura y cierre.
-10. Implementar formulario público.
-11. Implementar registro de participantes.
-12. Implementar registro de asistencia.
-13. Generar enlace corto y QR.
-14. Crear reporte de lista de asistencia.
+10. Implementar mantenimiento de catálogos.
+11. Implementar configuración de formularios.
+12. Implementar formulario público.
+13. Implementar registro de participantes.
+14. Implementar registro de asistencia.
+15. Generar enlace corto y QR.
+16. Crear reporte de lista de asistencia.
 
-## 18. Decisiones pendientes
+## 20. Decisiones pendientes
 
 - Framework frontend definitivo.
 - Librería visual o implementación exacta estilo Bootstrap.
@@ -381,5 +430,6 @@ Orden sugerido para iniciar el desarrollo:
 - Reglas de bloqueo por intentos fallidos.
 - Campos obligatorios finales para participantes.
 - Campos configurables por formulario.
+- Reglas condicionales del bloque organización.
 - Diseño exacto del panel administrativo.
 - Formato de exportación de reportes.

@@ -341,6 +341,7 @@ Tablas iniciales candidatas:
 - `attendance_records`
 - `short_links`
 - `system_catalogs`
+- `system_catalog_items`
 - `system_parameters`
 - `audit_logs`
 
@@ -379,11 +380,13 @@ Para una primera versión funcional se recomienda avanzar en este orden:
 7. CRUD de eventos.
 8. CRUD de fechas o sesiones del cronograma.
 9. Control de apertura y cierre de fechas.
-10. Formulario público básico.
-11. Registro de participantes.
-12. Registro de asistencia con validación de estado abierto/cerrado.
-13. Generación de QR y enlace corto.
-14. Reporte inicial de lista de asistencia.
+10. Mantenimiento de catálogos.
+11. Configuración de formularios.
+12. Formulario público básico.
+13. Registro de participantes.
+14. Registro de asistencia con validación de estado abierto/cerrado.
+15. Generación de QR y enlace corto.
+16. Reporte inicial de lista de asistencia.
 
 ## 15. Decisiones pendientes
 
@@ -395,13 +398,35 @@ Para una primera versión funcional se recomienda avanzar en este orden:
 - Reglas de bloqueo por intentos fallidos de login.
 - Campos obligatorios del participante.
 - Campos personalizables por formulario.
+- Reglas condicionales de campos por formulario.
 - Formato de exportación de reportes.
 - Estrategia de generación y persistencia de enlaces cortos.
 - Diseño visual inicial del panel y del formulario público.
 
-## 16. Estado actual
+## 16. Primer evento de prueba
+
+El primer evento de prueba identificado es:
+
+**Inauguración: Comunidad de Práctica en Manejo Forestal Comunitario Amazónico, en el marco de la OTCA**
+
+Características iniciales:
+
+- 12 fechas o sesiones.
+- Formulario con 4 secciones.
+- Formulario con 28 campos.
+- Catálogos iniciales extraídos desde Excel.
+- Slug de enlace corto sugerido: `inauguracion-otca`.
+
+Documentación y seeds:
+
+- `docs/formulario-prueba-inauguracion-otca.md`
+- `seeds/primer-evento-inauguracion-otca.json`
+- `seeds/catalogos-formulario-asistencia.json`
+
+## 17. Estado actual
 
 - Carpeta local creada: `D:\PROYECTOS\asistencia`.
 - Repositorio GitHub creado: `https://github.com/pantezana/asistencia.git`.
 - Proyecto en fase de documentación funcional inicial.
 - Especificaciones funcionales iniciales documentadas en `docs/especificaciones-funcionales.md`.
+- Primer formulario de prueba documentado en `docs/formulario-prueba-inauguracion-otca.md`.
