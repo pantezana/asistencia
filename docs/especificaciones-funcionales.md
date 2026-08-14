@@ -4,6 +4,8 @@
 
 Este documento registra las especificaciones funcionales iniciales del sistema **Asistencia**. Su objetivo es servir como base para el diseño de arquitectura, base de datos, pantallas, permisos y desarrollo incremental.
 
+El objetivo principal del aplicativo es permitir que una organización controle quiénes asisten a cada evento y a cada sesión, usando formularios públicos de asistencia, una base única de participantes y reportes exportables.
+
 ## 2. Acceso al sistema
 
 La administración de la aplicación debe estar protegida mediante autenticación con usuario y contraseña.
@@ -18,7 +20,7 @@ El sistema debe contar con:
 - Cierre de sesión.
 - Protección de rutas administrativas.
 
-Los formularios públicos de asistencia no requerirán login administrativo, pero estarán protegidos por reglas de negocio: solo podrán registrar asistencia si la fecha del cronograma está abierta.
+Los formularios públicos de asistencia no requerirán login administrativo, pero estarán protegidos por reglas de negocio: solo podrán registrar asistencia si existe una sesión abierta del evento.
 
 ## 3. Seguridad inicial requerida
 
@@ -158,7 +160,7 @@ El menú **Reportes** debe permitir consultar información de eventos y asistenc
 
 Primer reporte prioritario:
 
-- **Lista de asistencia** por evento y por fecha del cronograma.
+- **Lista de asistencia** por evento, módulo y sesión.
 
 Filtros iniciales sugeridos:
 
@@ -252,6 +254,8 @@ Funciones iniciales:
 - Actualizar formulario.
 - Activar o desactivar formulario.
 - Clonar o copiar formularios existentes.
+- Usar formularios existentes como plantillas reutilizables.
+- Editar formularios clonados sin modificar el formulario origen.
 - Asociar formulario a evento.
 - Asociar formulario a fecha o permitir seleccionar fecha activa.
 
@@ -259,10 +263,18 @@ El formulario debe mostrar un título de bienvenida dinámico que combine:
 
 - Título general del evento.
 - Título independiente de la fecha o sesión.
+- Tema de la sesión abierta.
 
 Ejemplo:
 
-`Bienvenido a Capacitación de Seguridad - Sesión 2: Práctica`
+`Bienvenido a Capacitación de Seguridad - Sesión 2: Práctica de campo`
+
+Reglas de clonación:
+
+- La clonación copia secciones, campos, catálogos asociados, orden y reglas configuradas.
+- El formulario clonado debe quedar asociado al evento destino.
+- El formulario clonado debe poder editarse de forma independiente.
+- La edición del formulario clonado no debe alterar el formulario original.
 
 ## 11. Formulario público
 
@@ -273,14 +285,23 @@ Debe ser responsivo y simple de usar desde celular.
 Flujo esperado:
 
 1. El asistente abre el enlace corto o escanea el QR.
-2. El sistema identifica el evento y la fecha correspondiente.
-3. El formulario muestra el título dinámico.
-4. El asistente ingresa su tipo y número de documento.
-5. Si existe en la base de participantes, el sistema registra su asistencia.
-6. Si no existe, el sistema solicita sus datos generales.
-7. Luego de completar datos, el sistema registra al participante y su asistencia.
-8. Si la fecha está cerrada, el sistema no permite registrar asistencia.
-9. Si ya registró asistencia para esa fecha, el sistema informa que ya existe un registro.
+2. El sistema identifica el evento.
+3. El sistema busca la sesión abierta del evento.
+4. Si no existe una sesión abierta, muestra el mensaje: `No se puede registrar asistencia en este momento. Comuníquese con el organizador del evento.`
+5. Si existe una sesión abierta, el formulario muestra el título dinámico con evento, sesión y tema.
+6. El asistente ingresa su tipo y número de documento.
+7. Si existe en la base de participantes, el sistema muestra sus datos básicos y solicita confirmar la asistencia.
+8. Si el asistente confirma, el sistema registra su asistencia en la sesión abierta.
+9. Si no existe, el sistema solicita completar todos los campos requeridos del formulario.
+10. Luego de completar datos, el sistema crea el participante y registra su asistencia en la sesión abierta.
+11. Si ya registró asistencia para esa sesión, el sistema informa que ya existe un registro.
+
+Reglas:
+
+- El formulario público no debe permitir seleccionar una sesión cerrada.
+- El formulario público debe registrar asistencia únicamente en la sesión abierta del evento.
+- El formulario público debe bloquear el registro si todas las sesiones están cerradas.
+- El formulario público debe mostrar claramente el evento, módulo, sesión y tema donde se registrará la asistencia.
 
 ## 12. Enlace corto y QR
 
@@ -376,7 +397,7 @@ Reglas:
 
 ## 16. Asistencia
 
-La asistencia se registra por participante, evento y fecha del cronograma.
+La asistencia se registra por participante, evento, módulo y sesión.
 
 Datos iniciales:
 
@@ -389,8 +410,9 @@ Datos iniciales:
 
 Reglas:
 
-- Solo se puede registrar asistencia si la fecha está abierta.
-- No debe permitirse doble asistencia del mismo participante en la misma fecha.
+- Solo se puede registrar asistencia si existe una sesión abierta del evento.
+- Solo puede existir una sesión abierta por evento.
+- No debe permitirse doble asistencia del mismo participante en la misma sesión.
 - El sistema debe responder claramente cuando la asistencia ya fue registrada.
 
 ## 17. Reporte: lista de asistencia
@@ -400,12 +422,13 @@ El primer reporte relevante será la **lista de asistencia**.
 Debe permitir:
 
 - Seleccionar evento.
+- Seleccionar módulo.
 - Seleccionar fecha o sesión.
 - Ver participantes asistentes.
 - Ver datos generales del participante.
 - Ver fecha y hora de registro.
 - Filtrar resultados.
-- Exportar resultados en una fase posterior.
+- Exportar resultados.
 
 El administrador podrá consultar listas de cualquier evento. El supervisor solo podrá consultar listas de sus propios eventos.
 
@@ -421,6 +444,7 @@ Tablas candidatas:
 - `event_modules`
 - `event_sessions`
 - `forms`
+- `form_templates`
 - `form_fields`
 - `participants`
 - `attendance_records`

@@ -6,6 +6,8 @@
 
 El proyecto nace para permitir que una institución u organización pueda crear eventos con una o varias fechas, compartir formularios mediante enlace corto o código QR, registrar participantes y controlar la asistencia por cada fecha del evento.
 
+El objetivo principal es que la organización pueda saber quiénes asistieron a cada evento y a cada sesión, usando una base única de participantes para todo el aplicativo.
+
 ## 2. Objetivo general
 
 Construir una aplicación web que permita:
@@ -13,11 +15,13 @@ Construir una aplicación web que permita:
 - Crear y administrar eventos.
 - Definir el cronograma de cada evento, organizado por módulos y sesiones, indicando tema, fecha, horario y estado de cada sesión.
 - Generar formularios de asistencia asociados a cada evento.
+- Clonar formularios existentes para usarlos como plantillas editables.
 - Permitir que los asistentes registren sus datos generales si aún no existen en la base de datos.
 - Permitir que asistentes ya registrados marquen asistencia ingresando su número de documento.
-- Controlar la apertura y cierre de cada fecha del cronograma para evitar registros fuera del periodo válido.
+- Controlar la apertura y cierre de cada sesión del cronograma para evitar registros fuera del periodo válido.
+- Permitir solo una sesión abierta por evento para registro de asistencia.
 - Generar enlaces cortos y códigos QR para compartir formularios.
-- Emitir reportes de participantes, eventos y asistencias individuales por evento y por fecha.
+- Emitir reportes exportables de participantes, eventos y asistencias individuales por evento y por sesión.
 - Proteger el panel de administración mediante usuario, contraseña, roles y permisos.
 
 ## 3. Ecosistema técnico previsto
@@ -45,7 +49,7 @@ El ingreso al sistema de gestión debe realizarse con:
 - Sesión segura.
 - Roles y permisos.
 
-Los formularios públicos de asistencia serán accesibles mediante enlace corto y QR sin login administrativo, pero solo permitirán registrar asistencia cuando la fecha correspondiente del cronograma esté abierta.
+Los formularios públicos de asistencia serán accesibles mediante enlace corto y QR sin login administrativo, pero solo permitirán registrar asistencia cuando exista una sesión abierta del evento.
 
 ## 5. Roles iniciales
 
@@ -144,7 +148,7 @@ Sección para consultar resultados y asistencias.
 
 El primer reporte relevante será:
 
-- Lista de asistencia por evento y por fecha del cronograma.
+- Lista de asistencia por evento, módulo y sesión.
 
 ## 8. Conceptos principales del dominio
 
@@ -222,10 +226,11 @@ El formulario debe:
 
 - Mostrar un título dinámico de bienvenida.
 - Mostrar el título general del evento.
-- Mostrar el título de la fecha o sesión activa.
+- Mostrar el módulo, la sesión activa y el tema.
 - Permitir registro de datos generales si el participante no existe.
-- Permitir marcar asistencia si el participante ya existe.
-- Validar que la fecha del cronograma esté abierta antes de aceptar asistencia.
+- Permitir que un participante existente confirme su identidad y marque asistencia.
+- Validar que exista una sesión abierta antes de aceptar asistencia.
+- Mostrar un mensaje de bloqueo si todas las sesiones están cerradas.
 
 ### Asistencia
 
@@ -240,7 +245,7 @@ Datos esperados:
 - Canal de registro.
 - Estado de la asistencia.
 
-Debe evitarse el registro duplicado de un mismo participante en la misma fecha del cronograma.
+Debe evitarse el registro duplicado de un mismo participante en la misma sesión del cronograma.
 
 ### Enlace corto y QR
 
@@ -253,12 +258,12 @@ Estos elementos deben facilitar el registro de asistentes desde celulares durant
 
 ## 9. Estados clave
 
-### Estado de fecha del cronograma
+### Estado de asistencia de sesión
 
 - **Abierto:** permite registrar asistencia.
 - **Cerrado:** bloquea nuevos registros de asistencia.
 
-Este estado se gestiona por cada fecha o sesión, no solo a nivel del evento completo.
+Este estado se gestiona por sesión. Solo una sesión puede estar abierta por evento en un momento dado.
 
 ### Estado del evento
 
@@ -296,28 +301,34 @@ Estos estados se validarán durante el diseño funcional.
 ### Flujo de registro de participante nuevo
 
 1. El asistente abre el formulario mediante enlace corto o QR.
-2. Ingresa su número de documento.
-3. El sistema verifica que no exista en la base general de participantes.
-4. El asistente completa sus datos generales.
-5. El sistema crea el participante.
-6. Si la fecha está abierta, registra la asistencia.
+2. El sistema identifica el evento y busca la sesión abierta.
+3. Si no hay sesión abierta, informa que no se puede registrar asistencia y recomienda comunicarse con el organizador.
+4. El asistente ingresa su número de documento.
+5. El sistema verifica que no exista en la base general de participantes.
+6. El asistente completa todos los campos requeridos del formulario.
+7. El sistema crea el participante.
+8. El sistema registra la asistencia en la sesión abierta.
 
 ### Flujo de asistencia de participante existente
 
 1. El asistente abre el formulario.
-2. Ingresa su número de documento.
-3. El sistema encuentra al participante en la base de datos.
-4. El sistema valida que la fecha del cronograma esté abierta.
-5. El sistema registra la asistencia para esa fecha.
-6. Si ya existe una asistencia previa para esa fecha, informa que ya fue registrada.
+2. El sistema identifica el evento y busca la sesión abierta.
+3. Si no hay sesión abierta, informa que no se puede registrar asistencia y recomienda comunicarse con el organizador.
+4. El asistente ingresa su número de documento.
+5. El sistema encuentra al participante en la base de datos.
+6. El sistema muestra datos básicos de identificación, como nombres y apellidos.
+7. El asistente confirma su asistencia.
+8. El sistema registra la asistencia para la sesión abierta.
+9. Si ya existe una asistencia previa para esa sesión, informa que ya fue registrada.
 
 ### Flujo de control de apertura y cierre
 
 1. El usuario autorizado ingresa al evento.
 2. Revisa el cronograma.
-3. Abre la fecha activa cuando inicia la sesión.
-4. Cierra la fecha cuando termina la sesión.
-5. El formulario deja de aceptar nuevas asistencias para esa fecha cerrada.
+3. Abre la sesión activa cuando inicia.
+4. El sistema valida que no exista otra sesión abierta del mismo evento.
+5. Cierra la sesión cuando termina.
+6. El formulario deja de aceptar nuevas asistencias para esa sesión cerrada.
 
 ### Flujo de reportes
 
@@ -325,7 +336,7 @@ Estos estados se validarán durante el diseño funcional.
 2. Consulta participantes inscritos y asistencias.
 3. Filtra por fecha, sesión o participante.
 4. Visualiza la lista de asistencia.
-5. Exporta resultados cuando esta funcionalidad esté implementada.
+5. Exporta resultados.
 
 ## 11. Reglas iniciales del negocio
 
@@ -336,10 +347,11 @@ Estos estados se validarán durante el diseño funcional.
 - Un evento pertenece a un usuario creador.
 - Un administrador puede ver todos los eventos.
 - Un supervisor solo puede ver eventos creados por él mismo.
-- Una asistencia pertenece a un participante, a un evento y a una fecha específica del cronograma.
-- No debe existir más de una asistencia del mismo participante para la misma fecha del cronograma.
-- Si la fecha del cronograma está cerrada, el formulario no debe aceptar asistencias.
-- El formulario debe poder mostrar información dinámica según el evento y la fecha seleccionada.
+- Una asistencia pertenece a un participante, a un evento, a un módulo y a una sesión específica del cronograma.
+- Solo puede existir una sesión abierta por evento.
+- No debe existir más de una asistencia del mismo participante para la misma sesión.
+- Si todas las sesiones del evento están cerradas, el formulario no debe aceptar asistencias.
+- El formulario debe poder mostrar información dinámica según el evento y la sesión abierta.
 - La clonación de formularios debe reutilizar campos y configuración, pero generar una nueva instancia asociada al evento correspondiente.
 
 ## 12. Modelo de datos inicial sugerido

@@ -53,6 +53,10 @@ CREATE TABLE IF NOT EXISTS event_sessions (
   UNIQUE (event_id, sequence)
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_event_sessions_one_open_attendance_per_event
+ON event_sessions(event_id)
+WHERE attendance_status = 'open';
+
 INSERT INTO events (id, title, source_title, theme, start_date, end_date, start_time, end_time, status, short_link_slug) VALUES (
   'evt_inauguracion_otca', 'Inauguración: Comunidad de Práctica en Manejo Forestal Comunitario Amazónico, en el marco de la OTCA', 'Comunidad de Práctica en Manejo Forestal Comunitario Amazónico: Para la Cooperación Regional Amazónica, en el marco de la OTCA', 'Comunidad de Práctica en Manejo Forestal Comunitario Amazónico: Para la Cooperación Regional Amazónica, en el marco de la OTCA', '2026-08-21', '2026-11-21', '08:00', '17:00', 'draft', 'inauguracion-otca'
 )
