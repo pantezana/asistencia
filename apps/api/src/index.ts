@@ -19,8 +19,11 @@ import {
   listAdminForms,
   listCatalogItems,
   listCatalogs,
+  listDepartments,
+  listDistrictsByProvince,
   listEventModules,
   listEventSessions,
+  listProvincesByDepartment,
   openEventSession,
   registerAttendance,
   updateCatalogItemStatus,
@@ -219,6 +222,33 @@ app.post("/api/public/forms/:slug/attendance", async (c) => {
 
   await registerAttendance(c.env.DB, openSession, participantId, form.id);
   return c.json({ ok: true, alreadyRegistered: false, message: "Asistencia registrada correctamente." });
+});
+
+app.get("/api/public/location/departments", async (c) => {
+  const departments = await listDepartments(c.env.DB);
+  return c.json({ ok: true, departments: departments.results });
+});
+
+app.get("/api/public/location/provinces", async (c) => {
+  const departmentId = c.req.query("departmentId");
+
+  if (!departmentId) {
+    return c.json({ ok: false, message: "Seleccione departamento." }, 400);
+  }
+
+  const provinces = await listProvincesByDepartment(c.env.DB, departmentId);
+  return c.json({ ok: true, provinces: provinces.results });
+});
+
+app.get("/api/public/location/districts", async (c) => {
+  const provinceId = c.req.query("provinceId");
+
+  if (!provinceId) {
+    return c.json({ ok: false, message: "Seleccione provincia." }, 400);
+  }
+
+  const districts = await listDistrictsByProvince(c.env.DB, provinceId);
+  return c.json({ ok: true, districts: districts.results });
 });
 
 app.use("/api/admin/*", requireAuth());

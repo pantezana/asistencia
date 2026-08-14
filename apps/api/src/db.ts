@@ -7,6 +7,7 @@ import type {
   EventSummary,
   FormField,
   FormSection,
+  LocationOption,
   OpenSession,
   Participant,
   SessionUser
@@ -515,6 +516,41 @@ export async function updateCatalogItemStatus(db: D1Database, itemId: string, st
     .run();
 
   return result.meta.changes > 0;
+}
+
+export async function listDepartments(db: D1Database) {
+  return db
+    .prepare(
+      `SELECT iddepartamento AS id, name
+       FROM location_departments
+       WHERE status = 'active'
+       ORDER BY name`
+    )
+    .all<LocationOption>();
+}
+
+export async function listProvincesByDepartment(db: D1Database, departmentId: string) {
+  return db
+    .prepare(
+      `SELECT idprovincia AS id, name
+       FROM location_provinces
+       WHERE iddepartamento = ? AND status = 'active'
+       ORDER BY name`
+    )
+    .bind(departmentId)
+    .all<LocationOption>();
+}
+
+export async function listDistrictsByProvince(db: D1Database, provinceId: string) {
+  return db
+    .prepare(
+      `SELECT iddistrito AS id, name
+       FROM location_districts
+       WHERE idprovincia = ? AND status = 'active'
+       ORDER BY name`
+    )
+    .bind(provinceId)
+    .all<LocationOption>();
 }
 
 export async function getUserForLogin(db: D1Database, login: string) {

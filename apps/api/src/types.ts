@@ -126,3 +126,8 @@ export type Participant = {
   email: string | null;
   phone: string | null;
 };
+
+export type LocationOption = {
+  id: string;
+  name: string;
+};

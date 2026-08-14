@@ -52,6 +52,11 @@ type PublicParticipant = {
   email: string | null;
 };
 
+type LocationOption = {
+  id: string;
+  name: string;
+};
+
 type SessionUser = {
   id: string;
   username: string;
@@ -675,6 +680,11 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
   const [participant, setParticipant] = React.useState<PublicParticipant | null>(null);
   const [step, setStep] = React.useState<"document" | "existing" | "new" | "done">("document");
   const [publicSectionIndex, setPublicSectionIndex] = React.useState(0);
+  const [departments, setDepartments] = React.useState<LocationOption[]>([]);
+  const [provinces, setProvinces] = React.useState<LocationOption[]>([]);
+  const [districts, setDistricts] = React.useState<LocationOption[]>([]);
+  const [selectedDepartmentId, setSelectedDepartmentId] = React.useState("");
+  const [selectedProvinceId, setSelectedProvinceId] = React.useState("");
   const [message, setMessage] = React.useState<string | null>(null);
   const [submitting, setSubmitting] = React.useState(false);
 
@@ -689,6 +699,13 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
       .then(setData)
       .catch((err: Error) => setError(err.message));
   }, [slug]);
+
+  React.useEffect(() => {
+    fetch("/api/public/location/departments")
+      .then((response) => (response.ok ? response.json() as Promise<{ departments: LocationOption[] }> : Promise.reject()))
+      .then((payload) => setDepartments(payload.departments))
+      .catch(() => setDepartments([]));
+  }, []);
 
   async function identify(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -760,11 +777,61 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
     setFields((current) => {
       if (fieldKey === "ubicacion_pais" && !isPeru(value)) {
         const { ubicacion_departamento, ubicacion_provincia, ubicacion_distrito, ...rest } = current;
+        setSelectedDepartmentId("");
+        setSelectedProvinceId("");
+        setProvinces([]);
+        setDistricts([]);
         return { ...rest, [fieldKey]: value };
       }
 
       return { ...current, [fieldKey]: value };
     });
+  }
+
+  async function selectDepartment(departmentId: string) {
+    const department = departments.find((item) => item.id === departmentId);
+    setSelectedDepartmentId(departmentId);
+    setSelectedProvinceId("");
+    setDistricts([]);
+    setFields((current) => ({
+      ...current,
+      ubicacion_departamento: department?.name ?? "",
+      ubicacion_provincia: "",
+      ubicacion_distrito: ""
+    }));
+
+    if (!departmentId) {
+      setProvinces([]);
+      return;
+    }
+
+    const response = await fetch(`/api/public/location/provinces?departmentId=${encodeURIComponent(departmentId)}`);
+    const payload = (await response.json()) as { provinces: LocationOption[] };
+    setProvinces(response.ok ? payload.provinces : []);
+  }
+
+  async function selectProvince(provinceId: string) {
+    const province = provinces.find((item) => item.id === provinceId);
+    setSelectedProvinceId(provinceId);
+    setFields((current) => ({
+      ...current,
+      ubicacion_provincia: province?.name ?? "",
+      ubicacion_distrito: ""
+    }));
+
+    if (!provinceId) {
+      setDistricts([]);
+      return;
+    }
+
+    const response = await fetch(`/api/public/location/districts?provinceId=${encodeURIComponent(provinceId)}`);
+    const payload = (await response.json()) as { districts: LocationOption[] };
+    setDistricts(response.ok ? payload.districts : []);
+  }
+
+  function selectDistrict(districtId: string) {
+    const district = districts.find((item) => item.id === districtId);
+    updateField("ubicacion_distrito", district?.name ?? "");
   }
 
   function isPeru(value: string | undefined) {
@@ -902,6 +969,62 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
 
                   if (isOptionalForeignLocationField(field.field_key)) {
                     return null;
+                  }
+
+                  if (field.field_key === "ubicacion_departamento") {
+                    return (
+                      <label key={field.id}>
+                        {field.label}
+                        <select
+                          value={selectedDepartmentId}
+                          onChange={(event) => void selectDepartment(event.target.value)}
+                          required={isPeru(fields.ubicacion_pais)}
+                        >
+                          <option value="">Seleccione departamento</option>
+                          {departments.map((item) => (
+                            <option key={item.id} value={item.id}>{item.name}</option>
+                          ))}
+                        </select>
+                      </label>
+                    );
+                  }
+
+                  if (field.field_key === "ubicacion_provincia") {
+                    return (
+                      <label key={field.id}>
+                        {field.label}
+                        <select
+                          value={selectedProvinceId}
+                          onChange={(event) => void selectProvince(event.target.value)}
+                          required={isPeru(fields.ubicacion_pais)}
+                          disabled={!selectedDepartmentId}
+                        >
+                          <option value="">Seleccione provincia</option>
+                          {provinces.map((item) => (
+                            <option key={item.id} value={item.id}>{item.name}</option>
+                          ))}
+                        </select>
+                      </label>
+                    );
+                  }
+
+                  if (field.field_key === "ubicacion_distrito") {
+                    return (
+                      <label key={field.id}>
+                        {field.label}
+                        <select
+                          value={districts.find((item) => item.name === fields.ubicacion_distrito)?.id ?? ""}
+                          onChange={(event) => selectDistrict(event.target.value)}
+                          required={isPeru(fields.ubicacion_pais)}
+                          disabled={!selectedProvinceId}
+                        >
+                          <option value="">Seleccione distrito</option>
+                          {districts.map((item) => (
+                            <option key={item.id} value={item.id}>{item.name}</option>
+                          ))}
+                        </select>
+                      </label>
+                    );
                   }
 
                   if (field.field_type === "select" || field.field_type === "radio") {
