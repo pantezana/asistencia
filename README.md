@@ -43,7 +43,7 @@ npm run db:migrate:local
 Antes de desplegar en Cloudflare se debe:
 
 1. Crear la base D1 `asistencia-db`.
-2. Reemplazar `database_id` en `wrangler.toml` y `apps/api/wrangler.toml`.
+2. Verificar que `database_id` en `wrangler.toml` y `apps/api/wrangler.toml` corresponda a la D1 creada.
 3. Ejecutar migraciones remotas con `npm run db:migrate:remote`.
 
 ## Despliegue

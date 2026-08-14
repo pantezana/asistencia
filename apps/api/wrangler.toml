@@ -5,7 +5,7 @@ compatibility_date = "2026-08-14"
 [[d1_databases]]
 binding = "DB"
 database_name = "asistencia-db"
-database_id = "REEMPLAZAR_CON_DATABASE_ID_D1"
+database_id = "c7dda6cf-9246-4d5c-b235-6bf213cfd0fb"
 migrations_dir = "../../migrations"
 
 [vars]
