@@ -11,7 +11,7 @@ El proyecto nace para permitir que una institución u organización pueda crear 
 Construir una aplicación web que permita:
 
 - Crear y administrar eventos.
-- Definir el cronograma de cada evento, indicando días, horarios y títulos independientes por fecha o sesión.
+- Definir el cronograma de cada evento, organizado por módulos y sesiones, indicando tema, fecha, horario y estado de cada sesión.
 - Generar formularios de asistencia asociados a cada evento.
 - Permitir que los asistentes registren sus datos generales si aún no existen en la base de datos.
 - Permitir que asistentes ya registrados marquen asistencia ingresando su número de documento.
@@ -133,6 +133,7 @@ Debe permitir:
 - Actualizar eventos.
 - Activar y desactivar eventos.
 - Crear y gestionar cronogramas.
+- Crear y gestionar módulos del evento.
 - Crear, clonar y gestionar formularios de asistencia.
 - Abrir y cerrar fechas del cronograma.
 - Generar enlace corto y QR.
@@ -160,14 +161,28 @@ Datos esperados:
 - Datos de organización o responsable.
 - Fechas de creación y actualización.
 
-### Cronograma del evento
+### Módulo del evento
 
-Cada evento puede tener una o varias fechas o sesiones. Cada fecha debe poder manejar su propio estado de apertura.
+Un evento puede tener uno o muchos módulos. Los módulos permiten agrupar sesiones por bloque temático, etapa, eje formativo o componente del evento.
 
 Datos esperados:
 
 - Evento asociado.
-- Título independiente de la fecha o sesión.
+- Título del módulo.
+- Orden dentro del evento.
+- Estado administrativo.
+- Fechas de creación y actualización.
+
+### Sesión del evento
+
+Cada módulo puede tener una o varias sesiones. Cada sesión representa una fecha concreta del cronograma y debe poder manejar su propio estado de apertura.
+
+Datos esperados:
+
+- Evento asociado.
+- Módulo asociado.
+- Título de sesión.
+- Tema de la sesión.
 - Fecha.
 - Hora de inicio.
 - Hora de fin.
@@ -272,10 +287,11 @@ Estos estados se validarán durante el diseño funcional.
 
 1. El administrador o supervisor crea un evento.
 2. El sistema registra al usuario creador.
-3. Define el cronograma con una o varias fechas.
-4. Crea o clona el formulario de asistencia.
-5. El sistema genera enlace corto y QR.
-6. El usuario comparte el enlace o QR con los asistentes.
+3. Define uno o varios módulos.
+4. Define una o varias sesiones por módulo.
+5. Crea o clona el formulario de asistencia.
+6. El sistema genera enlace corto y QR.
+7. El usuario comparte el enlace o QR con los asistentes.
 
 ### Flujo de registro de participante nuevo
 
@@ -315,7 +331,8 @@ Estos estados se validarán durante el diseño funcional.
 
 - Un participante se identifica principalmente por su tipo y número de documento.
 - Un participante puede asistir a múltiples eventos.
-- Un evento puede tener múltiples fechas o sesiones.
+- Un evento puede tener múltiples módulos.
+- Un módulo puede tener múltiples sesiones.
 - Un evento pertenece a un usuario creador.
 - Un administrador puede ver todos los eventos.
 - Un supervisor solo puede ver eventos creados por él mismo.
@@ -334,6 +351,7 @@ Tablas iniciales candidatas:
 - `user_roles`
 - `auth_sessions`
 - `events`
+- `event_modules`
 - `event_sessions`
 - `participants`
 - `forms`
@@ -357,6 +375,7 @@ Este modelo es preliminar y deberá convertirse en migraciones reales cuando se 
 - Catálogos.
 - Parámetros.
 - Gestión de eventos.
+- Gestión de módulos.
 - Gestión de cronograma.
 - Gestión de formularios.
 - Clonación de formularios.
@@ -378,15 +397,16 @@ Para una primera versión funcional se recomienda avanzar en este orden:
 5. Layout administrativo responsivo.
 6. CRUD de usuarios para administrador.
 7. CRUD de eventos.
-8. CRUD de fechas o sesiones del cronograma.
-9. Control de apertura y cierre de fechas.
-10. Mantenimiento de catálogos.
-11. Configuración de formularios.
-12. Formulario público básico.
-13. Registro de participantes.
-14. Registro de asistencia con validación de estado abierto/cerrado.
-15. Generación de QR y enlace corto.
-16. Reporte inicial de lista de asistencia.
+8. CRUD de módulos del evento.
+9. CRUD de sesiones del cronograma.
+10. Control de apertura y cierre de sesiones.
+11. Mantenimiento de catálogos.
+12. Configuración de formularios.
+13. Formulario público básico.
+14. Registro de participantes.
+15. Registro de asistencia con validación de estado abierto/cerrado.
+16. Generación de QR y enlace corto.
+17. Reporte inicial de lista de asistencia.
 
 ## 15. Decisiones pendientes
 
@@ -411,7 +431,10 @@ El primer evento de prueba identificado es:
 
 Características iniciales:
 
-- 12 fechas o sesiones.
+- 5 módulos.
+- 14 sesiones.
+- Periodo del cronograma: del `2026-08-21` al `2026-11-21`.
+- Horario general de sesiones: `08:00` a `17:00`.
 - Formulario con 4 secciones.
 - Formulario con 28 campos.
 - Catálogos iniciales extraídos desde Excel.
@@ -420,8 +443,10 @@ Características iniciales:
 Documentación y seeds:
 
 - `docs/formulario-prueba-inauguracion-otca.md`
+- `docs/cronograma-prueba-inauguracion-otca.md`
 - `seeds/primer-evento-inauguracion-otca.json`
 - `seeds/catalogos-formulario-asistencia.json`
+- `migrations/0001_configuracion_evento_inauguracion_otca.sql`
 
 ## 17. Estado actual
 

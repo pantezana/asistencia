@@ -143,6 +143,7 @@ Funciones iniciales:
 - Ver eventos.
 - Actualizar evento.
 - Activar o desactivar evento.
+- Crear y administrar módulos del evento.
 - Crear y administrar cronograma.
 - Crear, clonar y administrar formulario de asistencia.
 - Abrir y cerrar fechas del cronograma.
@@ -194,21 +195,43 @@ Reglas:
 
 ## 9. Cronograma del evento
 
-Cada evento puede tener una o varias fechas o sesiones.
+Cada evento puede tener uno o muchos módulos. Cada módulo puede tener una o muchas sesiones.
 
-El CRUD del cronograma debe incluir:
+La estructura funcional del cronograma será:
 
-- Crear fecha.
-- Ver fecha.
-- Actualizar fecha.
-- Activar o desactivar fecha.
+1. Evento.
+2. Módulo.
+3. Sesión.
+
+El CRUD de módulos debe incluir:
+
+- Crear módulo.
+- Ver módulo.
+- Actualizar módulo.
+- Activar o desactivar módulo.
+
+Datos iniciales de módulo:
+
+- Evento asociado.
+- Título del módulo.
+- Orden de presentación.
+- Estado administrativo.
+
+El CRUD de sesiones debe incluir:
+
+- Crear sesión.
+- Ver sesión.
+- Actualizar sesión.
+- Activar o desactivar sesión.
 - Abrir asistencia.
 - Cerrar asistencia.
 
-Datos iniciales:
+Datos iniciales de sesión:
 
 - Evento asociado.
-- Título de la fecha o sesión.
+- Módulo asociado.
+- Título de sesión.
+- Tema.
 - Fecha.
 - Hora de inicio.
 - Hora de fin.
@@ -216,7 +239,7 @@ Datos iniciales:
 - Estado de asistencia: abierto o cerrado.
 - Orden de presentación.
 
-La apertura y cierre de asistencia debe controlarse por cada fecha del cronograma.
+La apertura y cierre de asistencia debe controlarse por cada sesión del cronograma.
 
 ## 10. Formularios de asistencia
 
@@ -303,7 +326,10 @@ El primer formulario de prueba corresponde al evento:
 
 Características:
 
-- 12 fechas o sesiones.
+- 5 módulos.
+- 14 fechas o sesiones.
+- Periodo del cronograma: del `2026-08-21` al `2026-11-21`.
+- Horario general de sesiones: `08:00` a `17:00`.
 - 4 secciones de formulario.
 - 28 campos.
 - 13 catálogos iniciales extraídos desde Excel.
@@ -313,11 +339,16 @@ Características:
 Documentación específica:
 
 - `docs/formulario-prueba-inauguracion-otca.md`
+- `docs/cronograma-prueba-inauguracion-otca.md`
 
 Seeds creados:
 
 - `seeds/primer-evento-inauguracion-otca.json`
 - `seeds/catalogos-formulario-asistencia.json`
+
+Migración inicial:
+
+- `migrations/0001_configuracion_evento_inauguracion_otca.sql`
 
 ## 15. Participantes
 
@@ -387,6 +418,7 @@ Tablas candidatas:
 - `user_roles`
 - `auth_sessions`
 - `events`
+- `event_modules`
 - `event_sessions`
 - `forms`
 - `form_fields`
@@ -412,14 +444,15 @@ Orden sugerido para iniciar el desarrollo:
 6. Crear layout administrativo responsivo.
 7. Implementar CRUD de usuarios para administrador.
 8. Implementar CRUD de eventos.
-9. Implementar cronograma con apertura y cierre.
-10. Implementar mantenimiento de catálogos.
-11. Implementar configuración de formularios.
-12. Implementar formulario público.
-13. Implementar registro de participantes.
-14. Implementar registro de asistencia.
-15. Generar enlace corto y QR.
-16. Crear reporte de lista de asistencia.
+9. Implementar módulos del evento.
+10. Implementar sesiones del cronograma con apertura y cierre.
+11. Implementar mantenimiento de catálogos.
+12. Implementar configuración de formularios.
+13. Implementar formulario público.
+14. Implementar registro de participantes.
+15. Implementar registro de asistencia.
+16. Generar enlace corto y QR.
+17. Crear reporte de lista de asistencia.
 
 ## 20. Decisiones pendientes
 

@@ -10,15 +10,20 @@ Este será el primer evento de prueba del sistema **Asistencia**.
 
 Condiciones iniciales:
 
-- El evento tendrá 12 fechas o sesiones.
-- Las fechas y horas reales todavía deben ser confirmadas.
-- Cada sesión iniciará en estado administrativo `draft`.
+- El evento tendrá 5 módulos.
+- El evento tendrá 14 fechas o sesiones.
+- Las fechas y horas reales fueron extraídas del archivo `SESIONES_EVENTO.xlsx`.
+- Cada sesión iniciará con estado `closed`, según el cronograma fuente.
 - Cada sesión iniciará con asistencia `closed`.
 - La apertura y cierre de asistencia se controlará de forma independiente por sesión.
 
 Archivo semilla:
 
 - `seeds/primer-evento-inauguracion-otca.json`
+
+Cronograma documentado:
+
+- `docs/cronograma-prueba-inauguracion-otca.md`
 
 ## 2. Fuente de datos
 
@@ -183,11 +188,11 @@ El formulario debe mostrar un título dinámico combinando evento y sesión.
 
 Plantilla sugerida:
 
-`Bienvenido a {{event.title}} - {{session.title}}`
+`Bienvenido a {{event.title}} - {{session.title}}: {{session.theme}}`
 
 Ejemplo:
 
-`Bienvenido a Inauguración: Comunidad de Práctica en Manejo Forestal Comunitario Amazónico, en el marco de la OTCA - Sesión 1`
+`Bienvenido a Inauguración: Comunidad de Práctica en Manejo Forestal Comunitario Amazónico, en el marco de la OTCA - Sesión 1: Institucionalidad, gobernanza y marco legal del sector forestal y de fauna silvestre I (3 países)`
 
 ## 12. Enlace corto y QR
 
@@ -208,9 +213,6 @@ Reglas:
 
 Antes de publicar el formulario se requiere definir:
 
-- Fechas reales de las 12 sesiones.
-- Hora de inicio y fin de cada sesión.
-- Títulos específicos de cada sesión, si serán diferentes de `Sesión 1`, `Sesión 2`, etc.
 - Campos obligatorios definitivos.
 - Comportamiento de campos de organización cuando `Pertenece a Organización` sea `NO`.
 - Usuario administrador o supervisor propietario del evento de prueba.

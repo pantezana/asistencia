@@ -5,130 +5,229 @@
     "description": "Configuración inicial de prueba extraída del Excel FormularioAsistencia.xlsx.",
     "field_count": 28,
     "section_count": 4,
-    "catalog_file": "seeds/catalogos-formulario-asistencia.json"
+    "catalog_file": "seeds/catalogos-formulario-asistencia.json",
+    "schedule_source_file": "C:\\Users\\USUARIO\\Downloads\\SESIONES_EVENTO.xlsx",
+    "schedule_source_sheet": "SESIONES",
+    "module_count": 5,
+    "session_count": 14,
+    "migration_file": "migrations/0001_configuracion_evento_inauguracion_otca.sql"
   },
   "event": {
     "title": "Inauguración: Comunidad de Práctica en Manejo Forestal Comunitario Amazónico, en el marco de la OTCA",
     "status": "draft",
     "visibility": "private_admin_public_form",
     "created_by_role": "administrador_o_supervisor",
-    "notes": "Evento de prueba. Las 12 fechas/sesiones requieren fechas y horas reales antes de publicación."
+    "notes": "Evento de prueba configurado con 14 sesiones reales extraídas del archivo SESIONES_EVENTO.xlsx.",
+    "id": "evt_inauguracion_otca",
+    "source_title": "Comunidad de Práctica en Manejo Forestal Comunitario Amazónico: Para la Cooperación Regional Amazónica, en el marco de la OTCA",
+    "start_date": "2026-08-21",
+    "end_date": "2026-11-21",
+    "start_time": "08:00",
+    "end_time": "17:00"
   },
   "sessions": [
     {
+      "key": "ses_inauguracion_otca_01",
       "sequence": 1,
+      "module_key": "mod_01_modulo_1_institucionalidad_gobernanza_y_marco_legal",
       "title": "Sesión 1",
-      "date": null,
-      "start_time": null,
-      "end_time": null,
-      "status": "draft",
-      "attendance_status": "closed"
+      "theme": "Institucionalidad, gobernanza y marco legal del sector forestal y de fauna silvestre I (3 países)",
+      "date": "2026-08-21",
+      "start_time": "08:00",
+      "end_time": "17:00",
+      "status": "closed",
+      "attendance_status": "closed",
+      "source_status": "Cerrado",
+      "source_event_title": "Comunidad de Práctica en Manejo Forestal Comunitario Amazónico: Para la Cooperación Regional Amazónica, en el marco de la OTCA"
     },
     {
+      "key": "ses_inauguracion_otca_02",
       "sequence": 2,
+      "module_key": "mod_01_modulo_1_institucionalidad_gobernanza_y_marco_legal",
       "title": "Sesión 2",
-      "date": null,
-      "start_time": null,
-      "end_time": null,
-      "status": "draft",
-      "attendance_status": "closed"
+      "theme": "Institucionalidad, gobernanza y marco legal del sector forestal y de fauna silvestre II (3 países)",
+      "date": "2026-08-26",
+      "start_time": "08:00",
+      "end_time": "17:00",
+      "status": "closed",
+      "attendance_status": "closed",
+      "source_status": "Cerrado",
+      "source_event_title": "Comunidad de Práctica en Manejo Forestal Comunitario Amazónico: Para la Cooperación Regional Amazónica, en el marco de la OTCA"
     },
     {
+      "key": "ses_inauguracion_otca_03",
       "sequence": 3,
+      "module_key": "mod_02_modulo_2_manejo_sostenible_de_los_recursos_forestales_y_de_fauna_silvestre",
       "title": "Sesión 3",
-      "date": null,
-      "start_time": null,
-      "end_time": null,
-      "status": "draft",
-      "attendance_status": "closed"
+      "theme": "Acceso, aprovechamiento y vigilancia comunitaria de los recursos forestales y de fauna silvestre I (3 países)",
+      "date": "2026-09-04",
+      "start_time": "08:00",
+      "end_time": "17:00",
+      "status": "closed",
+      "attendance_status": "closed",
+      "source_status": "Cerrado",
+      "source_event_title": "Comunidad de Práctica en Manejo Forestal Comunitario Amazónico: Para la Cooperación Regional Amazónica, en el marco de la OTCA"
     },
     {
+      "key": "ses_inauguracion_otca_04",
       "sequence": 4,
+      "module_key": "mod_02_modulo_2_manejo_sostenible_de_los_recursos_forestales_y_de_fauna_silvestre",
       "title": "Sesión 4",
-      "date": null,
-      "start_time": null,
-      "end_time": null,
-      "status": "draft",
-      "attendance_status": "closed"
+      "theme": "Acceso, aprovechamiento y vigilancia comunitaria de los recursos forestales y de fauna silvestre II (3 países)",
+      "date": "2026-09-11",
+      "start_time": "08:00",
+      "end_time": "17:00",
+      "status": "closed",
+      "attendance_status": "closed",
+      "source_status": "Cerrado",
+      "source_event_title": "Comunidad de Práctica en Manejo Forestal Comunitario Amazónico: Para la Cooperación Regional Amazónica, en el marco de la OTCA"
     },
     {
+      "key": "ses_inauguracion_otca_05",
       "sequence": 5,
+      "module_key": "mod_03_modulo_3_sistemas_productivos_innovadores",
       "title": "Sesión 5",
-      "date": null,
-      "start_time": null,
-      "end_time": null,
-      "status": "draft",
-      "attendance_status": "closed"
+      "theme": "Sistemas productivos sostenibles: Plantaciones forestales, Sistemas agroforestales y silvopastoriles I (3 países)",
+      "date": "2026-09-18",
+      "start_time": "08:00",
+      "end_time": "17:00",
+      "status": "closed",
+      "attendance_status": "closed",
+      "source_status": "Cerrado",
+      "source_event_title": "Comunidad de Práctica en Manejo Forestal Comunitario Amazónico: Para la Cooperación Regional Amazónica, en el marco de la OTCA"
     },
     {
+      "key": "ses_inauguracion_otca_06",
       "sequence": 6,
+      "module_key": "mod_03_modulo_3_sistemas_productivos_innovadores",
       "title": "Sesión 6",
-      "date": null,
-      "start_time": null,
-      "end_time": null,
-      "status": "draft",
-      "attendance_status": "closed"
+      "theme": "Sistemas productivos sostenibles: Plantaciones forestales, Sistemas agroforestales y silvopastoriles II (3 países)",
+      "date": "2026-09-25",
+      "start_time": "08:00",
+      "end_time": "17:00",
+      "status": "closed",
+      "attendance_status": "closed",
+      "source_status": "Cerrado",
+      "source_event_title": "Comunidad de Práctica en Manejo Forestal Comunitario Amazónico: Para la Cooperación Regional Amazónica, en el marco de la OTCA"
     },
     {
+      "key": "ses_inauguracion_otca_07",
       "sequence": 7,
+      "module_key": "mod_03_modulo_3_sistemas_productivos_innovadores",
       "title": "Sesión 7",
-      "date": null,
-      "start_time": null,
-      "end_time": null,
-      "status": "draft",
-      "attendance_status": "closed"
+      "theme": "Manejo Comunal de Fauna Silvestre (Caza, zoocriaderos, ecoturismo) I (3 países)",
+      "date": "2026-09-30",
+      "start_time": "08:00",
+      "end_time": "17:00",
+      "status": "closed",
+      "attendance_status": "closed",
+      "source_status": "Cerrado",
+      "source_event_title": "Comunidad de Práctica en Manejo Forestal Comunitario Amazónico: Para la Cooperación Regional Amazónica, en el marco de la OTCA"
     },
     {
+      "key": "ses_inauguracion_otca_08",
       "sequence": 8,
+      "module_key": "mod_03_modulo_3_sistemas_productivos_innovadores",
       "title": "Sesión 8",
-      "date": null,
-      "start_time": null,
-      "end_time": null,
-      "status": "draft",
-      "attendance_status": "closed"
+      "theme": "Manejo Comunal de Fauna Silvestre (Caza, zoocriaderos, ecoturismo) II (3 países)",
+      "date": "2026-10-09",
+      "start_time": "08:00",
+      "end_time": "17:00",
+      "status": "closed",
+      "attendance_status": "closed",
+      "source_status": "Cerrado",
+      "source_event_title": "Comunidad de Práctica en Manejo Forestal Comunitario Amazónico: Para la Cooperación Regional Amazónica, en el marco de la OTCA"
     },
     {
+      "key": "ses_inauguracion_otca_09",
       "sequence": 9,
+      "module_key": "mod_04_modulo_4_cambio_climatico",
       "title": "Sesión 9",
-      "date": null,
-      "start_time": null,
-      "end_time": null,
-      "status": "draft",
-      "attendance_status": "closed"
+      "theme": "Gestión comunitaria del fuego e incendios forestales: prevención, monitoreo y respuesta temprana I (3 países)",
+      "date": "2026-10-16",
+      "start_time": "08:00",
+      "end_time": "17:00",
+      "status": "closed",
+      "attendance_status": "closed",
+      "source_status": "Cerrado",
+      "source_event_title": "Comunidad de Práctica en Manejo Forestal Comunitario Amazónico: Para la Cooperación Regional Amazónica, en el marco de la OTCA"
     },
     {
+      "key": "ses_inauguracion_otca_10",
       "sequence": 10,
+      "module_key": "mod_04_modulo_4_cambio_climatico",
       "title": "Sesión 10",
-      "date": null,
-      "start_time": null,
-      "end_time": null,
-      "status": "draft",
-      "attendance_status": "closed"
+      "theme": "Gestión comunitaria del fuego e incendios forestales: prevención, monitoreo y respuesta temprana II (3 países)",
+      "date": "2026-10-23",
+      "start_time": "08:00",
+      "end_time": "17:00",
+      "status": "closed",
+      "attendance_status": "closed",
+      "source_status": "Cerrado",
+      "source_event_title": "Comunidad de Práctica en Manejo Forestal Comunitario Amazónico: Para la Cooperación Regional Amazónica, en el marco de la OTCA"
     },
     {
+      "key": "ses_inauguracion_otca_11",
       "sequence": 11,
+      "module_key": "mod_04_modulo_4_cambio_climatico",
       "title": "Sesión 11",
-      "date": null,
-      "start_time": null,
-      "end_time": null,
-      "status": "draft",
-      "attendance_status": "closed"
+      "theme": "Estrategias de mitigación y adaptación al cambio climático de los pueblos indígenas I (3 países)",
+      "date": "2026-10-30",
+      "start_time": "08:00",
+      "end_time": "17:00",
+      "status": "closed",
+      "attendance_status": "closed",
+      "source_status": "Cerrado",
+      "source_event_title": "Comunidad de Práctica en Manejo Forestal Comunitario Amazónico: Para la Cooperación Regional Amazónica, en el marco de la OTCA"
     },
     {
+      "key": "ses_inauguracion_otca_12",
       "sequence": 12,
+      "module_key": "mod_04_modulo_4_cambio_climatico",
       "title": "Sesión 12",
-      "date": null,
-      "start_time": null,
-      "end_time": null,
-      "status": "draft",
-      "attendance_status": "closed"
+      "theme": "Estrategias de mitigación y adaptación al cambio climático de los pueblos indígenas II (3 países)",
+      "date": "2026-11-06",
+      "start_time": "08:00",
+      "end_time": "17:00",
+      "status": "closed",
+      "attendance_status": "closed",
+      "source_status": "Cerrado",
+      "source_event_title": "Comunidad de Práctica en Manejo Forestal Comunitario Amazónico: Para la Cooperación Regional Amazónica, en el marco de la OTCA"
+    },
+    {
+      "key": "ses_inauguracion_otca_13",
+      "sequence": 13,
+      "module_key": "mod_05_expo_mfc_encuentro_de_comunidad_de_practica_en_manejo_forestal_comunitario_intercambio_de_experiencias_exitosas",
+      "title": "Sesión 13",
+      "theme": "15 Casos de éxito de Manejo Forestal Comunitario (4 países)",
+      "date": "2026-11-20",
+      "start_time": "08:00",
+      "end_time": "17:00",
+      "status": "closed",
+      "attendance_status": "closed",
+      "source_status": "Cerrado",
+      "source_event_title": "Comunidad de Práctica en Manejo Forestal Comunitario Amazónico: Para la Cooperación Regional Amazónica, en el marco de la OTCA"
+    },
+    {
+      "key": "ses_inauguracion_otca_14",
+      "sequence": 14,
+      "module_key": "mod_05_expo_mfc_encuentro_de_comunidad_de_practica_en_manejo_forestal_comunitario_intercambio_de_experiencias_exitosas",
+      "title": "Sesión 14",
+      "theme": "15 Casos de éxito de Manejo Forestal Comunitario (4 países)",
+      "date": "2026-11-21",
+      "start_time": "08:00",
+      "end_time": "17:00",
+      "status": "closed",
+      "attendance_status": "closed",
+      "source_status": "Cerrado",
+      "source_event_title": "Comunidad de Práctica en Manejo Forestal Comunitario Amazónico: Para la Cooperación Regional Amazónica, en el marco de la OTCA"
     }
   ],
   "form": {
     "name": "Formulario de asistencia - Inauguración OTCA",
     "status": "draft",
     "short_link_slug": "inauguracion-otca",
-    "welcome_title_template": "Bienvenido a {{event.title}} - {{session.title}}",
+    "welcome_title_template": "Bienvenido a {{event.title}} - {{session.title}}: {{session.theme}}",
     "sections": [
       {
         "key": "datos_generales",
@@ -553,5 +652,37 @@
         ]
       }
     ]
-  }
+  },
+  "modules": [
+    {
+      "key": "mod_01_modulo_1_institucionalidad_gobernanza_y_marco_legal",
+      "title": "Módulo 1. Institucionalidad, gobernanza y marco legal",
+      "order": 1,
+      "status": "active"
+    },
+    {
+      "key": "mod_02_modulo_2_manejo_sostenible_de_los_recursos_forestales_y_de_fauna_silvestre",
+      "title": "Módulo 2. Manejo sostenible de los recursos forestales y de fauna silvestre",
+      "order": 2,
+      "status": "active"
+    },
+    {
+      "key": "mod_03_modulo_3_sistemas_productivos_innovadores",
+      "title": "Módulo 3. Sistemas productivos innovadores",
+      "order": 3,
+      "status": "active"
+    },
+    {
+      "key": "mod_04_modulo_4_cambio_climatico",
+      "title": "Módulo 4. Cambio climático",
+      "order": 4,
+      "status": "active"
+    },
+    {
+      "key": "mod_05_expo_mfc_encuentro_de_comunidad_de_practica_en_manejo_forestal_comunitario_intercambio_de_experiencias_exitosas",
+      "title": "Expo MFC: Encuentro de Comunidad de Práctica en Manejo Forestal Comunitario, intercambio de experiencias exitosas",
+      "order": 5,
+      "status": "active"
+    }
+  ]
 }
