@@ -674,6 +674,7 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
   const [fields, setFields] = React.useState<Record<string, string>>({});
   const [participant, setParticipant] = React.useState<PublicParticipant | null>(null);
   const [step, setStep] = React.useState<"document" | "existing" | "new" | "done">("document");
+  const [publicSectionIndex, setPublicSectionIndex] = React.useState(0);
   const [message, setMessage] = React.useState<string | null>(null);
   const [submitting, setSubmitting] = React.useState(false);
 
@@ -731,6 +732,7 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
       datos_generales_tipo_docidentidad: documentType,
       datos_generales_numero_documento: documentNumber
     }));
+    setPublicSectionIndex(0);
     setStep("new");
   }
 
@@ -758,6 +760,19 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
     setFields((current) => ({ ...current, [fieldKey]: value }));
   }
 
+  function nextPublicSection(event: React.FormEvent<HTMLFormElement>, sectionCount: number) {
+    event.preventDefault();
+
+    if (publicSectionIndex >= sectionCount - 1) {
+      void submitAttendance();
+      return;
+    }
+
+    setPublicSectionIndex((current) => current + 1);
+    setMessage(null);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   if (error) {
     return <PublicMessage title="Formulario no disponible" message={error} />;
   }
@@ -775,6 +790,11 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
     );
   }
 
+  const publicSections = data.sections ?? [];
+  const currentPublicSection = publicSections[publicSectionIndex];
+  const progressSteps = ["Documento", ...publicSections.map((section) => section.title)];
+  const currentProgressIndex = step === "document" ? 0 : publicSectionIndex + 1;
+
   return (
     <main className="public-page">
       <section className="public-form">
@@ -785,6 +805,17 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
           <span>{data.openSession.session_date}</span>
           <span>{data.openSession.start_time} - {data.openSession.end_time}</span>
         </div>
+
+        {step !== "existing" && step !== "done" ? (
+          <div className="progress-steps" aria-label="Avance del formulario">
+            {progressSteps.map((label, index) => (
+              <div className={`progress-step ${index === currentProgressIndex ? "current" : ""} ${index < currentProgressIndex ? "done" : ""}`} key={label}>
+                <span>{index + 1}</span>
+                <strong>{label}</strong>
+              </div>
+            ))}
+          </div>
+        ) : null}
 
         {message ? <p className={step === "done" ? "form-success" : "form-error"}>{message}</p> : null}
 
@@ -832,11 +863,11 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
         ) : null}
 
         {step === "new" ? (
-          <form className="document-form" onSubmit={submitAttendance}>
-            {(data.sections ?? []).map((section) => (
-              <fieldset className="public-section" key={section.id}>
-                <legend>{section.title}</legend>
-                {section.fields.map((field) => {
+          <form className="document-form" onSubmit={(event) => nextPublicSection(event, publicSections.length)}>
+            {currentPublicSection ? (
+              <fieldset className="public-section" key={currentPublicSection.id}>
+                <legend>{currentPublicSection.title}</legend>
+                {currentPublicSection.fields.map((field) => {
                   if (
                     field.field_key === "datos_generales_tipo_docidentidad" ||
                     field.field_key === "datos_generales_numero_documento"
@@ -879,10 +910,22 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
                   );
                 })}
               </fieldset>
-            ))}
-            <button className="button" type="submit" disabled={submitting}>
-              {submitting ? "Registrando..." : "Registrar asistencia"}
-            </button>
+            ) : null}
+            <div className="form-navigation">
+              <button
+                className="button secondary"
+                type="button"
+                onClick={() => setPublicSectionIndex((current) => Math.max(0, current - 1))}
+                disabled={publicSectionIndex === 0 || submitting}
+              >
+                Atrás
+              </button>
+              <button className="button" type="submit" disabled={submitting}>
+                {publicSectionIndex >= publicSections.length - 1
+                  ? submitting ? "Registrando..." : "Registrar asistencia"
+                  : "Siguiente"}
+              </button>
+            </div>
           </form>
         ) : null}
       </section>

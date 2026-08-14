@@ -340,6 +340,87 @@ dd {
   margin-bottom: 0;
 }
 
+.progress-steps {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  margin: 0 0 18px;
+}
+
+.progress-step {
+  align-items: center;
+  color: #667085;
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  min-width: 0;
+  position: relative;
+  text-align: center;
+}
+
+.progress-step::before {
+  background: #dbe3ef;
+  content: "";
+  height: 3px;
+  left: -50%;
+  position: absolute;
+  right: 50%;
+  top: 15px;
+}
+
+.progress-step:first-child::before {
+  display: none;
+}
+
+.progress-step span {
+  align-items: center;
+  background: #e2e8f0;
+  border-radius: 999px;
+  color: #475467;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 800;
+  height: 30px;
+  justify-content: center;
+  position: relative;
+  width: 30px;
+  z-index: 1;
+}
+
+.progress-step strong {
+  font-size: 12px;
+  line-height: 1.2;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.progress-step.current span,
+.progress-step.done span,
+.progress-step.done::before {
+  background: #2563eb;
+  color: white;
+}
+
+.progress-step.current strong {
+  color: #17202a;
+}
+
+.form-navigation {
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.form-navigation .button {
+  justify-content: center;
+  min-width: 132px;
+}
+
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 label {
   color: #344054;
   display: grid;
@@ -592,6 +673,26 @@ select {
 
   .field-grid {
     grid-template-columns: 1fr;
+  }
+
+  .progress-steps {
+    grid-template-columns: 1fr;
+  }
+
+  .progress-step {
+    align-items: center;
+    grid-template-columns: 30px 1fr;
+    justify-items: start;
+    text-align: left;
+  }
+
+  .progress-step::before {
+    bottom: 50%;
+    height: auto;
+    left: 15px;
+    right: auto;
+    top: -50%;
+    width: 3px;
   }
 }
 
