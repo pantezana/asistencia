@@ -1213,7 +1213,7 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
 
     if (payload.alreadyRegistered) {
       setStep("done");
-      setMessage("Su asistencia ya fue registrada para esta sesion.");
+      setMessage("Está intentando volver a registrar asistencia. Su asistencia ya fue registrada en esta sesión.");
       return;
     }
 
@@ -1294,6 +1294,13 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
 
       return { ...current, [fieldKey]: sanitizedValue };
     });
+  }
+
+  function returnToDocumentStep() {
+    setStep("document");
+    setParticipant(null);
+    setMessage(null);
+    setPublicSectionIndex(0);
   }
 
   function sanitizeFieldValue(fieldKey: string, value: string) {
@@ -1571,10 +1578,18 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
               <button className="button" type="button" onClick={() => void submitAttendance()} disabled={submitting}>
                 {submitting ? "Registrando..." : "Confirmar asistencia"}
               </button>
-              <button className="button secondary" type="button" onClick={() => setStep("document")}>
+              <button className="button secondary" type="button" onClick={returnToDocumentStep}>
                 Cambiar documento
               </button>
             </div>
+          </div>
+        ) : null}
+
+        {step === "done" && message?.includes("volver a registrar asistencia") ? (
+          <div className="actions">
+            <button className="button secondary" type="button" onClick={returnToDocumentStep}>
+              Cambiar documento
+            </button>
           </div>
         ) : null}
 
