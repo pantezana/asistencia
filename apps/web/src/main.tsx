@@ -186,7 +186,8 @@ function textInputProps(field: PublicFormField) {
     return {
       type: "email",
       inputMode: "email" as const,
-      title: "Ingrese un correo electrónico válido"
+      pattern: "[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}",
+      title: "Ingrese un correo electrónico válido, por ejemplo nombre@dominio.com"
     };
   }
 
@@ -1444,6 +1445,11 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
   function nextPublicSection(event: React.FormEvent<HTMLFormElement>, sectionCount: number) {
     event.preventDefault();
 
+    if (currentPublicSection?.section_key === "datos_generales" && !isEmailValid()) {
+      setMessage("Ingrese un correo electrónico válido, por ejemplo nombre@dominio.com.");
+      return;
+    }
+
     if (currentPublicSection?.section_key === "actividad" && !isActivitySectionValid()) {
       setMessage("Seleccione al menos un producto agrario, pecuario o forestal, o responda NO.");
       return;
@@ -1457,6 +1463,11 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
     setPublicSectionIndex((current) => current + 1);
     setMessage(null);
     window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function isEmailValid() {
+    const email = fields.datos_generales_correo_electronico?.trim() ?? "";
+    return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email);
   }
 
   function isActivityProductField(fieldKey: string) {
