@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import { createRoot } from "react-dom/client";
 import "./styles.css";
 
@@ -69,6 +69,7 @@ type SessionUser = {
 type AdminEvent = {
   id: string;
   title: string;
+  theme: string | null;
   start_date: string;
   end_date: string;
   start_time: string;
@@ -179,6 +180,7 @@ function AdminShell() {
   const [showCreateEvent, setShowCreateEvent] = React.useState(false);
   const [creatingEvent, setCreatingEvent] = React.useState(false);
   const [createdEvent, setCreatedEvent] = React.useState<CreatedEventResult | null>(null);
+  const [savingEvent, setSavingEvent] = React.useState(false);
   const [eventDraft, setEventDraft] = React.useState({
     title: "",
     theme: "",
@@ -188,8 +190,17 @@ function AdminShell() {
     endTime: "17:00"
   });
   const [sessionDrafts, setSessionDrafts] = React.useState<EventSessionDraft[]>([
-    { moduleTitle: "Módulo general", title: "Sesión 1", theme: "", sessionDate: "", startTime: "08:00", endTime: "17:00" }
+    { moduleTitle: "MÃ³dulo general", title: "SesiÃ³n 1", theme: "", sessionDate: "", startTime: "08:00", endTime: "17:00" }
   ]);
+  const [eventEditDraft, setEventEditDraft] = React.useState({
+    title: "",
+    theme: "",
+    startDate: "",
+    endDate: "",
+    startTime: "",
+    endTime: "",
+    status: "draft"
+  });
 
   React.useEffect(() => {
     fetch("/api/auth/me", { credentials: "include" })
@@ -214,6 +225,21 @@ function AdminShell() {
   }, [selectedEventId]);
 
   React.useEffect(() => {
+    const event = events.find((item) => item.id === selectedEventId);
+    if (!event) return;
+
+    setEventEditDraft({
+      title: event.title,
+      theme: event.theme ?? "",
+      startDate: event.start_date,
+      endDate: event.end_date,
+      startTime: event.start_time,
+      endTime: event.end_time,
+      status: event.status
+    });
+  }, [events, selectedEventId]);
+
+  React.useEffect(() => {
     if (selectedFormId) {
       void loadFormDetail(selectedFormId);
     }
@@ -226,7 +252,7 @@ function AdminShell() {
   }, [selectedCatalogKey]);
 
   if (loading) {
-    return <PublicMessage title="Asistencia" message="Validando sesión..." />;
+    return <PublicMessage title="Asistencia" message="Validando sesiÃ³n..." />;
   }
 
   if (!user) {
@@ -351,11 +377,11 @@ function AdminShell() {
 
     if (!response.ok) {
       const payload = (await response.json()) as { message?: string };
-      setActionMessage(payload.message ?? "No se pudo actualizar la sesión.");
+      setActionMessage(payload.message ?? "No se pudo actualizar la sesiÃ³n.");
       return;
     }
 
-    setActionMessage(action === "open" ? "Sesión abierta correctamente." : "Sesión cerrada correctamente.");
+    setActionMessage(action === "open" ? "SesiÃ³n abierta correctamente." : "SesiÃ³n cerrada correctamente.");
     await loadEvents();
     await loadSessions(selectedEventId);
   }
@@ -370,8 +396,8 @@ function AdminShell() {
     setSessionDrafts((current) => [
       ...current,
       {
-        moduleTitle: current.at(-1)?.moduleTitle || "Módulo general",
-        title: `Sesión ${current.length + 1}`,
+        moduleTitle: current.at(-1)?.moduleTitle || "MÃ³dulo general",
+        title: `SesiÃ³n ${current.length + 1}`,
         theme: "",
         sessionDate: "",
         startTime: eventDraft.startTime,
@@ -413,9 +439,35 @@ function AdminShell() {
     setActionMessage("Evento, cronograma y formulario creados correctamente.");
   }
 
+  async function saveSelectedEvent(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedEventId) return;
+
+    setSavingEvent(true);
+    setActionMessage(null);
+    const response = await fetch(`/api/admin/events/${selectedEventId}`, {
+      method: "PUT",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(eventEditDraft)
+    });
+    const payload = (await response.json()) as { ok: boolean; message?: string };
+    setSavingEvent(false);
+
+    if (!response.ok || !payload.ok) {
+      setActionMessage(payload.message ?? "No se pudo actualizar el evento.");
+      return;
+    }
+
+    await loadEvents();
+    setActionMessage("Evento actualizado correctamente.");
+  }
+
   const selectedEvent = events.find((event) => event.id === selectedEventId) ?? events[0];
   const openSession = sessions.find((session) => session.attendance_status === "open");
   const selectedForm = forms.find((form) => form.id === selectedFormId) ?? forms[0];
+  const selectedEventPublicUrl = selectedEvent ? `${window.location.origin}/f/${selectedEvent.short_link_slug}` : "";
+  const selectedEventQrUrl = selectedEvent ? `${window.location.origin}/api/public/forms/${selectedEvent.short_link_slug}/qr` : "";
   const selectedCatalog = catalogs.find((catalog) => catalog.catalog_key === selectedCatalogKey) ?? catalogs[0];
 
   return (
@@ -425,14 +477,14 @@ function AdminShell() {
           <span className="brand-mark">A</span>
           <div>
             <strong>Asistencia</strong>
-            <small>Gestión de eventos</small>
+            <small>GestiÃ³n de eventos</small>
           </div>
         </div>
         <nav className="nav-list">
           <a className="active" href="#eventos">Eventos</a>
           <a href="#formularios">Formularios</a>
           <a href="#reportes">Reportes</a>
-          <a href="#configuracion">Configuración</a>
+          <a href="#configuracion">ConfiguraciÃ³n</a>
         </nav>
       </aside>
 
@@ -440,32 +492,29 @@ function AdminShell() {
         <header className="topbar">
           <div>
             <p className="eyebrow">MVP en desarrollo</p>
-            <h1>Panel de administración</h1>
+            <h1>Panel de administraciÃ³n</h1>
           </div>
           <div className="user-menu">
             <span>{user.full_name}</span>
             <small>{user.roles.join(", ")}</small>
-            <button className="button secondary" type="button" onClick={logout}>Cerrar sesión</button>
+            <button className="button secondary" type="button" onClick={logout}>Cerrar sesiÃ³n</button>
           </div>
         </header>
 
         <section className="summary-grid" aria-label="Resumen del sistema">
           <Metric label="Eventos" value={String(events.length)} />
-          <Metric label="Módulos" value={String(selectedEvent?.module_count ?? 0)} />
+          <Metric label="MÃ³dulos" value={String(selectedEvent?.module_count ?? 0)} />
           <Metric label="Sesiones" value={String(selectedEvent?.session_count ?? 0)} />
-          <Metric label="Sesión abierta" value={openSession ? String(openSession.sequence) : "0"} />
+          <Metric label="SesiÃ³n abierta" value={openSession ? String(openSession.sequence) : "0"} />
         </section>
 
         <section className="workspace-section" id="eventos">
           <div className="section-heading">
             <div>
-              <p className="eyebrow">Evento de prueba</p>
-              <h2>{selectedEvent?.title ?? "Eventos"}</h2>
+              <p className="eyebrow">Gestion de eventos</p>
+              <h2>Eventos registrados</h2>
             </div>
             <div className="actions">
-              {selectedEvent ? (
-                <a className="button secondary" href={`/f/${selectedEvent.short_link_slug}`}>Abrir formulario</a>
-              ) : null}
               <button className="button" type="button" onClick={() => setShowCreateEvent((current) => !current)}>
                 Crear evento
               </button>
@@ -476,7 +525,7 @@ function AdminShell() {
             <form className="admin-form-panel" onSubmit={createEvent}>
               <div className="form-grid">
                 <label>
-                  Título del evento
+                  TÃ­tulo del evento
                   <input value={eventDraft.title} onChange={(event) => setEventDraft((current) => ({ ...current, title: event.target.value }))} required />
                 </label>
                 <label>
@@ -506,18 +555,18 @@ function AdminShell() {
                   <p className="eyebrow">Cronograma</p>
                   <h3>Sesiones del evento</h3>
                 </div>
-                <button className="button secondary" type="button" onClick={addSessionDraft}>Agregar sesión</button>
+                <button className="button secondary" type="button" onClick={addSessionDraft}>Agregar sesiÃ³n</button>
               </div>
 
               <div className="session-draft-list">
                 {sessionDrafts.map((session, index) => (
                   <div className="session-draft" key={index}>
                     <label>
-                      Módulo
+                      MÃ³dulo
                       <input value={session.moduleTitle} onChange={(event) => updateSessionDraft(index, "moduleTitle", event.target.value)} required />
                     </label>
                     <label>
-                      Sesión
+                      SesiÃ³n
                       <input value={session.title} onChange={(event) => updateSessionDraft(index, "title", event.target.value)} required />
                     </label>
                     <label className="wide-field">
@@ -546,7 +595,7 @@ function AdminShell() {
                     <strong>Enlace corto</strong>
                     <a href={createdEvent.publicUrl}>{createdEvent.publicUrl}</a>
                   </div>
-                  <img src={createdEvent.qrUrl} alt="Código QR del formulario" />
+                  <img src={createdEvent.qrUrl} alt="CÃ³digo QR del formulario" />
                 </div>
               ) : null}
 
@@ -558,33 +607,106 @@ function AdminShell() {
             </form>
           ) : null}
 
+          <div className="session-table-wrap">
+            <table className="session-table">
+              <thead>
+                <tr>
+                  <th>Evento</th>
+                  <th>Periodo</th>
+                  <th>Sesiones</th>
+                  <th>Estado</th>
+                  <th>Enlace</th>
+                  <th>Accion</th>
+                </tr>
+              </thead>
+              <tbody>
+                {events.map((event) => (
+                  <tr className={event.id === selectedEvent?.id ? "selected-row" : ""} key={event.id}>
+                    <td>
+                      <strong>{event.title}</strong>
+                      <small>{event.theme}</small>
+                    </td>
+                    <td>{event.start_date} - {event.end_date}</td>
+                    <td>{event.session_count}</td>
+                    <td>
+                      <span className={`status ${event.open_session_count > 0 ? "open" : "closed"}`}>
+                        {event.open_session_count > 0 ? "Abierto" : event.status}
+                      </span>
+                    </td>
+                    <td>
+                      <a href={`/f/${event.short_link_slug}`}>Abrir</a>
+                    </td>
+                    <td>
+                      <button className="button secondary table-action" type="button" onClick={() => setSelectedEventId(event.id)}>
+                        Seleccionar
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
           {selectedEvent ? (
             <div className="event-panel">
-              <div>
-                <h3>{selectedEvent.title}</h3>
-                <p>
-                  Estructura inicial lista para administrar módulos, sesiones, formularios clonables,
-                  enlace corto, QR y reportes exportables.
-                </p>
-              </div>
-              <dl>
-                <div>
-                  <dt>Periodo</dt>
-                  <dd>{selectedEvent.start_date} - {selectedEvent.end_date}</dd>
+              <form className="event-edit-form" onSubmit={saveSelectedEvent}>
+                <div className="detail-heading">
+                  <div>
+                    <p className="eyebrow">Evento seleccionado</p>
+                    <h3>{selectedEvent.title}</h3>
+                  </div>
+                  <span className={`status ${openSession ? "open" : "closed"}`}>
+                    {openSession ? "Con sesion abierta" : "Sin sesion abierta"}
+                  </span>
                 </div>
-                <div>
-                  <dt>Horario</dt>
-                  <dd>{selectedEvent.start_time} - {selectedEvent.end_time}</dd>
+                <div className="form-grid">
+                  <label>
+                    Titulo
+                    <input value={eventEditDraft.title} onChange={(event) => setEventEditDraft((current) => ({ ...current, title: event.target.value }))} required />
+                  </label>
+                  <label>
+                    Tema
+                    <input value={eventEditDraft.theme} onChange={(event) => setEventEditDraft((current) => ({ ...current, theme: event.target.value }))} />
+                  </label>
+                  <label>
+                    Estado
+                    <select value={eventEditDraft.status} onChange={(event) => setEventEditDraft((current) => ({ ...current, status: event.target.value }))}>
+                      <option value="draft">Borrador</option>
+                      <option value="active">Activo</option>
+                      <option value="inactive">Inactivo</option>
+                    </select>
+                  </label>
+                  <label>
+                    Fecha inicio
+                    <input type="date" value={eventEditDraft.startDate} onChange={(event) => setEventEditDraft((current) => ({ ...current, startDate: event.target.value }))} required />
+                  </label>
+                  <label>
+                    Fecha fin
+                    <input type="date" value={eventEditDraft.endDate} onChange={(event) => setEventEditDraft((current) => ({ ...current, endDate: event.target.value }))} required />
+                  </label>
+                  <label>
+                    Hora inicio
+                    <input type="time" value={eventEditDraft.startTime} onChange={(event) => setEventEditDraft((current) => ({ ...current, startTime: event.target.value }))} required />
+                  </label>
+                  <label>
+                    Hora fin
+                    <input type="time" value={eventEditDraft.endTime} onChange={(event) => setEventEditDraft((current) => ({ ...current, endTime: event.target.value }))} required />
+                  </label>
                 </div>
-                <div>
-                  <dt>Estado</dt>
-                  <dd>
-                    <span className={`status ${openSession ? "open" : "closed"}`}>
-                      {openSession ? "Abierto" : "Cerrado"}
-                    </span>
-                  </dd>
+                <div className="created-event-box">
+                  <div>
+                    <strong>Enlace corto</strong>
+                    <a href={selectedEventPublicUrl}>{selectedEventPublicUrl}</a>
+                  </div>
+                  <img src={selectedEventQrUrl} alt="Codigo QR del formulario" />
                 </div>
-              </dl>
+                <div className="actions">
+                  <button className="button" type="submit" disabled={savingEvent}>
+                    {savingEvent ? "Guardando..." : "Guardar cambios"}
+                  </button>
+                  <a className="button secondary" href={`/f/${selectedEvent.short_link_slug}`}>Abrir formulario</a>
+                </div>
+              </form>
             </div>
           ) : null}
 
@@ -594,13 +716,13 @@ function AdminShell() {
             <table className="session-table">
               <thead>
                 <tr>
-                  <th>Sesión</th>
-                  <th>Módulo</th>
+                  <th>SesiÃ³n</th>
+                  <th>MÃ³dulo</th>
                   <th>Tema</th>
                   <th>Fecha</th>
                   <th>Horario</th>
                   <th>Estado</th>
-                  <th>Acción</th>
+                  <th>AcciÃ³n</th>
                 </tr>
               </thead>
               <tbody>
@@ -657,7 +779,7 @@ function AdminShell() {
                   onClick={() => setSelectedFormId(form.id)}
                 >
                   <strong>{form.name}</strong>
-                  <span>{form.section_count} secciones · {form.field_count} campos</span>
+                  <span>{form.section_count} secciones Â· {form.field_count} campos</span>
                   <small>{form.status}</small>
                 </button>
               ))}
@@ -676,7 +798,7 @@ function AdminShell() {
                     </span>
                   </div>
                   <div className="detail-actions">
-                    <a className="button secondary" href={`/f/${selectedForm.short_link_slug}`}>Ver público</a>
+                    <a className="button secondary" href={`/f/${selectedForm.short_link_slug}`}>Ver pÃºblico</a>
                     <button className="button secondary" type="button" onClick={() => changeFormStatus(selectedForm, "active")}>
                       Activar
                     </button>
@@ -692,7 +814,7 @@ function AdminShell() {
                           {section.fields.map((field) => (
                             <div className="field-chip" key={field.id}>
                               <strong>{field.label}</strong>
-                              <span>{field.field_type}{field.catalog_key ? ` · ${field.catalog_key}` : ""}</span>
+                              <span>{field.field_type}{field.catalog_key ? ` Â· ${field.catalog_key}` : ""}</span>
                             </div>
                           ))}
                         </div>
@@ -710,8 +832,8 @@ function AdminShell() {
         <section className="workspace-section" id="configuracion">
           <div className="section-heading">
             <div>
-              <p className="eyebrow">Configuración</p>
-              <h2>Catálogos</h2>
+              <p className="eyebrow">ConfiguraciÃ³n</p>
+              <h2>CatÃ¡logos</h2>
             </div>
           </div>
 
@@ -736,7 +858,7 @@ function AdminShell() {
                   <div className="detail-heading">
                     <div>
                       <h3>{selectedCatalog.catalog_key}</h3>
-                      <p>Mantenimiento básico de opciones para campos tipo select.</p>
+                      <p>Mantenimiento bÃ¡sico de opciones para campos tipo select.</p>
                     </div>
                   </div>
                   <form className="inline-form" onSubmit={addCatalogItem}>
@@ -762,7 +884,7 @@ function AdminShell() {
                   </div>
                 </>
               ) : (
-                <p className="blocked-message">No hay catálogos configurados.</p>
+                <p className="blocked-message">No hay catÃ¡logos configurados.</p>
               )}
             </div>
           </div>
@@ -794,7 +916,7 @@ function LoginPage({ onLogin }: { onLogin: (user: SessionUser) => void }) {
     const payload = (await response.json()) as { ok: boolean; message?: string; user?: SessionUser };
 
     if (!response.ok || !payload.user) {
-      setError(payload.message ?? "No se pudo iniciar sesión.");
+      setError(payload.message ?? "No se pudo iniciar sesiÃ³n.");
       setSubmitting(false);
       return;
     }
@@ -817,7 +939,7 @@ function LoginPage({ onLogin }: { onLogin: (user: SessionUser) => void }) {
             <input value={login} onChange={(event) => setLogin(event.target.value)} autoComplete="username" />
           </label>
           <label>
-            Contraseña
+            ContraseÃ±a
             <input
               type="password"
               value={password}
@@ -1178,7 +1300,7 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
   }
 
   if (!data) {
-    return <PublicMessage title="Cargando formulario" message="Estamos consultando la sesión activa." />;
+    return <PublicMessage title="Cargando formulario" message="Estamos consultando la sesiÃ³n activa." />;
   }
 
   if (!data.canRegister || !data.openSession) {
@@ -1198,7 +1320,7 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
   return (
     <main className="public-page">
       <section className="public-form">
-        <p className="eyebrow">Formulario público</p>
+        <p className="eyebrow">Formulario pÃºblico</p>
         <h1>{data.welcomeTitle}</h1>
         <div className="session-strip">
           <span>{data.openSession.module_title}</span>
@@ -1231,7 +1353,7 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
             </select>
           </label>
           <label>
-            Número de documento
+            NÃºmero de documento
             <input
               type="text"
               inputMode="numeric"
@@ -1288,7 +1410,7 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
                   </label>
                 ) : null}
                 {false && currentPublicSection.section_key === "actividad" && fields.actividad_es_productor_agrario_pecuario_forestal === "SI" ? (
-                  <p className="field-note">Seleccione sus productos: debe elegir al menos una opción.</p>
+                  <p className="field-note">Seleccione sus productos: debe elegir al menos una opciÃ³n.</p>
                 ) : null}
                 {currentPublicSection.fields.map((field) => {
                   if (
@@ -1437,13 +1559,13 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
                     return (
                       <React.Fragment key={field.id}>
                       {field.field_key === "organizacion_pais" ? (
-                        <p className="field-note">Ubicación de la sede de su organización</p>
+                        <p className="field-note">UbicaciÃ³n de la sede de su organizaciÃ³n</p>
                       ) : null}
                       <label>
                         {field.field_key === "actividad_actividad_del_productor"
-                          ? "Cuál es su actividad"
+                          ? "CuÃ¡l es su actividad"
                           : field.field_key === "organizacion_pertenece_a_organizacion"
-                            ? "Pertenece a una organización"
+                            ? "Pertenece a una organizaciÃ³n"
                             : field.label}
 		                        <select
 	                          value={fields[field.field_key] ?? ""}
@@ -1487,7 +1609,7 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
 
                   return (
                     <label key={field.id}>
-                      {field.field_key === "organizacion_pertenece_a_organizacion" ? "Pertenece a una organización" : field.label}
+                      {field.field_key === "organizacion_pertenece_a_organizacion" ? "Pertenece a una organizaciÃ³n" : field.label}
                       <input
                         type={field.field_type === "date" ? "date" : "text"}
                         value={fields[field.field_key] ?? ""}
@@ -1511,7 +1633,7 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
                 onClick={() => setPublicSectionIndex((current) => Math.max(0, current - 1))}
                 disabled={publicSectionIndex === 0 || submitting}
               >
-                Atrás
+                AtrÃ¡s
               </button>
               <button className="button" type="submit" disabled={submitting}>
                 {publicSectionIndex >= publicSections.length - 1

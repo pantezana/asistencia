@@ -95,6 +95,7 @@ export async function listAdminEvents(db: D1Database, user: SessionUser) {
       e.id,
       e.title,
       e.source_title,
+      e.theme,
       e.start_date,
       e.end_date,
       e.start_time,
@@ -335,6 +336,37 @@ export async function createEventWithSchedule(db: D1Database, user: SessionUser,
 
   await db.batch(statements);
   return { eventId, formId, slug };
+}
+
+export async function updateEventDetails(db: D1Database, eventId: string, input: {
+  title: string;
+  theme?: string;
+  startDate: string;
+  endDate: string;
+  startTime: string;
+  endTime: string;
+  status: string;
+}) {
+  const result = await db
+    .prepare(
+      `UPDATE events
+       SET title = ?, source_title = ?, theme = ?, start_date = ?, end_date = ?, start_time = ?, end_time = ?, status = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`
+    )
+    .bind(
+      input.title,
+      input.title,
+      input.theme ?? input.title,
+      input.startDate,
+      input.endDate,
+      input.startTime,
+      input.endTime,
+      input.status,
+      eventId
+    )
+    .run();
+
+  return result.meta.changes > 0;
 }
 
 export async function listAdminForms(db: D1Database, user: SessionUser) {

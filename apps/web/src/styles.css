@@ -204,8 +204,13 @@ h3 {
 .event-panel {
   display: grid;
   gap: 24px;
-  grid-template-columns: minmax(0, 1fr) 320px;
+  grid-template-columns: 1fr;
   padding: 22px;
+}
+
+.event-edit-form {
+  display: grid;
+  gap: 18px;
 }
 
 .admin-form-panel {
@@ -276,6 +281,20 @@ h3 {
   color: #4b5563;
   line-height: 1.5;
   margin-bottom: 0;
+}
+
+.session-table tr.selected-row {
+  background: #eef6ff;
+}
+
+.session-table td strong,
+.session-table td small {
+  display: block;
+}
+
+.session-table td small {
+  color: #667085;
+  margin-top: 4px;
 }
 
 dl {
