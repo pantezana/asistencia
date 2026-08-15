@@ -173,10 +173,43 @@ function cleanText(value: string | null | undefined) {
 }
 
 function publicFieldLabel(field: PublicFormField) {
+  if (field.field_key === "datos_generales_paterno") return "Apellido Paterno";
+  if (field.field_key === "datos_generales_materno") return "Apellido Materno";
   if (field.field_key === "datos_generales_fecha_nac") return "Fecha de Nacimiento";
   if (field.field_key === "actividad_actividad_del_productor") return "Cuál es su actividad";
   if (field.field_key === "organizacion_pertenece_a_organizacion") return "Pertenece a una organización";
   return cleanText(field.label);
+}
+
+function textInputProps(field: PublicFormField) {
+  if (field.field_key === "datos_generales_correo_electronico") {
+    return {
+      type: "email",
+      inputMode: "email" as const,
+      title: "Ingrese un correo electrónico válido"
+    };
+  }
+
+  if (["datos_generales_celular", "organizacion_ruc"].includes(field.field_key)) {
+    return {
+      type: "text",
+      inputMode: "numeric" as const,
+      pattern: "[0-9]*",
+      title: "Ingrese solo números"
+    };
+  }
+
+  if (["datos_generales_nombres", "datos_generales_paterno", "datos_generales_materno"].includes(field.field_key)) {
+    return {
+      type: "text",
+      pattern: "[A-Za-zÁÉÍÓÚÜÑáéíóúüñ\\s]+",
+      title: "Ingrese solo letras"
+    };
+  }
+
+  return {
+    type: field.field_type === "date" ? "date" : "text"
+  };
 }
 
 function App() {
@@ -1221,26 +1254,27 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
   }
 
   function updateField(fieldKey: string, value: string) {
+    const sanitizedValue = sanitizeFieldValue(fieldKey, value);
     setFields((current) => {
-      if (fieldKey === "ubicacion_pais" && !isPeru(value)) {
+      if (fieldKey === "ubicacion_pais" && !isPeru(sanitizedValue)) {
         const { ubicacion_departamento, ubicacion_provincia, ubicacion_distrito, ...rest } = current;
         setSelectedDepartmentId("");
         setSelectedProvinceId("");
         setProvinces([]);
         setDistricts([]);
-        return { ...rest, [fieldKey]: value };
+        return { ...rest, [fieldKey]: sanitizedValue };
       }
 
-      if (fieldKey === "organizacion_pais" && !isPeru(value)) {
+      if (fieldKey === "organizacion_pais" && !isPeru(sanitizedValue)) {
         const { organizacion_departamento, organizacion_provincia, organizacion_distrito, ...rest } = current;
         setSelectedOrganizationDepartmentId("");
         setSelectedOrganizationProvinceId("");
         setOrganizationProvinces([]);
         setOrganizationDistricts([]);
-        return { ...rest, [fieldKey]: value };
+        return { ...rest, [fieldKey]: sanitizedValue };
       }
 
-      if (fieldKey === "organizacion_pertenece_a_organizacion" && value !== "SI") {
+      if (fieldKey === "organizacion_pertenece_a_organizacion" && sanitizedValue !== "SI") {
         const {
           organizacion_tipo_de_organizacion,
           organizacion_ruc,
@@ -1255,11 +1289,23 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
         setSelectedOrganizationProvinceId("");
         setOrganizationProvinces([]);
         setOrganizationDistricts([]);
-        return { ...rest, [fieldKey]: value };
+        return { ...rest, [fieldKey]: sanitizedValue };
       }
 
-      return { ...current, [fieldKey]: value };
+      return { ...current, [fieldKey]: sanitizedValue };
     });
+  }
+
+  function sanitizeFieldValue(fieldKey: string, value: string) {
+    if (["datos_generales_celular", "organizacion_ruc"].includes(fieldKey)) {
+      return value.replace(/\D/g, "");
+    }
+
+    if (["datos_generales_nombres", "datos_generales_paterno", "datos_generales_materno"].includes(fieldKey)) {
+      return value.replace(/[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ\s]/g, "");
+    }
+
+    return value;
   }
 
   async function selectDepartment(departmentId: string) {
@@ -1755,7 +1801,7 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
                     <label key={field.id}>
                       {publicFieldLabel(field)}
                       <input
-                        type={field.field_type === "date" ? "date" : "text"}
+                        {...textInputProps(field)}
                         value={fields[field.field_key] ?? ""}
                         onChange={(event) => updateField(field.field_key, event.target.value)}
                         required={
