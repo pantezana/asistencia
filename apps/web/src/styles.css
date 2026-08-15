@@ -365,6 +365,43 @@ dd {
   width: 100%;
 }
 
+.searchable-select {
+  position: relative;
+  width: 100%;
+}
+
+.searchable-options {
+  background: white;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  box-shadow: 0 12px 28px rgb(15 23 42 / 0.14);
+  display: grid;
+  left: 0;
+  max-height: 260px;
+  overflow-y: auto;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 20;
+}
+
+.searchable-options button,
+.searchable-options span {
+  background: white;
+  border: 0;
+  border-bottom: 1px solid #eef2f7;
+  color: #17202a;
+  cursor: pointer;
+  font: inherit;
+  min-height: 42px;
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.searchable-options button:hover {
+  background: #eff6ff;
+}
+
 .login-panel p {
   color: #4b5563;
   line-height: 1.5;

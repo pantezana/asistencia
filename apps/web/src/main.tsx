@@ -58,6 +58,11 @@ type LocationOption = {
   name: string;
 };
 
+type SelectOption = {
+  id: string;
+  name: string;
+};
+
 type SessionUser = {
   id: string;
   username: string;
@@ -1170,6 +1175,84 @@ function Metric({ label, value }: { label: string; value: string }) {
   );
 }
 
+function SearchableSelect({
+  disabled,
+  onChange,
+  options,
+  placeholder,
+  required,
+  value
+}: {
+  disabled?: boolean;
+  onChange: (value: string) => void;
+  options: SelectOption[];
+  placeholder: string;
+  required?: boolean;
+  value: string;
+}) {
+  const [query, setQuery] = React.useState("");
+  const [open, setOpen] = React.useState(false);
+  const selected = options.find((option) => option.id === value || option.name === value);
+  const visibleValue = open ? query : cleanText(selected?.name ?? value);
+  const normalizedQuery = query
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+  const filtered = options
+    .filter((option) =>
+      cleanText(option.name)
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .includes(normalizedQuery)
+    )
+    .slice(0, 30);
+
+  React.useEffect(() => {
+    if (!open) setQuery("");
+  }, [open, value]);
+
+  return (
+    <div className="searchable-select">
+      <input
+        autoComplete="off"
+        disabled={disabled}
+        onBlur={() => window.setTimeout(() => setOpen(false), 120)}
+        onChange={(event) => {
+          setQuery(event.target.value);
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        placeholder={placeholder}
+        required={required}
+        type="text"
+        value={visibleValue}
+      />
+      {open && !disabled ? (
+        <div className="searchable-options">
+          {filtered.length > 0 ? (
+            filtered.map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => {
+                  onChange(option.id);
+                  setOpen(false);
+                }}
+              >
+                {cleanText(option.name)}
+              </button>
+            ))
+          ) : (
+            <span>No se encontraron resultados.</span>
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function PublicAttendanceForm({ slug }: { slug: string }) {
   const [data, setData] = React.useState<PublicFormResponse | null>(null);
   const [error, setError] = React.useState<string | null>(null);
@@ -1696,16 +1779,13 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
 	                    return (
 	                      <label key={field.id}>
                         {publicFieldLabel(field)}
-	                        <select
+                        <SearchableSelect
+                          options={departments}
                           value={selectedDepartmentId}
-                          onChange={(event) => void selectDepartment(event.target.value)}
+                          onChange={(value) => void selectDepartment(value)}
+                          placeholder="Buscar departamento"
                           required={isPeru(fields.ubicacion_pais)}
-                        >
-                          <option value="">Seleccione departamento</option>
-                          {departments.map((item) => (
-                            <option key={item.id} value={item.id}>{cleanText(item.name)}</option>
-                          ))}
-                        </select>
+                        />
                       </label>
                     );
                   }
@@ -1714,17 +1794,14 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
                     return (
                       <label key={field.id}>
                         {publicFieldLabel(field)}
-                        <select
+                        <SearchableSelect
+                          options={provinces}
                           value={selectedProvinceId}
-                          onChange={(event) => void selectProvince(event.target.value)}
+                          onChange={(value) => void selectProvince(value)}
+                          placeholder="Buscar provincia"
                           required={isPeru(fields.ubicacion_pais)}
                           disabled={!selectedDepartmentId}
-                        >
-                          <option value="">Seleccione provincia</option>
-                          {provinces.map((item) => (
-                            <option key={item.id} value={item.id}>{cleanText(item.name)}</option>
-                          ))}
-                        </select>
+                        />
                       </label>
                     );
                   }
@@ -1733,17 +1810,14 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
                     return (
                       <label key={field.id}>
                         {publicFieldLabel(field)}
-                        <select
+                        <SearchableSelect
+                          options={districts}
                           value={districts.find((item) => item.name === fields.ubicacion_distrito)?.id ?? ""}
-                          onChange={(event) => selectDistrict(event.target.value)}
+                          onChange={selectDistrict}
+                          placeholder="Buscar distrito"
                           required={isPeru(fields.ubicacion_pais)}
                           disabled={!selectedProvinceId}
-                        >
-                          <option value="">Seleccione distrito</option>
-                          {districts.map((item) => (
-                            <option key={item.id} value={item.id}>{cleanText(item.name)}</option>
-                          ))}
-                        </select>
+                        />
                       </label>
 	                    );
 	                  }
@@ -1752,16 +1826,13 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
                     return (
                       <label key={field.id}>
                         {publicFieldLabel(field)}
-                        <select
+                        <SearchableSelect
+                          options={departments}
                           value={selectedOrganizationDepartmentId}
-                          onChange={(event) => void selectOrganizationDepartment(event.target.value)}
+                          onChange={(value) => void selectOrganizationDepartment(value)}
+                          placeholder="Buscar departamento"
                           required={isPeru(fields.organizacion_pais)}
-                        >
-                          <option value="">Seleccione departamento</option>
-                          {departments.map((item) => (
-                            <option key={item.id} value={item.id}>{cleanText(item.name)}</option>
-                          ))}
-                        </select>
+                        />
                       </label>
                     );
                   }
@@ -1770,17 +1841,14 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
                     return (
                       <label key={field.id}>
                         {publicFieldLabel(field)}
-                        <select
+                        <SearchableSelect
+                          options={organizationProvinces}
                           value={selectedOrganizationProvinceId}
-                          onChange={(event) => void selectOrganizationProvince(event.target.value)}
+                          onChange={(value) => void selectOrganizationProvince(value)}
+                          placeholder="Buscar provincia"
                           required={isPeru(fields.organizacion_pais)}
                           disabled={!selectedOrganizationDepartmentId}
-                        >
-                          <option value="">Seleccione provincia</option>
-                          {organizationProvinces.map((item) => (
-                            <option key={item.id} value={item.id}>{cleanText(item.name)}</option>
-                          ))}
-                        </select>
+                        />
                       </label>
                     );
                   }
@@ -1789,17 +1857,14 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
                     return (
                       <label key={field.id}>
                         {publicFieldLabel(field)}
-                        <select
+                        <SearchableSelect
+                          options={organizationDistricts}
                           value={organizationDistricts.find((item) => item.name === fields.organizacion_distrito)?.id ?? ""}
-                          onChange={(event) => selectOrganizationDistrict(event.target.value)}
+                          onChange={selectOrganizationDistrict}
+                          placeholder="Buscar distrito"
                           required={isPeru(fields.organizacion_pais)}
                           disabled={!selectedOrganizationProvinceId}
-                        >
-                          <option value="">Seleccione distrito</option>
-                          {organizationDistricts.map((item) => (
-                            <option key={item.id} value={item.id}>{cleanText(item.name)}</option>
-                          ))}
-                        </select>
+                        />
                       </label>
                     );
                   }
@@ -1816,6 +1881,22 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
                       ) : null}
                       <label>
                         {publicFieldLabel(field)}
+                        {field.catalog_key === "pais" ? (
+                          <SearchableSelect
+                            options={options}
+                            value={fields[field.field_key] ?? ""}
+                            onChange={(value) => {
+                              const selectedOption = options.find((option) => option.id === value);
+                              updateField(field.field_key, cleanText(selectedOption?.name ?? value));
+                            }}
+                            placeholder="Buscar país"
+                            required={
+                              Boolean(field.is_required) &&
+                              !isOptionalForeignLocationField(field.field_key) &&
+                              !isOptionalOrganizationLocationField(field.field_key)
+                            }
+                          />
+                        ) : (
 		                        <select
 	                          value={fields[field.field_key] ?? ""}
 	                          onChange={(event) => updateField(field.field_key, event.target.value)}
@@ -1832,6 +1913,7 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
                             <option key={item.id} value={cleanText(item.name)}>{cleanText(item.name)}</option>
                           ))}
                         </select>
+                        )}
                       </label>
                       {field.field_key === "actividad_actividad_del_productor" ? (
                         <>
