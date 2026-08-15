@@ -12,6 +12,7 @@ import {
   getActiveFormBySlug,
   getEventBySlug,
   getAdminForm,
+  getAttendanceReportData,
   getFormStructure,
   getOpenSessionForEvent,
   getPublicFormStructure,
@@ -39,6 +40,110 @@ import {
 import type { AppContext } from "./types";
 
 const app = new Hono<AppContext>();
+
+function xmlEscape(value: unknown) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&apos;");
+}
+
+function crc32(bytes: Uint8Array) {
+  let crc = 0xffffffff;
+  for (const byte of bytes) {
+    crc ^= byte;
+    for (let index = 0; index < 8; index += 1) {
+      crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
+    }
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function uint16(value: number) {
+  const bytes = new Uint8Array(2);
+  new DataView(bytes.buffer).setUint16(0, value, true);
+  return bytes;
+}
+
+function uint32(value: number) {
+  const bytes = new Uint8Array(4);
+  new DataView(bytes.buffer).setUint32(0, value, true);
+  return bytes;
+}
+
+function textBytes(value: string) {
+  return new TextEncoder().encode(value);
+}
+
+function concatBytes(parts: Uint8Array[]) {
+  const output = new Uint8Array(parts.reduce((sum, part) => sum + part.length, 0));
+  let offset = 0;
+  for (const part of parts) {
+    output.set(part, offset);
+    offset += part.length;
+  }
+  return output;
+}
+
+function zipStore(files: Array<{ name: string; content: string }>) {
+  const localParts: Uint8Array[] = [];
+  const centralParts: Uint8Array[] = [];
+  let offset = 0;
+
+  for (const file of files) {
+    const name = textBytes(file.name);
+    const content = textBytes(file.content);
+    const crc = crc32(content);
+    const local = concatBytes([
+      uint32(0x04034b50), uint16(20), uint16(0), uint16(0), uint16(0), uint16(0),
+      uint32(crc), uint32(content.length), uint32(content.length), uint16(name.length), uint16(0), name, content
+    ]);
+    localParts.push(local);
+    centralParts.push(concatBytes([
+      uint32(0x02014b50), uint16(20), uint16(20), uint16(0), uint16(0), uint16(0), uint16(0),
+      uint32(crc), uint32(content.length), uint32(content.length), uint16(name.length), uint16(0), uint16(0),
+      uint16(0), uint16(0), uint32(0), uint32(offset), name
+    ]));
+    offset += local.length;
+  }
+
+  const central = concatBytes(centralParts);
+  return concatBytes([
+    ...localParts,
+    central,
+    uint32(0x06054b50), uint16(0), uint16(0), uint16(files.length), uint16(files.length),
+    uint32(central.length), uint32(offset), uint16(0)
+  ]);
+}
+
+function makeXlsx(headers: string[], rows: unknown[][]) {
+  function columnName(index: number) {
+    let value = "";
+    let current = index + 1;
+    while (current > 0) {
+      const remainder = (current - 1) % 26;
+      value = String.fromCharCode(65 + remainder) + value;
+      current = Math.floor((current - 1) / 26);
+    }
+    return value;
+  }
+
+  const worksheetRows = [headers, ...rows]
+    .map((row, rowIndex) => `<row r="${rowIndex + 1}">${row.map((value, columnIndex) =>
+      `<c r="${columnName(columnIndex)}${rowIndex + 1}" t="inlineStr"><is><t>${xmlEscape(value)}</t></is></c>`
+    ).join("")}</row>`)
+    .join("");
+  const sheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${worksheetRows}</sheetData></worksheet>`;
+  return zipStore([
+    { name: "[Content_Types].xml", content: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>` },
+    { name: "_rels/.rels", content: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>` },
+    { name: "xl/workbook.xml", content: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Lista de asistencia" sheetId="1" r:id="rId1"/></sheets></workbook>` },
+    { name: "xl/_rels/workbook.xml.rels", content: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>` },
+    { name: "xl/worksheets/sheet1.xml", content: sheet }
+  ]);
+}
 
 app.use(
   "/api/*",
@@ -446,6 +551,58 @@ app.get("/api/admin/events/:eventId/sessions", async (c) => {
   return c.json({
     ok: true,
     sessions: sessions.results
+  });
+});
+
+app.get("/api/admin/events/:eventId/attendance.xlsx", async (c) => {
+  const eventId = c.req.param("eventId");
+  const canManage = await userCanManageEvent(c.env.DB, eventId, c.get("user"));
+
+  if (!canManage) {
+    return c.json({ ok: false, message: "Evento no encontrado o no autorizado." }, 404);
+  }
+
+  const report = await getAttendanceReportData(c.env.DB, eventId);
+  if (!report.event) {
+    return c.json({ ok: false, message: "Evento no encontrado." }, 404);
+  }
+
+  const baseHeaders = [
+    "Evento",
+    "Modulo",
+    "Sesion",
+    "Tema sesion",
+    "Fecha sesion",
+    "Hora inicio",
+    "Hora fin",
+    "Fecha registro",
+    "Estado asistencia"
+  ];
+  const headers = [...baseHeaders, ...report.fields.map((field) => field.label)];
+  const rows = report.rows.map((row) => {
+    const profile = JSON.parse(row.profile_data || "{}") as Record<string, unknown>;
+    return [
+      report.event?.title,
+      row.module_title,
+      row.session_title || row.session_sequence,
+      row.session_theme,
+      row.session_date,
+      row.start_time,
+      row.end_time,
+      row.registered_at,
+      row.attendance_status,
+      ...report.fields.map((field) => profile[field.field_key] ?? "")
+    ];
+  });
+  const xlsx = makeXlsx(headers, rows);
+  const fileName = `${normalizePublicSlug(report.event.short_link_slug || report.event.title)}-lista-asistencia.xlsx`;
+
+  return new Response(xlsx, {
+    headers: {
+      "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "Content-Disposition": `attachment; filename="${fileName}"`,
+      "Cache-Control": "no-store"
+    }
   });
 });
 

@@ -975,6 +975,9 @@ function AdminShell() {
                     {savingEvent ? "Guardando..." : "Guardar cambios"}
                   </button>
                   <a className="button secondary" href={`/f/${selectedEvent.short_link_slug}`}>Abrir formulario</a>
+                  <a className="button secondary" href={`/api/admin/events/${selectedEvent.id}/attendance.xlsx`}>
+                    Descargar asistencia
+                  </a>
                 </div>
               </form>
             </div>

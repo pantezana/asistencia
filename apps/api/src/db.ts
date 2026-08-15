@@ -667,6 +667,78 @@ export async function createParticipant(db: D1Database, input: {
   return participantId;
 }
 
+export async function getAttendanceReportData(db: D1Database, eventId: string) {
+  const event = await db
+    .prepare("SELECT id, title, short_link_slug FROM events WHERE id = ?")
+    .bind(eventId)
+    .first<{ id: string; title: string; short_link_slug: string }>();
+  const fields = await db
+    .prepare(
+      `SELECT DISTINCT ff.field_key, ff.label, ff.order_index
+       FROM form_fields ff
+       INNER JOIN forms f ON f.id = ff.form_id
+       WHERE f.event_id = ?
+       ORDER BY ff.order_index`
+    )
+    .bind(eventId)
+    .all<{ field_key: string; label: string; order_index: number }>();
+  const rows = await db
+    .prepare(
+      `SELECT
+        ar.id AS attendance_id,
+        ar.registered_at,
+        ar.status AS attendance_status,
+        m.title AS module_title,
+        s.sequence AS session_sequence,
+        s.title AS session_title,
+        s.theme AS session_theme,
+        s.session_date,
+        s.start_time,
+        s.end_time,
+        p.document_type,
+        p.document_number,
+        p.first_name,
+        p.paternal_last_name,
+        p.maternal_last_name,
+        p.email,
+        p.phone,
+        p.profile_data
+       FROM attendance_records ar
+       INNER JOIN participants p ON p.id = ar.participant_id
+       INNER JOIN event_sessions s ON s.id = ar.session_id
+       INNER JOIN event_modules m ON m.id = ar.module_id
+       WHERE ar.event_id = ?
+       ORDER BY s.sequence, ar.registered_at`
+    )
+    .bind(eventId)
+    .all<{
+      attendance_id: string;
+      registered_at: string;
+      attendance_status: string;
+      module_title: string;
+      session_sequence: number;
+      session_title: string;
+      session_theme: string;
+      session_date: string;
+      start_time: string;
+      end_time: string;
+      document_type: string;
+      document_number: string;
+      first_name: string;
+      paternal_last_name: string | null;
+      maternal_last_name: string | null;
+      email: string | null;
+      phone: string | null;
+      profile_data: string;
+    }>();
+
+  return {
+    event,
+    fields: fields.results,
+    rows: rows.results
+  };
+}
+
 export async function updateFormStatus(db: D1Database, formId: string, status: string) {
   const result = await db
     .prepare("UPDATE forms SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
