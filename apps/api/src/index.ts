@@ -1,10 +1,12 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import QRCode from "qrcode";
 import { createSession, getSessionUser, requireAuth, revokeCurrentSession, verifyPassword } from "./auth";
 import {
   closeEventSession,
   cloneForm,
   createCatalogItem,
+  createEventWithSchedule,
   createParticipant,
   findParticipantByDocument,
   getActiveFormBySlug,
@@ -136,6 +138,29 @@ app.get("/api/public/forms/:slug", async (c) => {
   });
 });
 
+app.get("/api/public/forms/:slug/qr", async (c) => {
+  const slug = c.req.param("slug");
+  const event = await getEventBySlug(c.env.DB, slug);
+  const form = await getActiveFormBySlug(c.env.DB, slug);
+
+  if (!event || !form) {
+    return c.json({ ok: false, message: "Formulario no encontrado." }, 404);
+  }
+
+  const url = new URL(c.req.url);
+  const publicUrl = `${url.origin}/f/${slug}`;
+  const svg = await QRCode.toString(publicUrl, {
+    type: "svg",
+    margin: 1,
+    width: 320
+  });
+
+  return c.body(svg, 200, {
+    "Content-Type": "image/svg+xml; charset=utf-8",
+    "Cache-Control": "public, max-age=3600"
+  });
+});
+
 app.post("/api/public/forms/:slug/identify", async (c) => {
   const slug = c.req.param("slug");
   const event = await getEventBySlug(c.env.DB, slug);
@@ -263,6 +288,62 @@ app.get("/api/admin/events", async (c) => {
   return c.json({
     ok: true,
     events: events.results
+  });
+});
+
+app.post("/api/admin/events", async (c) => {
+  const body = await c.req.json<{
+    title?: string;
+    theme?: string;
+    startDate?: string;
+    endDate?: string;
+    startTime?: string;
+    endTime?: string;
+    sessions?: Array<{
+      moduleTitle?: string;
+      title?: string;
+      theme?: string;
+      sessionDate?: string;
+      startTime?: string;
+      endTime?: string;
+    }>;
+  }>().catch(() => null);
+
+  if (!body?.title?.trim()) {
+    return c.json({ ok: false, message: "Ingrese el título del evento." }, 400);
+  }
+
+  const sessions = (body.sessions ?? []).filter((session) =>
+    session.sessionDate?.trim() && session.startTime?.trim() && session.endTime?.trim()
+  );
+
+  if (sessions.length === 0) {
+    return c.json({ ok: false, message: "Ingrese al menos una sesión del cronograma." }, 400);
+  }
+
+  const result = await createEventWithSchedule(c.env.DB, c.get("user"), {
+    title: body.title.trim(),
+    theme: body.theme?.trim(),
+    startDate: body.startDate || sessions[0].sessionDate || "",
+    endDate: body.endDate || sessions[sessions.length - 1].sessionDate || "",
+    startTime: body.startTime || sessions[0].startTime || "",
+    endTime: body.endTime || sessions[0].endTime || "",
+    sessions: sessions.map((session, index) => ({
+      moduleTitle: session.moduleTitle?.trim() || "Módulo general",
+      title: session.title?.trim() || `Sesión ${index + 1}`,
+      theme: session.theme?.trim() || session.title?.trim() || `Sesión ${index + 1}`,
+      sessionDate: session.sessionDate || "",
+      startTime: session.startTime || "",
+      endTime: session.endTime || ""
+    }))
+  });
+
+  const url = new URL(c.req.url);
+  return c.json({
+    ok: true,
+    ...result,
+    publicUrl: `${url.origin}/f/${result.slug}`,
+    qrUrl: `${url.origin}/api/public/forms/${result.slug}/qr`
   });
 });
 

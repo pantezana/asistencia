@@ -191,6 +191,152 @@ export async function closeEventSession(db: D1Database, eventId: string, session
   return result.meta.changes > 0;
 }
 
+function slugify(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 72);
+}
+
+export async function createEventWithSchedule(db: D1Database, user: SessionUser, input: {
+  title: string;
+  theme?: string;
+  startDate: string;
+  endDate: string;
+  startTime: string;
+  endTime: string;
+  sessions: Array<{
+    moduleTitle: string;
+    title: string;
+    theme: string;
+    sessionDate: string;
+    startTime: string;
+    endTime: string;
+  }>;
+}) {
+  const suffix = crypto.randomUUID().slice(0, 8);
+  const eventId = `evt_${suffix}`;
+  const baseSlug = slugify(input.title) || `evento-${suffix}`;
+  const slug = `${baseSlug}-${suffix}`;
+  const formId = `form_${suffix}`;
+  const moduleIds = new Map<string, string>();
+  const statements: D1PreparedStatement[] = [
+    db
+      .prepare(
+        `INSERT INTO events (id, title, source_title, theme, start_date, end_date, start_time, end_time, status, short_link_slug, created_by_user_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?)`
+      )
+      .bind(
+        eventId,
+        input.title,
+        input.title,
+        input.theme ?? input.title,
+        input.startDate,
+        input.endDate,
+        input.startTime,
+        input.endTime,
+        slug,
+        user.id
+      )
+  ];
+
+  input.sessions.forEach((session, index) => {
+    const moduleKey = session.moduleTitle.trim() || "Modulo general";
+    if (!moduleIds.has(moduleKey)) {
+      const moduleId = `mod_${suffix}_${moduleIds.size + 1}`;
+      moduleIds.set(moduleKey, moduleId);
+      statements.push(
+        db
+          .prepare(
+            `INSERT INTO event_modules (id, event_id, title, order_index, status)
+             VALUES (?, ?, ?, ?, 'active')`
+          )
+          .bind(moduleId, eventId, moduleKey, moduleIds.size)
+      );
+    }
+
+    statements.push(
+      db
+        .prepare(
+          `INSERT INTO event_sessions (id, event_id, module_id, sequence, title, theme, session_date, start_time, end_time, status, attendance_status)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'closed', 'closed')`
+        )
+        .bind(
+          `ses_${suffix}_${index + 1}`,
+          eventId,
+          moduleIds.get(moduleKey),
+          index + 1,
+          session.title || `Sesión ${index + 1}`,
+          session.theme || session.title || `Sesión ${index + 1}`,
+          session.sessionDate,
+          session.startTime,
+          session.endTime
+        )
+    );
+  });
+
+  const templateSections = await db
+    .prepare("SELECT id, section_key, title, order_index FROM form_sections WHERE form_id = 'form_inauguracion_otca' ORDER BY order_index")
+    .all<FormSection>();
+  const templateFields = await db
+    .prepare(
+      "SELECT id, section_id, field_key, label, field_type, catalog_key, is_required, order_index, config FROM form_fields WHERE form_id = 'form_inauguracion_otca' ORDER BY order_index"
+    )
+    .all<FormField>();
+
+  statements.push(
+    db
+      .prepare(
+        `INSERT INTO forms (id, event_id, name, status, short_link_slug, welcome_title_template, cloned_from_form_id)
+         VALUES (?, ?, ?, 'active', ?, ?, 'form_inauguracion_otca')`
+      )
+      .bind(
+        formId,
+        eventId,
+        `Formulario de asistencia - ${input.title}`,
+        slug,
+        "Bienvenido a {{event.title}} - {{session.title}}: {{session.theme}}"
+      )
+  );
+
+  for (const section of templateSections.results) {
+    const sectionId = `${section.id}_${suffix}`;
+    statements.push(
+      db
+        .prepare("INSERT INTO form_sections (id, form_id, section_key, title, order_index) VALUES (?, ?, ?, ?, ?)")
+        .bind(sectionId, formId, section.section_key, section.title, section.order_index)
+    );
+
+    for (const field of templateFields.results.filter((item) => item.section_id === section.id)) {
+      statements.push(
+        db
+          .prepare(
+            `INSERT INTO form_fields (id, form_id, section_id, field_key, label, field_type, catalog_key, is_required, order_index, config)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          )
+          .bind(
+            `${field.id}_${suffix}`,
+            formId,
+            sectionId,
+            field.field_key,
+            field.label,
+            field.field_type,
+            field.catalog_key,
+            field.is_required,
+            field.order_index,
+            field.config
+          )
+      );
+    }
+  }
+
+  await db.batch(statements);
+  return { eventId, formId, slug };
+}
+
 export async function listAdminForms(db: D1Database, user: SessionUser) {
   const whereSql = canSeeAllEvents(user) ? "" : "WHERE e.created_by_user_id = ?";
   const statement = db.prepare(

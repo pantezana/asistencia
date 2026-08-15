@@ -135,6 +135,23 @@ type CatalogItem = {
   status: string;
 };
 
+type EventSessionDraft = {
+  moduleTitle: string;
+  title: string;
+  theme: string;
+  sessionDate: string;
+  startTime: string;
+  endTime: string;
+};
+
+type CreatedEventResult = {
+  eventId: string;
+  formId: string;
+  slug: string;
+  publicUrl: string;
+  qrUrl: string;
+};
+
 function App() {
   const path = window.location.pathname;
 
@@ -159,6 +176,20 @@ function AdminShell() {
   const [newCatalogItemName, setNewCatalogItemName] = React.useState("");
   const [selectedEventId, setSelectedEventId] = React.useState<string | null>(null);
   const [actionMessage, setActionMessage] = React.useState<string | null>(null);
+  const [showCreateEvent, setShowCreateEvent] = React.useState(false);
+  const [creatingEvent, setCreatingEvent] = React.useState(false);
+  const [createdEvent, setCreatedEvent] = React.useState<CreatedEventResult | null>(null);
+  const [eventDraft, setEventDraft] = React.useState({
+    title: "",
+    theme: "",
+    startDate: "",
+    endDate: "",
+    startTime: "08:00",
+    endTime: "17:00"
+  });
+  const [sessionDrafts, setSessionDrafts] = React.useState<EventSessionDraft[]>([
+    { moduleTitle: "Módulo general", title: "Sesión 1", theme: "", sessionDate: "", startTime: "08:00", endTime: "17:00" }
+  ]);
 
   React.useEffect(() => {
     fetch("/api/auth/me", { credentials: "include" })
@@ -329,6 +360,59 @@ function AdminShell() {
     await loadSessions(selectedEventId);
   }
 
+  function updateSessionDraft(index: number, field: keyof EventSessionDraft, value: string) {
+    setSessionDrafts((current) => current.map((session, itemIndex) =>
+      itemIndex === index ? { ...session, [field]: value } : session
+    ));
+  }
+
+  function addSessionDraft() {
+    setSessionDrafts((current) => [
+      ...current,
+      {
+        moduleTitle: current.at(-1)?.moduleTitle || "Módulo general",
+        title: `Sesión ${current.length + 1}`,
+        theme: "",
+        sessionDate: "",
+        startTime: eventDraft.startTime,
+        endTime: eventDraft.endTime
+      }
+    ]);
+  }
+
+  async function createEvent(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setCreatingEvent(true);
+    setActionMessage(null);
+
+    const response = await fetch("/api/admin/events", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...eventDraft, sessions: sessionDrafts })
+    });
+    const payload = (await response.json()) as ({ ok: boolean; message?: string } & Partial<CreatedEventResult>);
+    setCreatingEvent(false);
+
+    if (!response.ok || !payload.eventId || !payload.publicUrl || !payload.qrUrl || !payload.formId || !payload.slug) {
+      setActionMessage(payload.message ?? "No se pudo crear el evento.");
+      return;
+    }
+
+    const result = {
+      eventId: payload.eventId,
+      formId: payload.formId,
+      slug: payload.slug,
+      publicUrl: payload.publicUrl,
+      qrUrl: payload.qrUrl
+    };
+    setCreatedEvent(result);
+    setSelectedEventId(result.eventId);
+    await loadEvents();
+    await loadForms();
+    setActionMessage("Evento, cronograma y formulario creados correctamente.");
+  }
+
   const selectedEvent = events.find((event) => event.id === selectedEventId) ?? events[0];
   const openSession = sessions.find((session) => session.attendance_status === "open");
   const selectedForm = forms.find((form) => form.id === selectedFormId) ?? forms[0];
@@ -382,9 +466,97 @@ function AdminShell() {
               {selectedEvent ? (
                 <a className="button secondary" href={`/f/${selectedEvent.short_link_slug}`}>Abrir formulario</a>
               ) : null}
-              <button className="button" type="button">Crear evento</button>
+              <button className="button" type="button" onClick={() => setShowCreateEvent((current) => !current)}>
+                Crear evento
+              </button>
             </div>
           </div>
+
+          {showCreateEvent ? (
+            <form className="admin-form-panel" onSubmit={createEvent}>
+              <div className="form-grid">
+                <label>
+                  Título del evento
+                  <input value={eventDraft.title} onChange={(event) => setEventDraft((current) => ({ ...current, title: event.target.value }))} required />
+                </label>
+                <label>
+                  Tema
+                  <input value={eventDraft.theme} onChange={(event) => setEventDraft((current) => ({ ...current, theme: event.target.value }))} />
+                </label>
+                <label>
+                  Fecha inicio
+                  <input type="date" value={eventDraft.startDate} onChange={(event) => setEventDraft((current) => ({ ...current, startDate: event.target.value }))} required />
+                </label>
+                <label>
+                  Fecha fin
+                  <input type="date" value={eventDraft.endDate} onChange={(event) => setEventDraft((current) => ({ ...current, endDate: event.target.value }))} required />
+                </label>
+                <label>
+                  Hora inicio
+                  <input type="time" value={eventDraft.startTime} onChange={(event) => setEventDraft((current) => ({ ...current, startTime: event.target.value }))} required />
+                </label>
+                <label>
+                  Hora fin
+                  <input type="time" value={eventDraft.endTime} onChange={(event) => setEventDraft((current) => ({ ...current, endTime: event.target.value }))} required />
+                </label>
+              </div>
+
+              <div className="section-heading compact-heading">
+                <div>
+                  <p className="eyebrow">Cronograma</p>
+                  <h3>Sesiones del evento</h3>
+                </div>
+                <button className="button secondary" type="button" onClick={addSessionDraft}>Agregar sesión</button>
+              </div>
+
+              <div className="session-draft-list">
+                {sessionDrafts.map((session, index) => (
+                  <div className="session-draft" key={index}>
+                    <label>
+                      Módulo
+                      <input value={session.moduleTitle} onChange={(event) => updateSessionDraft(index, "moduleTitle", event.target.value)} required />
+                    </label>
+                    <label>
+                      Sesión
+                      <input value={session.title} onChange={(event) => updateSessionDraft(index, "title", event.target.value)} required />
+                    </label>
+                    <label className="wide-field">
+                      Tema
+                      <input value={session.theme} onChange={(event) => updateSessionDraft(index, "theme", event.target.value)} required />
+                    </label>
+                    <label>
+                      Fecha
+                      <input type="date" value={session.sessionDate} onChange={(event) => updateSessionDraft(index, "sessionDate", event.target.value)} required />
+                    </label>
+                    <label>
+                      Inicio
+                      <input type="time" value={session.startTime} onChange={(event) => updateSessionDraft(index, "startTime", event.target.value)} required />
+                    </label>
+                    <label>
+                      Fin
+                      <input type="time" value={session.endTime} onChange={(event) => updateSessionDraft(index, "endTime", event.target.value)} required />
+                    </label>
+                  </div>
+                ))}
+              </div>
+
+              {createdEvent ? (
+                <div className="created-event-box">
+                  <div>
+                    <strong>Enlace corto</strong>
+                    <a href={createdEvent.publicUrl}>{createdEvent.publicUrl}</a>
+                  </div>
+                  <img src={createdEvent.qrUrl} alt="Código QR del formulario" />
+                </div>
+              ) : null}
+
+              <div className="actions">
+                <button className="button" type="submit" disabled={creatingEvent}>
+                  {creatingEvent ? "Creando..." : "Crear evento, formulario y QR"}
+                </button>
+              </div>
+            </form>
+          ) : null}
 
           {selectedEvent ? (
             <div className="event-panel">
