@@ -154,6 +154,31 @@ type CreatedEventResult = {
   qrUrl: string;
 };
 
+function cleanText(value: string | null | undefined) {
+  return (value ?? "")
+    .replaceAll("Ã¡", "á")
+    .replaceAll("Ã©", "é")
+    .replaceAll("Ã­", "í")
+    .replaceAll("Ã³", "ó")
+    .replaceAll("Ãº", "ú")
+    .replaceAll("Ã", "Á")
+    .replaceAll("Ã‰", "É")
+    .replaceAll("Ã", "Í")
+    .replaceAll("Ã“", "Ó")
+    .replaceAll("Ãš", "Ú")
+    .replaceAll("Ã±", "ñ")
+    .replaceAll("Ã‘", "Ñ")
+    .replaceAll("Â·", "·")
+    .replaceAll("Â", "");
+}
+
+function publicFieldLabel(field: PublicFormField) {
+  if (field.field_key === "datos_generales_fecha_nac") return "Fecha de Nacimiento";
+  if (field.field_key === "actividad_actividad_del_productor") return "Cuál es su actividad";
+  if (field.field_key === "organizacion_pertenece_a_organizacion") return "Pertenece a una organización";
+  return cleanText(field.label);
+}
+
 function App() {
   const path = window.location.pathname;
 
@@ -1423,7 +1448,7 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
   }
 
   if (!data) {
-    return <PublicMessage title="Cargando formulario" message="Estamos consultando la sesiÃ³n activa." />;
+    return <PublicMessage title="Cargando formulario" message="Estamos consultando la sesión activa." />;
   }
 
   if (!data.canRegister || !data.openSession) {
@@ -1437,16 +1462,16 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
 
   const publicSections = data.sections ?? [];
   const currentPublicSection = publicSections[publicSectionIndex];
-  const progressSteps = ["Documento", ...publicSections.map((section) => section.title)];
+  const progressSteps = ["Documento", ...publicSections.map((section) => cleanText(section.title))];
   const currentProgressIndex = step === "document" ? 0 : publicSectionIndex + 1;
 
   return (
     <main className="public-page">
       <section className="public-form">
-        <p className="eyebrow">Formulario pÃºblico</p>
-        <h1>{data.welcomeTitle}</h1>
+        <p className="eyebrow">Formulario público</p>
+        <h1>{cleanText(data.welcomeTitle)}</h1>
         <div className="session-strip">
-          <span>{data.openSession.module_title}</span>
+          <span>{cleanText(data.openSession.module_title)}</span>
           <span>{data.openSession.session_date}</span>
           <span>{data.openSession.start_time} - {data.openSession.end_time}</span>
         </div>
@@ -1476,7 +1501,7 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
             </select>
           </label>
           <label>
-            NÃºmero de documento
+            Número de documento
             <input
               type="text"
               inputMode="numeric"
@@ -1511,12 +1536,12 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
           <form className="document-form" onSubmit={(event) => nextPublicSection(event, publicSections.length)}>
             {currentPublicSection ? (
               <fieldset className="public-section" key={currentPublicSection.id}>
-                <legend>{currentPublicSection.title}</legend>
+                <legend>{cleanText(currentPublicSection.title)}</legend>
                 {currentPublicSection.fields.some((field) => field.field_key === "ubicacion_pais") && fields.ubicacion_pais && !isPeru(fields.ubicacion_pais) ? (
-                  <p className="field-note">Para paises distintos de Peru no se requiere departamento, provincia ni distrito.</p>
+                  <p className="field-note">Para países distintos de Perú no se requiere departamento, provincia ni distrito.</p>
                 ) : null}
                 {currentPublicSection.fields.some((field) => field.field_key === "organizacion_pais") && fields.organizacion_pais && !isPeru(fields.organizacion_pais) ? (
-                  <p className="field-note">Para sedes fuera de Peru no se requiere departamento, provincia ni distrito.</p>
+                  <p className="field-note">Para sedes fuera de Perú no se requiere departamento, provincia ni distrito.</p>
                 ) : null}
                 {false && currentPublicSection.section_key === "actividad" ? (
                   <label>
@@ -1533,7 +1558,7 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
                   </label>
                 ) : null}
                 {false && currentPublicSection.section_key === "actividad" && fields.actividad_es_productor_agrario_pecuario_forestal === "SI" ? (
-                  <p className="field-note">Seleccione sus productos: debe elegir al menos una opciÃ³n.</p>
+                  <p className="field-note">Seleccione sus productos: debe elegir al menos una opción.</p>
                 ) : null}
                 {currentPublicSection.fields.map((field) => {
                   if (
@@ -1565,7 +1590,7 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
                   if (field.field_key === "ubicacion_departamento") {
 	                    return (
 	                      <label key={field.id}>
-                        {field.label}
+                        {publicFieldLabel(field)}
 	                        <select
                           value={selectedDepartmentId}
                           onChange={(event) => void selectDepartment(event.target.value)}
@@ -1573,7 +1598,7 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
                         >
                           <option value="">Seleccione departamento</option>
                           {departments.map((item) => (
-                            <option key={item.id} value={item.id}>{item.name}</option>
+                            <option key={item.id} value={item.id}>{cleanText(item.name)}</option>
                           ))}
                         </select>
                       </label>
@@ -1583,7 +1608,7 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
                   if (field.field_key === "ubicacion_provincia") {
                     return (
                       <label key={field.id}>
-                        {field.label}
+                        {publicFieldLabel(field)}
                         <select
                           value={selectedProvinceId}
                           onChange={(event) => void selectProvince(event.target.value)}
@@ -1592,7 +1617,7 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
                         >
                           <option value="">Seleccione provincia</option>
                           {provinces.map((item) => (
-                            <option key={item.id} value={item.id}>{item.name}</option>
+                            <option key={item.id} value={item.id}>{cleanText(item.name)}</option>
                           ))}
                         </select>
                       </label>
@@ -1602,7 +1627,7 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
 	                  if (field.field_key === "ubicacion_distrito") {
                     return (
                       <label key={field.id}>
-                        {field.label}
+                        {publicFieldLabel(field)}
                         <select
                           value={districts.find((item) => item.name === fields.ubicacion_distrito)?.id ?? ""}
                           onChange={(event) => selectDistrict(event.target.value)}
@@ -1611,7 +1636,7 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
                         >
                           <option value="">Seleccione distrito</option>
                           {districts.map((item) => (
-                            <option key={item.id} value={item.id}>{item.name}</option>
+                            <option key={item.id} value={item.id}>{cleanText(item.name)}</option>
                           ))}
                         </select>
                       </label>
@@ -1621,7 +1646,7 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
                   if (field.field_key === "organizacion_departamento") {
                     return (
                       <label key={field.id}>
-                        {field.label}
+                        {publicFieldLabel(field)}
                         <select
                           value={selectedOrganizationDepartmentId}
                           onChange={(event) => void selectOrganizationDepartment(event.target.value)}
@@ -1629,7 +1654,7 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
                         >
                           <option value="">Seleccione departamento</option>
                           {departments.map((item) => (
-                            <option key={item.id} value={item.id}>{item.name}</option>
+                            <option key={item.id} value={item.id}>{cleanText(item.name)}</option>
                           ))}
                         </select>
                       </label>
@@ -1639,7 +1664,7 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
                   if (field.field_key === "organizacion_provincia") {
                     return (
                       <label key={field.id}>
-                        {field.label}
+                        {publicFieldLabel(field)}
                         <select
                           value={selectedOrganizationProvinceId}
                           onChange={(event) => void selectOrganizationProvince(event.target.value)}
@@ -1648,7 +1673,7 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
                         >
                           <option value="">Seleccione provincia</option>
                           {organizationProvinces.map((item) => (
-                            <option key={item.id} value={item.id}>{item.name}</option>
+                            <option key={item.id} value={item.id}>{cleanText(item.name)}</option>
                           ))}
                         </select>
                       </label>
@@ -1658,7 +1683,7 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
                   if (field.field_key === "organizacion_distrito") {
                     return (
                       <label key={field.id}>
-                        {field.label}
+                        {publicFieldLabel(field)}
                         <select
                           value={organizationDistricts.find((item) => item.name === fields.organizacion_distrito)?.id ?? ""}
                           onChange={(event) => selectOrganizationDistrict(event.target.value)}
@@ -1667,7 +1692,7 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
                         >
                           <option value="">Seleccione distrito</option>
                           {organizationDistricts.map((item) => (
-                            <option key={item.id} value={item.id}>{item.name}</option>
+                            <option key={item.id} value={item.id}>{cleanText(item.name)}</option>
                           ))}
                         </select>
                       </label>
@@ -1682,14 +1707,10 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
                     return (
                       <React.Fragment key={field.id}>
                       {field.field_key === "organizacion_pais" ? (
-                        <p className="field-note">UbicaciÃ³n de la sede de su organizaciÃ³n</p>
+                        <p className="field-note">Ubicación de la sede de su organización</p>
                       ) : null}
                       <label>
-                        {field.field_key === "actividad_actividad_del_productor"
-                          ? "CuÃ¡l es su actividad"
-                          : field.field_key === "organizacion_pertenece_a_organizacion"
-                            ? "Pertenece a una organizaciÃ³n"
-                            : field.label}
+                        {publicFieldLabel(field)}
 		                        <select
 	                          value={fields[field.field_key] ?? ""}
 	                          onChange={(event) => updateField(field.field_key, event.target.value)}
@@ -1703,7 +1724,7 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
                         >
                           <option value="">Seleccione</option>
                           {options.map((item) => (
-                            <option key={item.id} value={item.name}>{item.name}</option>
+                            <option key={item.id} value={cleanText(item.name)}>{cleanText(item.name)}</option>
                           ))}
                         </select>
                       </label>
@@ -1722,7 +1743,7 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
                             </select>
                           </label>
                           {fields.actividad_es_productor_agrario_pecuario_forestal === "SI" ? (
-                            <p className="field-note">Seleccione sus productos: debe elegir al menos una opcion.</p>
+                            <p className="field-note">Seleccione sus productos: debe elegir al menos una opción.</p>
                           ) : null}
                         </>
                       ) : null}
@@ -1732,7 +1753,7 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
 
                   return (
                     <label key={field.id}>
-                      {field.field_key === "organizacion_pertenece_a_organizacion" ? "Pertenece a una organizaciÃ³n" : field.label}
+                      {publicFieldLabel(field)}
                       <input
                         type={field.field_type === "date" ? "date" : "text"}
                         value={fields[field.field_key] ?? ""}
@@ -1756,7 +1777,7 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
                 onClick={() => setPublicSectionIndex((current) => Math.max(0, current - 1))}
                 disabled={publicSectionIndex === 0 || submitting}
               >
-                AtrÃ¡s
+                Atrás
               </button>
               <button className="button" type="submit" disabled={submitting}>
                 {publicSectionIndex >= publicSections.length - 1
