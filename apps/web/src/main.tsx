@@ -1304,6 +1304,17 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
     setPublicSectionIndex(0);
   }
 
+  function previousPublicStep() {
+    if (publicSectionIndex === 0) {
+      returnToDocumentStep();
+      return;
+    }
+
+    setPublicSectionIndex((current) => Math.max(0, current - 1));
+    setMessage(null);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   function sanitizeFieldValue(fieldKey: string, value: string) {
     if (["datos_generales_celular", "organizacion_ruc"].includes(fieldKey)) {
       return value.replace(/\D/g, "");
@@ -1846,8 +1857,8 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
               <button
                 className="button secondary"
                 type="button"
-                onClick={() => setPublicSectionIndex((current) => Math.max(0, current - 1))}
-                disabled={publicSectionIndex === 0 || submitting}
+                onClick={previousPublicStep}
+                disabled={submitting}
               >
                 Atrás
               </button>
