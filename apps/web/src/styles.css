@@ -276,12 +276,70 @@ h3 {
   overflow-wrap: anywhere;
 }
 
-.created-event-box img {
+.qr-share {
+  align-items: center;
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+}
+
+.qr-share img {
   background: white;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
-  height: 132px;
-  width: 132px;
+  height: 198px;
+  width: 198px;
+}
+
+.qr-actions {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  width: 100%;
+}
+
+.qr-actions .button {
+  font-size: 12px;
+  justify-content: center;
+  min-height: 34px;
+  min-width: 0;
+  padding: 7px 9px;
+}
+
+.qr-modal {
+  align-items: center;
+  background: rgb(15 23 42 / 0.72);
+  bottom: 0;
+  display: flex;
+  justify-content: center;
+  left: 0;
+  padding: 24px;
+  position: fixed;
+  right: 0;
+  top: 0;
+  z-index: 100;
+}
+
+.qr-modal-panel {
+  background: white;
+  border-radius: 8px;
+  display: grid;
+  gap: 18px;
+  max-height: 94vh;
+  max-width: 760px;
+  overflow: auto;
+  padding: 22px;
+  width: 100%;
+}
+
+.qr-modal-panel > img {
+  align-self: center;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  justify-self: center;
+  max-height: min(70vh, 680px);
+  width: min(100%, 680px);
 }
 
 .event-panel p {

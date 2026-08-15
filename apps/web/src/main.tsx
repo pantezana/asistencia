@@ -159,6 +159,12 @@ type CreatedEventResult = {
   qrUrl: string;
 };
 
+type QrPreview = {
+  publicUrl: string;
+  qrUrl: string;
+  slug: string;
+};
+
 function cleanText(value: string | null | undefined) {
   return (value ?? "")
     .replaceAll("Ã¡", "á")
@@ -218,6 +224,105 @@ function textInputProps(field: PublicFormField) {
   };
 }
 
+function fileSafeName(value: string) {
+  return value.replace(/[^a-z0-9-]+/gi, "-").replace(/^-+|-+$/g, "") || "qr-asistencia";
+}
+
+async function qrSvgToCanvas(qrUrl: string, size = 2400) {
+  const svg = await fetch(qrUrl).then((response) => response.text());
+  const blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
+  const imageUrl = URL.createObjectURL(blob);
+  const image = new Image();
+  image.decoding = "async";
+  image.src = imageUrl;
+  await image.decode();
+
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("No se pudo generar el QR.");
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, size, size);
+  context.imageSmoothingEnabled = false;
+  context.drawImage(image, 0, 0, size, size);
+  URL.revokeObjectURL(imageUrl);
+  return canvas;
+}
+
+async function downloadQrPng(qrUrl: string, slug: string) {
+  const canvas = await qrSvgToCanvas(qrUrl, 2400);
+  const link = document.createElement("a");
+  link.download = `${fileSafeName(slug)}-qr.png`;
+  link.href = canvas.toDataURL("image/png");
+  link.click();
+}
+
+function asciiBytes(value: string) {
+  return new TextEncoder().encode(value);
+}
+
+function concatBytes(parts: Uint8Array[]) {
+  const total = parts.reduce((sum, part) => sum + part.length, 0);
+  const output = new Uint8Array(total);
+  let offset = 0;
+  for (const part of parts) {
+    output.set(part, offset);
+    offset += part.length;
+  }
+  return output;
+}
+
+async function downloadQrPdf(qrUrl: string, slug: string) {
+  const canvas = await qrSvgToCanvas(qrUrl, 2400);
+  const dataUrl = canvas.toDataURL("image/jpeg", 0.98);
+  const imageBytes = Uint8Array.from(atob(dataUrl.split(",")[1]), (char) => char.charCodeAt(0));
+  const objects: Uint8Array[] = [];
+  const offsets: number[] = [];
+  let position = "%PDF-1.4\n".length;
+
+  function addObject(content: Uint8Array | string) {
+    const index = objects.length + 1;
+    const header = asciiBytes(`${index} 0 obj\n`);
+    const body = typeof content === "string" ? asciiBytes(content) : content;
+    const footer = asciiBytes("\nendobj\n");
+    offsets.push(position);
+    const object = concatBytes([header, body, footer]);
+    objects.push(object);
+    position += object.length;
+  }
+
+  addObject("<< /Type /Catalog /Pages 2 0 R >>");
+  addObject("<< /Type /Pages /Kids [3 0 R] /Count 1 >>");
+  addObject("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>");
+  addObject(concatBytes([
+    asciiBytes(`<< /Type /XObject /Subtype /Image /Width ${canvas.width} /Height ${canvas.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${imageBytes.length} >>\nstream\n`),
+    imageBytes,
+    asciiBytes("\nendstream")
+  ]));
+  const content = "q\n430 0 0 430 82.5 246 cm\n/Im0 Do\nQ";
+  addObject(`<< /Length ${content.length} >>\nstream\n${content}\nendstream`);
+
+  const beforeXref = concatBytes([asciiBytes("%PDF-1.4\n"), ...objects]);
+  const xrefStart = beforeXref.length;
+  const xref = [
+    "xref",
+    `0 ${objects.length + 1}`,
+    "0000000000 65535 f ",
+    ...offsets.map((offset) => `${String(offset).padStart(10, "0")} 00000 n `),
+    "trailer",
+    `<< /Size ${objects.length + 1} /Root 1 0 R >>`,
+    "startxref",
+    String(xrefStart),
+    "%%EOF"
+  ].join("\n");
+  const pdfBytes = concatBytes([beforeXref, asciiBytes(xref)]);
+  const link = document.createElement("a");
+  link.download = `${fileSafeName(slug)}-qr.pdf`;
+  link.href = URL.createObjectURL(new Blob([pdfBytes], { type: "application/pdf" }));
+  link.click();
+}
+
 function App() {
   const path = window.location.pathname;
 
@@ -247,6 +352,7 @@ function AdminShell() {
   const [showCreateEvent, setShowCreateEvent] = React.useState(false);
   const [creatingEvent, setCreatingEvent] = React.useState(false);
   const [createdEvent, setCreatedEvent] = React.useState<CreatedEventResult | null>(null);
+  const [qrPreview, setQrPreview] = React.useState<QrPreview | null>(null);
   const [savingEvent, setSavingEvent] = React.useState(false);
   const [eventDraft, setEventDraft] = React.useState({
     title: "",
@@ -740,7 +846,12 @@ function AdminShell() {
                     <strong>Enlace corto</strong>
                     <a href={createdEvent.publicUrl}>{createdEvent.publicUrl}</a>
                   </div>
-                  <img src={createdEvent.qrUrl} alt="CÃ³digo QR del formulario" />
+                  <QrShareBlock
+                    onPreview={setQrPreview}
+                    publicUrl={createdEvent.publicUrl}
+                    qrUrl={createdEvent.qrUrl}
+                    slug={createdEvent.slug}
+                  />
                 </div>
               ) : null}
 
@@ -852,7 +963,12 @@ function AdminShell() {
                     <strong>Enlace corto</strong>
                     <a href={selectedEventPublicUrl}>{selectedEventPublicUrl}</a>
                   </div>
-                  <img src={selectedEventQrUrl} alt="Codigo QR del formulario" />
+                  <QrShareBlock
+                    onPreview={setQrPreview}
+                    publicUrl={selectedEventPublicUrl}
+                    qrUrl={selectedEventQrUrl}
+                    slug={selectedEvent.short_link_slug}
+                  />
                 </div>
                 <div className="actions">
                   <button className="button" type="submit" disabled={savingEvent}>
@@ -1098,6 +1214,31 @@ function AdminShell() {
             </div>
           </div>
         </section>
+        {qrPreview ? (
+          <div className="qr-modal" role="dialog" aria-modal="true" aria-label="QR ampliado">
+            <div className="qr-modal-panel">
+              <div className="detail-heading">
+                <div>
+                  <p className="eyebrow">QR ampliado</p>
+                  <h3>Formulario de asistencia</h3>
+                  <a href={qrPreview.publicUrl}>{qrPreview.publicUrl}</a>
+                </div>
+                <button className="button secondary" type="button" onClick={() => setQrPreview(null)}>
+                  Cerrar
+                </button>
+              </div>
+              <img src={qrPreview.qrUrl} alt="Codigo QR ampliado" />
+              <div className="actions">
+                <button className="button secondary" type="button" onClick={() => void downloadQrPng(qrPreview.qrUrl, qrPreview.slug)}>
+                  IMAGEN
+                </button>
+                <button className="button secondary" type="button" onClick={() => void downloadQrPdf(qrPreview.qrUrl, qrPreview.slug)}>
+                  PDF
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </main>
     </div>
   );
@@ -1249,6 +1390,45 @@ function SearchableSelect({
           )}
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function QrShareBlock({
+  onPreview,
+  publicUrl,
+  qrUrl,
+  slug
+}: QrPreview & { onPreview: (preview: QrPreview) => void }) {
+  const [working, setWorking] = React.useState<"png" | "pdf" | null>(null);
+
+  async function runDownload(type: "png" | "pdf") {
+    setWorking(type);
+    try {
+      if (type === "png") {
+        await downloadQrPng(qrUrl, slug);
+      } else {
+        await downloadQrPdf(qrUrl, slug);
+      }
+    } finally {
+      setWorking(null);
+    }
+  }
+
+  return (
+    <div className="qr-share">
+      <img src={qrUrl} alt="Codigo QR del formulario" />
+      <div className="qr-actions">
+        <button className="button secondary" type="button" onClick={() => onPreview({ publicUrl, qrUrl, slug })}>
+          AMPLIAR
+        </button>
+        <button className="button secondary" type="button" onClick={() => void runDownload("png")} disabled={working !== null}>
+          {working === "png" ? "GENERANDO..." : "IMAGEN"}
+        </button>
+        <button className="button secondary" type="button" onClick={() => void runDownload("pdf")} disabled={working !== null}>
+          {working === "pdf" ? "GENERANDO..." : "PDF"}
+        </button>
+      </div>
     </div>
   );
 }
