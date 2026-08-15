@@ -245,6 +245,7 @@ function AdminShell() {
   const [savingEvent, setSavingEvent] = React.useState(false);
   const [eventDraft, setEventDraft] = React.useState({
     title: "",
+    shortLinkSlug: "",
     theme: "",
     startDate: "",
     endDate: "",
@@ -256,6 +257,7 @@ function AdminShell() {
   ]);
   const [eventEditDraft, setEventEditDraft] = React.useState({
     title: "",
+    shortLinkSlug: "",
     theme: "",
     startDate: "",
     endDate: "",
@@ -317,6 +319,7 @@ function AdminShell() {
 
     setEventEditDraft({
       title: event.title,
+      shortLinkSlug: event.short_link_slug,
       theme: event.theme ?? "",
       startDate: event.start_date,
       endDate: event.end_date,
@@ -660,6 +663,16 @@ function AdminShell() {
                   <input value={eventDraft.theme} onChange={(event) => setEventDraft((current) => ({ ...current, theme: event.target.value }))} />
                 </label>
                 <label>
+                  Enlace corto
+                  <input
+                    value={eventDraft.shortLinkSlug}
+                    onChange={(event) => setEventDraft((current) => ({ ...current, shortLinkSlug: event.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-") }))}
+                    placeholder="curso-serforeduca1"
+                    required
+                  />
+                  <small>{window.location.origin}/f/{eventDraft.shortLinkSlug || "enlace-corto"}</small>
+                </label>
+                <label>
                   Fecha inicio
                   <input type="date" value={eventDraft.startDate} onChange={(event) => setEventDraft((current) => ({ ...current, startDate: event.target.value }))} required />
                 </label>
@@ -794,6 +807,15 @@ function AdminShell() {
                   <label>
                     Tema
                     <input value={eventEditDraft.theme} onChange={(event) => setEventEditDraft((current) => ({ ...current, theme: event.target.value }))} />
+                  </label>
+                  <label>
+                    Enlace corto
+                    <input
+                      value={eventEditDraft.shortLinkSlug}
+                      onChange={(event) => setEventEditDraft((current) => ({ ...current, shortLinkSlug: event.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-") }))}
+                      required
+                    />
+                    <small>{window.location.origin}/f/{eventEditDraft.shortLinkSlug || "enlace-corto"}</small>
                   </label>
                   <label>
                     Estado

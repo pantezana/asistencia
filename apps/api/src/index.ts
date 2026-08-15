@@ -26,6 +26,8 @@ import {
   listEventModules,
   listEventSessions,
   listProvincesByDepartment,
+  isShortLinkAvailable,
+  normalizePublicSlug,
   openEventSession,
   registerAttendance,
   updateCatalogItemStatus,
@@ -296,6 +298,7 @@ app.get("/api/admin/events", async (c) => {
 app.post("/api/admin/events", async (c) => {
   const body = await c.req.json<{
     title?: string;
+    shortLinkSlug?: string;
     theme?: string;
     startDate?: string;
     endDate?: string;
@@ -315,6 +318,15 @@ app.post("/api/admin/events", async (c) => {
     return c.json({ ok: false, message: "Ingrese el título del evento." }, 400);
   }
 
+  const shortLinkSlug = normalizePublicSlug(body.shortLinkSlug ?? "");
+  if (!shortLinkSlug) {
+    return c.json({ ok: false, message: "Ingrese el enlace corto del evento." }, 400);
+  }
+
+  if (!(await isShortLinkAvailable(c.env.DB, shortLinkSlug))) {
+    return c.json({ ok: false, message: "El enlace corto ya existe. Ingrese uno diferente." }, 409);
+  }
+
   const sessions = (body.sessions ?? []).filter((session) =>
     session.sessionDate?.trim() && session.startTime?.trim() && session.endTime?.trim()
   );
@@ -325,6 +337,7 @@ app.post("/api/admin/events", async (c) => {
 
   const result = await createEventWithSchedule(c.env.DB, c.get("user"), {
     title: body.title.trim(),
+    shortLinkSlug,
     theme: body.theme?.trim(),
     startDate: body.startDate || sessions[0].sessionDate || "",
     endDate: body.endDate || sessions[sessions.length - 1].sessionDate || "",
@@ -379,6 +392,7 @@ app.put("/api/admin/events/:eventId", async (c) => {
 
   const body = await c.req.json<{
     title?: string;
+    shortLinkSlug?: string;
     theme?: string;
     startDate?: string;
     endDate?: string;
@@ -391,6 +405,15 @@ app.put("/api/admin/events/:eventId", async (c) => {
     return c.json({ ok: false, message: "Ingrese el titulo del evento." }, 400);
   }
 
+  const shortLinkSlug = normalizePublicSlug(body.shortLinkSlug ?? "");
+  if (!shortLinkSlug) {
+    return c.json({ ok: false, message: "Ingrese el enlace corto del evento." }, 400);
+  }
+
+  if (!(await isShortLinkAvailable(c.env.DB, shortLinkSlug, eventId))) {
+    return c.json({ ok: false, message: "El enlace corto ya existe. Ingrese uno diferente." }, 409);
+  }
+
   if (!body.startDate || !body.endDate || !body.startTime || !body.endTime) {
     return c.json({ ok: false, message: "Complete fecha y horario del evento." }, 400);
   }
@@ -398,6 +421,7 @@ app.put("/api/admin/events/:eventId", async (c) => {
   const status = body.status && ["draft", "active", "inactive"].includes(body.status) ? body.status : "draft";
   const updated = await updateEventDetails(c.env.DB, eventId, {
     title: body.title.trim(),
+    shortLinkSlug,
     theme: body.theme?.trim(),
     startDate: body.startDate,
     endDate: body.endDate,

@@ -278,8 +278,35 @@ function slugify(value: string) {
     .slice(0, 72);
 }
 
+export function normalizePublicSlug(value: string) {
+  return slugify(value).slice(0, 48);
+}
+
+export async function isShortLinkAvailable(db: D1Database, slug: string, eventId?: string) {
+  const event = await db
+    .prepare("SELECT id FROM events WHERE short_link_slug = ? AND (? IS NULL OR id <> ?) LIMIT 1")
+    .bind(slug, eventId ?? null, eventId ?? null)
+    .first<{ id: string }>();
+
+  if (event) return false;
+
+  const form = await db
+    .prepare(
+      `SELECT f.id
+       FROM forms f
+       WHERE f.short_link_slug = ?
+         AND (? IS NULL OR f.event_id <> ?)
+       LIMIT 1`
+    )
+    .bind(slug, eventId ?? null, eventId ?? null)
+    .first<{ id: string }>();
+
+  return !form;
+}
+
 export async function createEventWithSchedule(db: D1Database, user: SessionUser, input: {
   title: string;
+  shortLinkSlug: string;
   theme?: string;
   startDate: string;
   endDate: string;
@@ -296,8 +323,7 @@ export async function createEventWithSchedule(db: D1Database, user: SessionUser,
 }) {
   const suffix = crypto.randomUUID().slice(0, 8);
   const eventId = `evt_${suffix}`;
-  const baseSlug = slugify(input.title) || `evento-${suffix}`;
-  const slug = `${baseSlug}-${suffix}`;
+  const slug = normalizePublicSlug(input.shortLinkSlug);
   const formId = `form_${suffix}`;
   const moduleIds = new Map<string, string>();
   const statements: D1PreparedStatement[] = [
@@ -416,6 +442,7 @@ export async function createEventWithSchedule(db: D1Database, user: SessionUser,
 
 export async function updateEventDetails(db: D1Database, eventId: string, input: {
   title: string;
+  shortLinkSlug: string;
   theme?: string;
   startDate: string;
   endDate: string;
@@ -426,7 +453,7 @@ export async function updateEventDetails(db: D1Database, eventId: string, input:
   const result = await db
     .prepare(
       `UPDATE events
-       SET title = ?, source_title = ?, theme = ?, start_date = ?, end_date = ?, start_time = ?, end_time = ?, status = ?, updated_at = CURRENT_TIMESTAMP
+       SET title = ?, source_title = ?, theme = ?, start_date = ?, end_date = ?, start_time = ?, end_time = ?, status = ?, short_link_slug = ?, updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`
     )
     .bind(
@@ -438,8 +465,18 @@ export async function updateEventDetails(db: D1Database, eventId: string, input:
       input.startTime,
       input.endTime,
       input.status,
+      normalizePublicSlug(input.shortLinkSlug),
       eventId
     )
+    .run();
+
+  await db
+    .prepare(
+      `UPDATE forms
+       SET short_link_slug = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE event_id = ? AND cloned_from_form_id = 'form_inauguracion_otca'`
+    )
+    .bind(normalizePublicSlug(input.shortLinkSlug), eventId)
     .run();
 
   return result.meta.changes > 0;
