@@ -83,6 +83,7 @@ type AdminEvent = {
 
 type AdminSession = {
   id: string;
+  module_id: string;
   sequence: number;
   title: string;
   theme: string;
@@ -168,6 +169,8 @@ function AdminShell() {
   const [loading, setLoading] = React.useState(true);
   const [events, setEvents] = React.useState<AdminEvent[]>([]);
   const [sessions, setSessions] = React.useState<AdminSession[]>([]);
+  const [selectedSessionId, setSelectedSessionId] = React.useState<string | null>(null);
+  const [savingSession, setSavingSession] = React.useState(false);
   const [forms, setForms] = React.useState<AdminForm[]>([]);
   const [selectedFormId, setSelectedFormId] = React.useState<string | null>(null);
   const [formSections, setFormSections] = React.useState<FormSection[]>([]);
@@ -201,6 +204,15 @@ function AdminShell() {
     endTime: "",
     status: "draft"
   });
+  const [sessionEditDraft, setSessionEditDraft] = React.useState({
+    moduleTitle: "",
+    title: "",
+    theme: "",
+    sessionDate: "",
+    startTime: "",
+    endTime: "",
+    status: "closed"
+  });
 
   React.useEffect(() => {
     fetch("/api/auth/me", { credentials: "include" })
@@ -223,6 +235,22 @@ function AdminShell() {
       void loadSessions(selectedEventId);
     }
   }, [selectedEventId]);
+
+  React.useEffect(() => {
+    const session = sessions.find((item) => item.id === selectedSessionId) ?? sessions[0];
+    if (!session) return;
+
+    setSelectedSessionId((current) => current ?? session.id);
+    setSessionEditDraft({
+      moduleTitle: session.module_title,
+      title: session.title,
+      theme: session.theme,
+      sessionDate: session.session_date,
+      startTime: session.start_time,
+      endTime: session.end_time,
+      status: session.attendance_status
+    });
+  }, [sessions, selectedSessionId]);
 
   React.useEffect(() => {
     const event = events.find((item) => item.id === selectedEventId);
@@ -277,6 +305,7 @@ function AdminShell() {
     if (!response.ok) return;
     const payload = (await response.json()) as { sessions: AdminSession[] };
     setSessions(payload.sessions);
+    setSelectedSessionId((current) => payload.sessions.some((session) => session.id === current) ? current : payload.sessions[0]?.id ?? null);
   }
 
   async function loadForms() {
@@ -386,6 +415,44 @@ function AdminShell() {
     await loadSessions(selectedEventId);
   }
 
+  function editSession(session: AdminSession) {
+    setSelectedSessionId(session.id);
+    setSessionEditDraft({
+      moduleTitle: session.module_title,
+      title: session.title,
+      theme: session.theme,
+      sessionDate: session.session_date,
+      startTime: session.start_time,
+      endTime: session.end_time,
+      status: session.attendance_status
+    });
+  }
+
+  async function saveSelectedSession(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedEventId || !selectedSessionId) return;
+
+    setSavingSession(true);
+    setActionMessage(null);
+    const response = await fetch(`/api/admin/events/${selectedEventId}/sessions/${selectedSessionId}`, {
+      method: "PUT",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(sessionEditDraft)
+    });
+    const payload = (await response.json()) as { ok: boolean; message?: string };
+    setSavingSession(false);
+
+    if (!response.ok || !payload.ok) {
+      setActionMessage(payload.message ?? "No se pudo actualizar la sesion.");
+      return;
+    }
+
+    await loadSessions(selectedEventId);
+    await loadEvents();
+    setActionMessage("Sesion actualizada correctamente.");
+  }
+
   function updateSessionDraft(index: number, field: keyof EventSessionDraft, value: string) {
     setSessionDrafts((current) => current.map((session, itemIndex) =>
       itemIndex === index ? { ...session, [field]: value } : session
@@ -465,6 +532,7 @@ function AdminShell() {
 
   const selectedEvent = events.find((event) => event.id === selectedEventId) ?? events[0];
   const openSession = sessions.find((session) => session.attendance_status === "open");
+  const selectedSession = sessions.find((session) => session.id === selectedSessionId) ?? sessions[0];
   const selectedForm = forms.find((form) => form.id === selectedFormId) ?? forms[0];
   const selectedEventPublicUrl = selectedEvent ? `${window.location.origin}/f/${selectedEvent.short_link_slug}` : "";
   const selectedEventQrUrl = selectedEvent ? `${window.location.origin}/api/public/forms/${selectedEvent.short_link_slug}/qr` : "";
@@ -712,6 +780,58 @@ function AdminShell() {
 
           {actionMessage ? <p className="form-success">{actionMessage}</p> : null}
 
+          {selectedSession ? (
+            <form className="admin-form-panel" onSubmit={saveSelectedSession}>
+              <div className="detail-heading">
+                <div>
+                  <p className="eyebrow">Sesion seleccionada</p>
+                  <h3>Editar cronograma</h3>
+                </div>
+                <span className={`status ${sessionEditDraft.status === "open" ? "open" : "closed"}`}>
+                  {sessionEditDraft.status === "open" ? "Abierta" : "Cerrada"}
+                </span>
+              </div>
+              <div className="form-grid">
+                <label>
+                  Modulo
+                  <input value={sessionEditDraft.moduleTitle} onChange={(event) => setSessionEditDraft((current) => ({ ...current, moduleTitle: event.target.value }))} required />
+                </label>
+                <label>
+                  Titulo
+                  <input value={sessionEditDraft.title} onChange={(event) => setSessionEditDraft((current) => ({ ...current, title: event.target.value }))} required />
+                </label>
+                <label className="wide-field">
+                  Tema
+                  <input value={sessionEditDraft.theme} onChange={(event) => setSessionEditDraft((current) => ({ ...current, theme: event.target.value }))} required />
+                </label>
+                <label>
+                  Fecha
+                  <input type="date" value={sessionEditDraft.sessionDate} onChange={(event) => setSessionEditDraft((current) => ({ ...current, sessionDate: event.target.value }))} required />
+                </label>
+                <label>
+                  Inicio
+                  <input type="time" value={sessionEditDraft.startTime} onChange={(event) => setSessionEditDraft((current) => ({ ...current, startTime: event.target.value }))} required />
+                </label>
+                <label>
+                  Fin
+                  <input type="time" value={sessionEditDraft.endTime} onChange={(event) => setSessionEditDraft((current) => ({ ...current, endTime: event.target.value }))} required />
+                </label>
+                <label>
+                  Estado de asistencia
+                  <select value={sessionEditDraft.status} onChange={(event) => setSessionEditDraft((current) => ({ ...current, status: event.target.value }))}>
+                    <option value="closed">Cerrada</option>
+                    <option value="open">Abierta</option>
+                  </select>
+                </label>
+              </div>
+              <div className="actions">
+                <button className="button" type="submit" disabled={savingSession}>
+                  {savingSession ? "Guardando..." : "Guardar sesion"}
+                </button>
+              </div>
+            </form>
+          ) : null}
+
           <div className="session-table-wrap">
             <table className="session-table">
               <thead>
@@ -727,7 +847,7 @@ function AdminShell() {
               </thead>
               <tbody>
                 {sessions.map((session) => (
-                  <tr key={session.id}>
+                  <tr className={session.id === selectedSession?.id ? "selected-row" : ""} key={session.id}>
                     <td>{session.sequence}</td>
                     <td>{session.module_title}</td>
                     <td>{session.theme}</td>
@@ -739,6 +859,9 @@ function AdminShell() {
                       </span>
                     </td>
                     <td>
+                      <button className="button secondary table-action" type="button" onClick={() => editSession(session)}>
+                        Editar
+                      </button>
                       {session.attendance_status === "open" ? (
                         <button className="button secondary table-action" type="button" onClick={() => changeSessionState(session, "close")}>
                           Cerrar

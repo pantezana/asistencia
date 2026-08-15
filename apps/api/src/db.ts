@@ -70,6 +70,7 @@ export async function listEventSessions(db: D1Database, eventId: string) {
     .prepare(
       `SELECT
         s.id,
+        s.module_id,
         s.sequence,
         s.title,
         s.theme,
@@ -190,6 +191,81 @@ export async function closeEventSession(db: D1Database, eventId: string, session
     .run();
 
   return result.meta.changes > 0;
+}
+
+export async function updateEventSessionDetails(db: D1Database, eventId: string, sessionId: string, input: {
+  moduleTitle: string;
+  title: string;
+  theme: string;
+  sessionDate: string;
+  startTime: string;
+  endTime: string;
+  status: string;
+}) {
+  const existing = await getSessionById(db, sessionId);
+
+  if (!existing || existing.event_id !== eventId) {
+    return { ok: false, message: "Sesion no encontrada." };
+  }
+
+  const moduleTitle = input.moduleTitle.trim() || "Modulo general";
+  let module = await db
+    .prepare("SELECT id FROM event_modules WHERE event_id = ? AND lower(title) = lower(?) LIMIT 1")
+    .bind(eventId, moduleTitle)
+    .first<{ id: string }>();
+
+  if (!module) {
+    const moduleId = `mod_${crypto.randomUUID().slice(0, 8)}`;
+    const order = await db
+      .prepare("SELECT COALESCE(MAX(order_index), 0) + 1 AS next_order FROM event_modules WHERE event_id = ?")
+      .bind(eventId)
+      .first<{ next_order: number }>();
+
+    await db
+      .prepare("INSERT INTO event_modules (id, event_id, title, order_index, status) VALUES (?, ?, ?, ?, 'active')")
+      .bind(moduleId, eventId, moduleTitle, order?.next_order ?? 1)
+      .run();
+    module = { id: moduleId };
+  }
+
+  const attendanceStatus = input.status === "open" ? "open" : "closed";
+  const statements: D1PreparedStatement[] = [];
+
+  if (attendanceStatus === "open") {
+    statements.push(
+      db
+        .prepare(
+          `UPDATE event_sessions
+           SET attendance_status = 'closed', status = 'closed', updated_at = CURRENT_TIMESTAMP
+           WHERE event_id = ? AND id <> ? AND attendance_status = 'open'`
+        )
+        .bind(eventId, sessionId)
+    );
+  }
+
+  statements.push(
+    db
+      .prepare(
+        `UPDATE event_sessions
+         SET module_id = ?, title = ?, theme = ?, session_date = ?, start_time = ?, end_time = ?, status = ?, attendance_status = ?, updated_at = CURRENT_TIMESTAMP
+         WHERE id = ? AND event_id = ?`
+      )
+      .bind(
+        module.id,
+        input.title,
+        input.theme,
+        input.sessionDate,
+        input.startTime,
+        input.endTime,
+        attendanceStatus,
+        attendanceStatus,
+        sessionId,
+        eventId
+      )
+  );
+
+  await db.batch(statements);
+  return { ok: true };
 }
 
 function slugify(value: string) {

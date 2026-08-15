@@ -30,6 +30,7 @@ import {
   registerAttendance,
   updateCatalogItemStatus,
   updateEventDetails,
+  updateEventSessionDetails,
   updateFormStatus,
   userCanManageEvent
 } from "./db";
@@ -422,6 +423,46 @@ app.get("/api/admin/events/:eventId/sessions", async (c) => {
     ok: true,
     sessions: sessions.results
   });
+});
+
+app.put("/api/admin/events/:eventId/sessions/:sessionId", async (c) => {
+  const eventId = c.req.param("eventId");
+  const sessionId = c.req.param("sessionId");
+  const canManage = await userCanManageEvent(c.env.DB, eventId, c.get("user"));
+
+  if (!canManage) {
+    return c.json({ ok: false, message: "Evento no encontrado o no autorizado." }, 404);
+  }
+
+  const body = await c.req.json<{
+    moduleTitle?: string;
+    title?: string;
+    theme?: string;
+    sessionDate?: string;
+    startTime?: string;
+    endTime?: string;
+    status?: string;
+  }>().catch(() => null);
+
+  if (!body?.title?.trim()) {
+    return c.json({ ok: false, message: "Ingrese el titulo de la sesion." }, 400);
+  }
+
+  if (!body.sessionDate || !body.startTime || !body.endTime) {
+    return c.json({ ok: false, message: "Complete fecha y horario de la sesion." }, 400);
+  }
+
+  const result = await updateEventSessionDetails(c.env.DB, eventId, sessionId, {
+    moduleTitle: body.moduleTitle?.trim() || "Modulo general",
+    title: body.title.trim(),
+    theme: body.theme?.trim() || body.title.trim(),
+    sessionDate: body.sessionDate,
+    startTime: body.startTime,
+    endTime: body.endTime,
+    status: body.status === "open" ? "open" : "closed"
+  });
+
+  return c.json(result, result.ok ? 200 : 404);
 });
 
 app.get("/api/admin/forms", async (c) => {
