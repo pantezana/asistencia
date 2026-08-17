@@ -9,12 +9,11 @@ import {
   createEventWithSchedule,
   createParticipant,
   findParticipantByDocument,
-  getActiveFormBySlug,
-  getEventBySlug,
   getAdminForm,
   getAttendanceReportData,
   getFormStructure,
   getOpenSessionForEvent,
+  getPublicFormContextBySlug,
   getPublicFormStructure,
   getUserForLogin,
   hasAttendance,
@@ -145,6 +144,33 @@ function makeXlsx(headers: string[], rows: unknown[][]) {
   ]);
 }
 
+async function getPublicContext(db: D1Database, slug: string) {
+  const context = await getPublicFormContextBySlug(db, slug);
+  if (!context) return null;
+
+  return {
+    event: {
+      id: context.event_id,
+      title: context.event_title,
+      source_title: context.source_title,
+      start_date: context.start_date,
+      end_date: context.end_date,
+      start_time: context.start_time,
+      end_time: context.end_time,
+      status: context.event_status,
+      short_link_slug: context.event_short_link_slug
+    },
+    form: {
+      id: context.form_id,
+      event_id: context.event_id,
+      name: context.form_name,
+      status: context.form_status,
+      short_link_slug: context.form_short_link_slug,
+      welcome_title_template: context.welcome_title_template
+    }
+  };
+}
+
 app.use(
   "/api/*",
   cors({
@@ -210,13 +236,13 @@ app.post("/api/auth/logout", async (c) => {
 
 app.get("/api/public/forms/:slug", async (c) => {
   const slug = c.req.param("slug");
-  const event = await getEventBySlug(c.env.DB, slug);
-  const form = await getActiveFormBySlug(c.env.DB, slug);
+  const context = await getPublicContext(c.env.DB, slug);
 
-  if (!event || !form) {
+  if (!context) {
     return c.json({ ok: false, message: "Formulario no encontrado." }, 404);
   }
 
+  const { event, form } = context;
   const openSession = await getOpenSessionForEvent(c.env.DB, event.id);
   const sessions = await listEventSessions(c.env.DB, event.id);
   const structure = await getPublicFormStructure(c.env.DB, form.id);
@@ -249,10 +275,9 @@ app.get("/api/public/forms/:slug", async (c) => {
 
 app.get("/api/public/forms/:slug/qr", async (c) => {
   const slug = c.req.param("slug");
-  const event = await getEventBySlug(c.env.DB, slug);
-  const form = await getActiveFormBySlug(c.env.DB, slug);
+  const context = await getPublicContext(c.env.DB, slug);
 
-  if (!event || !form) {
+  if (!context) {
     return c.json({ ok: false, message: "Formulario no encontrado." }, 404);
   }
 
@@ -272,13 +297,13 @@ app.get("/api/public/forms/:slug/qr", async (c) => {
 
 app.post("/api/public/forms/:slug/identify", async (c) => {
   const slug = c.req.param("slug");
-  const event = await getEventBySlug(c.env.DB, slug);
-  const form = await getActiveFormBySlug(c.env.DB, slug);
+  const context = await getPublicContext(c.env.DB, slug);
 
-  if (!event || !form) {
+  if (!context) {
     return c.json({ ok: false, message: "Formulario no encontrado." }, 404);
   }
 
+  const { event } = context;
   const openSession = await getOpenSessionForEvent(c.env.DB, event.id);
 
   if (!openSession) {
@@ -301,13 +326,13 @@ app.post("/api/public/forms/:slug/identify", async (c) => {
 
 app.post("/api/public/forms/:slug/attendance", async (c) => {
   const slug = c.req.param("slug");
-  const event = await getEventBySlug(c.env.DB, slug);
-  const form = await getActiveFormBySlug(c.env.DB, slug);
+  const context = await getPublicContext(c.env.DB, slug);
 
-  if (!event || !form) {
+  if (!context) {
     return c.json({ ok: false, message: "Formulario no encontrado." }, 404);
   }
 
+  const { event, form } = context;
   const openSession = await getOpenSessionForEvent(c.env.DB, event.id);
 
   if (!openSession) {

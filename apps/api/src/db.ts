@@ -40,6 +40,49 @@ export async function getActiveFormBySlug(db: D1Database, slug: string) {
     .first<{ id: string; event_id: string; name: string; status: string; short_link_slug: string; welcome_title_template: string }>();
 }
 
+export async function getPublicFormContextBySlug(db: D1Database, slug: string) {
+  return db
+    .prepare(
+      `SELECT
+        f.id AS form_id,
+        f.event_id,
+        f.name AS form_name,
+        f.status AS form_status,
+        f.short_link_slug AS form_short_link_slug,
+        f.welcome_title_template,
+        e.id AS event_id,
+        e.title AS event_title,
+        e.source_title,
+        e.start_date,
+        e.end_date,
+        e.start_time,
+        e.end_time,
+        e.status AS event_status,
+        e.short_link_slug AS event_short_link_slug
+       FROM forms f
+       INNER JOIN events e ON e.id = f.event_id
+       WHERE f.short_link_slug = ? AND f.status = 'active'
+       LIMIT 1`
+    )
+    .bind(slug)
+    .first<{
+      form_id: string;
+      event_id: string;
+      form_name: string;
+      form_status: string;
+      form_short_link_slug: string;
+      welcome_title_template: string;
+      event_title: string;
+      source_title: string | null;
+      start_date: string | null;
+      end_date: string | null;
+      start_time: string | null;
+      end_time: string | null;
+      event_status: string;
+      event_short_link_slug: string | null;
+    }>();
+}
+
 export async function getOpenSessionForEvent(db: D1Database, eventId: string) {
   return db
     .prepare(
