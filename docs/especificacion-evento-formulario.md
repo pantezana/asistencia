@@ -229,3 +229,21 @@ hacia:
 `modelos de formulario reutilizables + publicaciones de formulario por evento`
 
 Esta migracion debe planificarse antes de ampliar el editor avanzado de formularios.
+
+## 12. Editor dinamico de modelos
+
+La gestion avanzada de modelos debe permitir editar la estructura de preguntas despues de crear o clonar un modelo.
+
+La especificacion detallada se encuentra en:
+
+`docs/especificacion-editor-modelos-formulario.md`
+
+Puntos clave:
+
+- Los modelos se componen desde una paleta reutilizable de secciones y controles.
+- Una pregunta existente debe poder incorporarse a un modelo sin recrearla manualmente.
+- El sistema debe impedir duplicados dentro del mismo modelo.
+- Las secciones y controles deben poder agregarse, excluirse y reordenarse.
+- Al incorporar elementos debe poder indicarse posicion: inicio, final, antes o despues de otro elemento.
+- Los modelos usados en asistencias deben protegerse con versionado o borradores publicados.
+- El enlace corto y QR pertenecen al evento/publicacion y no deben cambiar por editar el modelo.

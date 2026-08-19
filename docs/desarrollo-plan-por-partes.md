@@ -73,3 +73,20 @@ Objetivo:
 - Publicar Worker API.
 - Publicar Pages frontend.
 - Documentar URLs finales.
+
+## Parte 8. Editor dinamico de modelos
+
+Objetivo:
+
+- Gestionar una paleta reutilizable de secciones.
+- Gestionar una paleta reutilizable de controles o preguntas.
+- Incorporar y excluir secciones dentro de un modelo.
+- Incorporar y excluir controles dentro de una seccion.
+- Definir posicion al agregar secciones o controles.
+- Impedir duplicados dentro de un mismo modelo.
+- Crear el control `Rango de edad` asociado al catalogo `rangoedad`.
+- Preparar versionado para modelos usados historicamente.
+
+Documento base:
+
+- `docs/especificacion-editor-modelos-formulario.md`

@@ -247,6 +247,8 @@ La apertura y cierre de asistencia debe controlarse por cada sesión del cronogr
 
 > Nota de arquitectura: la relacion evento-formulario debe evolucionar hacia modelos de formulario reutilizables y publicaciones por evento. Ver `docs/especificacion-evento-formulario.md`. La clonacion debe usarse solo cuando se requiera una variante editable; si dos eventos usan las mismas preguntas, deben poder compartir el mismo modelo de formulario sin duplicar estructura.
 
+> Nota de editor dinamico: la gestion avanzada de secciones, controles, paleta de preguntas, posicionamiento, duplicados y versionado se define en `docs/especificacion-editor-modelos-formulario.md`.
+
 Cada evento debe poder tener un formulario de asistencia.
 
 Funciones iniciales:
