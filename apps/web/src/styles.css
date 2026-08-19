@@ -872,6 +872,7 @@ select {
 }
 
 .field-chip {
+  align-items: flex-start;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
@@ -888,6 +889,19 @@ select {
 .field-chip span {
   display: block;
   margin-top: 3px;
+}
+
+.field-chip > div:first-child {
+  min-width: 0;
+}
+
+.field-chip-actions {
+  align-items: center;
+  display: flex;
+  flex-shrink: 0;
+  gap: 14px;
+  justify-content: flex-end;
+  margin-left: auto;
 }
 
 .text-button {

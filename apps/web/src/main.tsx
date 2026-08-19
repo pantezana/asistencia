@@ -1775,12 +1775,14 @@ function AdminShell() {
                                 <strong>{field.label}</strong>
                                 <span>{field.field_type}{field.catalog_key ? ` · ${field.catalog_key}` : ""}{field.is_required ? " · obligatorio" : ""}</span>
                               </div>
-                              <button className="text-button" type="button" onClick={() => editTemplateField(section, field)}>
-                                Editar
-                              </button>
-                              <button className="text-button danger" type="button" onClick={() => void removeFieldFromTemplate(field.id)}>
-                                Quitar
-                              </button>
+                              <div className="field-chip-actions">
+                                <button className="text-button" type="button" onClick={() => editTemplateField(section, field)}>
+                                  Editar
+                                </button>
+                                <button className="text-button danger" type="button" onClick={() => void removeFieldFromTemplate(field.id)}>
+                                  Quitar
+                                </button>
+                              </div>
                             </div>
                           ))}
                         </div>
