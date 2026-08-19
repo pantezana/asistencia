@@ -719,22 +719,56 @@ function AdminShell() {
 
     setSavingEvent(true);
     setActionMessage(null);
-    const response = await fetch(`/api/admin/events/${selectedEventId}`, {
+    const eventResponse = await fetch(`/api/admin/events/${selectedEventId}`, {
       method: "PUT",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(eventEditDraft)
     });
-    const payload = (await response.json()) as { ok: boolean; message?: string };
-    setSavingEvent(false);
+    const eventPayload = (await eventResponse.json()) as { ok: boolean; message?: string };
 
-    if (!response.ok || !payload.ok) {
-      setActionMessage(payload.message ?? "No se pudo actualizar el evento.");
+    if (!eventResponse.ok || !eventPayload.ok) {
+      setSavingEvent(false);
+      setActionMessage(eventPayload.message ?? "No se pudo actualizar el evento.");
       return;
     }
 
+    const modelChanged = Boolean(
+      associatedTemplateDraftId &&
+      associatedTemplateDraftId !== (selectedEvent?.associated_template_id ?? "")
+    );
+
+    if (modelChanged) {
+      const association = await updateEventFormTemplate(selectedEventId, associatedTemplateDraftId);
+
+      if (!association.ok) {
+        setSavingEvent(false);
+        setActionMessage(association.message ?? "El evento se guardo, pero no se pudo cambiar el modelo asociado.");
+        return;
+      }
+    }
+
+    setSavingEvent(false);
     await loadEvents();
-    setActionMessage("Evento actualizado correctamente.");
+    await loadFormTemplates();
+    setActionMessage(modelChanged
+      ? "Evento y modelo asociado actualizados correctamente."
+      : "Evento actualizado correctamente.");
+  }
+
+  async function updateEventFormTemplate(eventId: string, templateId: string) {
+    const response = await fetch(`/api/admin/events/${eventId}/form-template`, {
+      method: "PUT",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ templateId })
+    });
+    const payload = (await response.json()) as { ok: boolean; message?: string };
+
+    return {
+      ok: response.ok && payload.ok,
+      message: payload.message
+    };
   }
 
   async function saveFormAssociation() {
@@ -742,16 +776,10 @@ function AdminShell() {
 
     setSavingFormAssociation(true);
     setActionMessage(null);
-    const response = await fetch(`/api/admin/events/${selectedEventId}/form-template`, {
-      method: "PUT",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ templateId: associatedTemplateDraftId })
-    });
-    const payload = (await response.json()) as { ok: boolean; message?: string };
+    const payload = await updateEventFormTemplate(selectedEventId, associatedTemplateDraftId);
     setSavingFormAssociation(false);
 
-    if (!response.ok || !payload.ok) {
+    if (!payload.ok) {
       setActionMessage(payload.message ?? "No se pudo asociar el formulario.");
       return;
     }
@@ -1051,7 +1079,7 @@ function AdminShell() {
                     disabled={savingFormAssociation || !associatedTemplateDraftId}
                     onClick={() => void saveFormAssociation()}
                   >
-                    {savingFormAssociation ? "Asociando..." : "Guardar modelo asociado"}
+                    {savingFormAssociation ? "Asociando..." : "Guardar solo modelo asociado"}
                   </button>
                   <a className="button secondary" href={`/f/${selectedEvent.short_link_slug}`}>Abrir formulario</a>
                   <a className="button secondary" href={`/api/admin/events/${selectedEvent.id}/attendance.xlsx`}>
