@@ -35,6 +35,23 @@ function toFieldKey(label: string, fallback: string) {
   return normalized || fallback;
 }
 
+function catalogOrderSql() {
+  return `
+    CASE
+      WHEN c.catalog_key = 'rangoedad' THEN
+        CASE i.source_id
+          WHEN 'menos_18' THEN 1
+          WHEN '18_30' THEN 2
+          WHEN '31_55' THEN 3
+          WHEN '56_mas' THEN 4
+          ELSE 99
+        END
+      ELSE CASE WHEN UPPER(i.name) LIKE 'OTRO%' THEN 1 ELSE 0 END
+    END,
+    CASE WHEN c.catalog_key = 'rangoedad' THEN 0 ELSE i.name END,
+    i.name`;
+}
+
 function canSeeAllEvents(user: SessionUser) {
   return user.roles.includes("administrador");
 }
@@ -1398,7 +1415,7 @@ export async function getPublicFormStructure(db: D1Database, formId: string) {
            FROM system_catalog_items i
            INNER JOIN system_catalogs c ON c.id = i.catalog_id
            WHERE c.catalog_key = ? AND i.status = 'active'
-           ORDER BY CASE WHEN UPPER(i.name) LIKE 'OTRO%' THEN 1 ELSE 0 END, i.name
+           ORDER BY ${catalogOrderSql()}
            LIMIT 2500`
         )
         .bind(catalogKey)
@@ -1692,7 +1709,7 @@ export async function listCatalogItems(db: D1Database, catalogKey: string) {
        FROM system_catalog_items i
        INNER JOIN system_catalogs c ON c.id = i.catalog_id
        WHERE c.catalog_key = ?
-       ORDER BY CASE WHEN UPPER(i.name) LIKE 'OTRO%' THEN 1 ELSE 0 END, i.name
+       ORDER BY ${catalogOrderSql()}
        LIMIT 500`
     )
     .bind(catalogKey)
