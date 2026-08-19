@@ -106,6 +106,7 @@ type AdminSession = {
 
 type FormField = {
   id: string;
+  field_key: string;
   label: string;
   field_type: string;
   catalog_key: string | null;
@@ -114,8 +115,27 @@ type FormField = {
 
 type FormSection = {
   id: string;
+  section_key: string;
   title: string;
   fields: FormField[];
+};
+
+type FormSectionDefinition = {
+  id: string;
+  section_key: string;
+  title: string;
+  description: string | null;
+  status: string;
+};
+
+type FormControlDefinition = {
+  id: string;
+  control_key: string;
+  label: string;
+  field_type: string;
+  catalog_key: string | null;
+  default_required: number;
+  status: string;
 };
 
 type Catalog = {
@@ -349,6 +369,23 @@ function AdminShell() {
   const [templateEditDraft, setTemplateEditDraft] = React.useState({ name: "", description: "", status: "active" });
   const [savingTemplate, setSavingTemplate] = React.useState(false);
   const [templateSections, setTemplateSections] = React.useState<FormSection[]>([]);
+  const [sectionPalette, setSectionPalette] = React.useState<FormSectionDefinition[]>([]);
+  const [controlPalette, setControlPalette] = React.useState<FormControlDefinition[]>([]);
+  const [templateSectionDraft, setTemplateSectionDraft] = React.useState({
+    sectionDefinitionId: "",
+    title: "",
+    position: "end",
+    targetSectionId: ""
+  });
+  const [templateFieldDraft, setTemplateFieldDraft] = React.useState({
+    sectionId: "",
+    controlDefinitionId: "",
+    label: "",
+    isRequired: true,
+    position: "end",
+    targetFieldId: ""
+  });
+  const [editingTemplateStructure, setEditingTemplateStructure] = React.useState(false);
   const [catalogs, setCatalogs] = React.useState<Catalog[]>([]);
   const [selectedCatalogKey, setSelectedCatalogKey] = React.useState<string | null>(null);
   const [catalogItems, setCatalogItems] = React.useState<CatalogItem[]>([]);
@@ -406,6 +443,7 @@ function AdminShell() {
     if (user) {
       void loadEvents();
       void loadFormTemplates();
+      void loadFormBuilderPalette();
       void loadCatalogs();
     }
   }, [user]);
@@ -454,6 +492,31 @@ function AdminShell() {
       void loadFormTemplateDetail(selectedTemplateId);
     }
   }, [selectedTemplateId]);
+
+  React.useEffect(() => {
+    setTemplateFieldDraft((current) => ({
+      ...current,
+      sectionId: current.sectionId || templateSections[0]?.id || "",
+      targetFieldId: ""
+    }));
+    setTemplateSectionDraft((current) => ({
+      ...current,
+      targetSectionId: current.targetSectionId || templateSections[0]?.id || ""
+    }));
+  }, [templateSections]);
+
+  React.useEffect(() => {
+    setTemplateFieldDraft((current) => ({
+      ...current,
+      controlDefinitionId: current.controlDefinitionId || controlPalette[0]?.id || "",
+      label: current.label || controlPalette[0]?.label || ""
+    }));
+    setTemplateSectionDraft((current) => ({
+      ...current,
+      sectionDefinitionId: current.sectionDefinitionId || sectionPalette[0]?.id || "",
+      title: current.title || sectionPalette[0]?.title || ""
+    }));
+  }, [controlPalette, sectionPalette]);
 
   React.useEffect(() => {
     const template = formTemplates.find((item) => item.id === selectedTemplateId);
@@ -614,12 +677,133 @@ function AdminShell() {
     setSelectedTemplateId((current) => current ?? payload.templates[0]?.id ?? null);
   }
 
+  async function loadFormBuilderPalette() {
+    const response = await fetch("/api/admin/form-builder/palette", { credentials: "include" });
+    if (!response.ok) return;
+    const payload = (await response.json()) as {
+      sections: FormSectionDefinition[];
+      controls: FormControlDefinition[];
+    };
+    setSectionPalette(payload.sections);
+    setControlPalette(payload.controls);
+  }
+
   async function loadFormTemplateDetail(templateId: string) {
     const response = await fetch(`/api/admin/form-templates/${templateId}`, { credentials: "include" });
     if (!response.ok) return;
     const payload = (await response.json()) as { template: FormTemplate; sections: FormSection[] };
     setFormTemplates((current) => current.map((template) => template.id === payload.template.id ? payload.template : template));
     setTemplateSections(payload.sections);
+  }
+
+  function applyTemplateStructurePayload(payload: { template?: FormTemplate; sections?: FormSection[] }) {
+    if (payload.template) {
+      setFormTemplates((current) => current.map((template) => template.id === payload.template?.id ? payload.template : template));
+    }
+    if (payload.sections) {
+      setTemplateSections(payload.sections);
+    }
+  }
+
+  async function addSectionToTemplate(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedTemplateId || !templateSectionDraft.sectionDefinitionId) return;
+
+    setEditingTemplateStructure(true);
+    setActionMessage(null);
+    const response = await fetch(`/api/admin/form-templates/${selectedTemplateId}/sections`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...templateSectionDraft,
+        targetSectionId: templateSectionDraft.targetSectionId || null
+      })
+    });
+    const payload = (await response.json()) as { ok: boolean; message?: string; template?: FormTemplate; sections?: FormSection[] };
+    setEditingTemplateStructure(false);
+
+    if (!response.ok || !payload.ok) {
+      setActionMessage(payload.message ?? "No se pudo agregar la seccion.");
+      return;
+    }
+
+    applyTemplateStructurePayload(payload);
+    await loadFormTemplates();
+    setActionMessage("Seccion agregada al modelo.");
+  }
+
+  async function removeSectionFromTemplate(sectionId: string) {
+    if (!selectedTemplateId) return;
+    if (!window.confirm("Esta accion quitara la seccion y sus controles del modelo. Desea continuar?")) return;
+
+    setEditingTemplateStructure(true);
+    setActionMessage(null);
+    const response = await fetch(`/api/admin/form-templates/${selectedTemplateId}/sections/${sectionId}`, {
+      method: "DELETE",
+      credentials: "include"
+    });
+    const payload = (await response.json()) as { ok: boolean; message?: string; template?: FormTemplate; sections?: FormSection[] };
+    setEditingTemplateStructure(false);
+
+    if (!response.ok || !payload.ok) {
+      setActionMessage(payload.message ?? "No se pudo quitar la seccion.");
+      return;
+    }
+
+    applyTemplateStructurePayload(payload);
+    await loadFormTemplates();
+    setActionMessage("Seccion quitada del modelo.");
+  }
+
+  async function addFieldToTemplate(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedTemplateId || !templateFieldDraft.sectionId || !templateFieldDraft.controlDefinitionId) return;
+
+    setEditingTemplateStructure(true);
+    setActionMessage(null);
+    const response = await fetch(`/api/admin/form-templates/${selectedTemplateId}/fields`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...templateFieldDraft,
+        targetFieldId: templateFieldDraft.targetFieldId || null
+      })
+    });
+    const payload = (await response.json()) as { ok: boolean; message?: string; template?: FormTemplate; sections?: FormSection[] };
+    setEditingTemplateStructure(false);
+
+    if (!response.ok || !payload.ok) {
+      setActionMessage(payload.message ?? "No se pudo agregar el control.");
+      return;
+    }
+
+    applyTemplateStructurePayload(payload);
+    await loadFormTemplates();
+    setActionMessage("Control agregado al modelo.");
+  }
+
+  async function removeFieldFromTemplate(fieldId: string) {
+    if (!selectedTemplateId) return;
+
+    setEditingTemplateStructure(true);
+    setActionMessage(null);
+    const response = await fetch(`/api/admin/form-templates/${selectedTemplateId}/fields/${fieldId}`, {
+      method: "DELETE",
+      credentials: "include"
+    });
+    const payload = (await response.json()) as { ok: boolean; message?: string; template?: FormTemplate; sections?: FormSection[] };
+    setEditingTemplateStructure(false);
+
+    if (!response.ok || !payload.ok) {
+      setActionMessage(payload.message ?? "No se pudo quitar el control.");
+      return;
+    }
+
+    applyTemplateStructurePayload(payload);
+    await loadFormTemplates();
+    setActionMessage("Control quitado del modelo.");
   }
 
   function editSession(session: AdminSession) {
@@ -797,6 +981,8 @@ function AdminShell() {
   const selectedEventQrUrl = selectedEvent ? `${window.location.origin}/api/public/forms/${selectedEvent.short_link_slug}/qr` : "";
   const selectedCatalog = catalogs.find((catalog) => catalog.catalog_key === selectedCatalogKey) ?? catalogs[0];
   const activeFormTemplates = formTemplates.filter((template) => template.status === "active");
+  const fieldTargetSection = templateSections.find((section) => section.id === templateFieldDraft.sectionId) ?? templateSections[0];
+  const targetFields = fieldTargetSection?.fields ?? [];
 
   return (
     <div className="app-shell">
@@ -1287,15 +1473,178 @@ function AdminShell() {
                       </button>
                     </div>
                   </form>
+                  <div className="builder-panel">
+                    <form className="builder-card" onSubmit={addSectionToTemplate}>
+                      <div>
+                        <h4>Agregar seccion</h4>
+                        <p>Incorpore una seccion desde la paleta y defina su posicion.</p>
+                      </div>
+                      <div className="builder-grid">
+                        <label>
+                          Seccion de paleta
+                          <select
+                            value={templateSectionDraft.sectionDefinitionId}
+                            onChange={(event) => {
+                              const definition = sectionPalette.find((section) => section.id === event.target.value);
+                              setTemplateSectionDraft((current) => ({
+                                ...current,
+                                sectionDefinitionId: event.target.value,
+                                title: definition?.title ?? current.title
+                              }));
+                            }}
+                          >
+                            {sectionPalette.map((section) => (
+                              <option key={section.id} value={section.id}>{section.title}</option>
+                            ))}
+                          </select>
+                        </label>
+                        <label>
+                          Titulo visible
+                          <input
+                            value={templateSectionDraft.title}
+                            onChange={(event) => setTemplateSectionDraft((current) => ({ ...current, title: event.target.value }))}
+                          />
+                        </label>
+                        <label>
+                          Posicion
+                          <select
+                            value={templateSectionDraft.position}
+                            onChange={(event) => setTemplateSectionDraft((current) => ({ ...current, position: event.target.value }))}
+                          >
+                            <option value="end">Al final</option>
+                            <option value="start">Al inicio</option>
+                            <option value="before">Antes de</option>
+                            <option value="after">Despues de</option>
+                          </select>
+                        </label>
+                        <label>
+                          Referencia
+                          <select
+                            value={templateSectionDraft.targetSectionId}
+                            onChange={(event) => setTemplateSectionDraft((current) => ({ ...current, targetSectionId: event.target.value }))}
+                            disabled={!["before", "after"].includes(templateSectionDraft.position)}
+                          >
+                            <option value="">Seleccione</option>
+                            {templateSections.map((section) => (
+                              <option key={section.id} value={section.id}>{section.title}</option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
+                      <div className="actions">
+                        <button className="button secondary" type="submit" disabled={editingTemplateStructure || sectionPalette.length === 0}>
+                          Agregar seccion
+                        </button>
+                      </div>
+                    </form>
+
+                    <form className="builder-card" onSubmit={addFieldToTemplate}>
+                      <div>
+                        <h4>Agregar control</h4>
+                        <p>La etiqueta visible define la pregunta. El mismo control global puede repetirse con otra etiqueta.</p>
+                      </div>
+                      <div className="builder-grid">
+                        <label>
+                          Seccion destino
+                          <select
+                            value={templateFieldDraft.sectionId}
+                            onChange={(event) => setTemplateFieldDraft((current) => ({ ...current, sectionId: event.target.value, targetFieldId: "" }))}
+                          >
+                            {templateSections.map((section) => (
+                              <option key={section.id} value={section.id}>{section.title}</option>
+                            ))}
+                          </select>
+                        </label>
+                        <label>
+                          Control de paleta
+                          <select
+                            value={templateFieldDraft.controlDefinitionId}
+                            onChange={(event) => {
+                              const control = controlPalette.find((item) => item.id === event.target.value);
+                              setTemplateFieldDraft((current) => ({
+                                ...current,
+                                controlDefinitionId: event.target.value,
+                                label: control?.label ?? current.label,
+                                isRequired: control ? Boolean(control.default_required) : current.isRequired
+                              }));
+                            }}
+                          >
+                            {controlPalette.map((control) => (
+                              <option key={control.id} value={control.id}>
+                                {control.label}{control.catalog_key ? ` - ${control.catalog_key}` : ""}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label>
+                          Etiqueta visible
+                          <input
+                            value={templateFieldDraft.label}
+                            onChange={(event) => setTemplateFieldDraft((current) => ({ ...current, label: event.target.value }))}
+                            required
+                          />
+                        </label>
+                        <label>
+                          Posicion
+                          <select
+                            value={templateFieldDraft.position}
+                            onChange={(event) => setTemplateFieldDraft((current) => ({ ...current, position: event.target.value }))}
+                          >
+                            <option value="end">Al final</option>
+                            <option value="start">Al inicio</option>
+                            <option value="before">Antes de</option>
+                            <option value="after">Despues de</option>
+                          </select>
+                        </label>
+                        <label>
+                          Referencia
+                          <select
+                            value={templateFieldDraft.targetFieldId}
+                            onChange={(event) => setTemplateFieldDraft((current) => ({ ...current, targetFieldId: event.target.value }))}
+                            disabled={!["before", "after"].includes(templateFieldDraft.position)}
+                          >
+                            <option value="">Seleccione</option>
+                            {targetFields.map((field) => (
+                              <option key={field.id} value={field.id}>{field.label}</option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="check-field">
+                          <input
+                            checked={templateFieldDraft.isRequired}
+                            onChange={(event) => setTemplateFieldDraft((current) => ({ ...current, isRequired: event.target.checked }))}
+                            type="checkbox"
+                          />
+                          Obligatorio
+                        </label>
+                      </div>
+                      <div className="actions">
+                        <button className="button secondary" type="submit" disabled={editingTemplateStructure || templateSections.length === 0 || controlPalette.length === 0}>
+                          Agregar control
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+
                   <div className="form-structure">
                     {templateSections.map((section) => (
                       <div className="structure-section" key={section.id}>
-                        <h4>{section.title}</h4>
+                        <div className="structure-section-heading">
+                          <h4>{section.title}</h4>
+                          <button className="text-button danger" type="button" onClick={() => void removeSectionFromTemplate(section.id)}>
+                            Quitar seccion
+                          </button>
+                        </div>
                         <div className="field-grid">
                           {section.fields.map((field) => (
                             <div className="field-chip" key={field.id}>
-                              <strong>{field.label}</strong>
-                              <span>{field.field_type}{field.catalog_key ? ` Â· ${field.catalog_key}` : ""}</span>
+                              <div>
+                                <strong>{field.label}</strong>
+                                <span>{field.field_type}{field.catalog_key ? ` · ${field.catalog_key}` : ""}{field.is_required ? " · obligatorio" : ""}</span>
+                              </div>
+                              <button className="text-button danger" type="button" onClick={() => void removeFieldFromTemplate(field.id)}>
+                                Quitar
+                              </button>
                             </div>
                           ))}
                         </div>

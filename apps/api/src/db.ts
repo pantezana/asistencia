@@ -5,7 +5,9 @@ import type {
   CatalogItem,
   DbUserWithPassword,
   EventSummary,
+  FormControlDefinition,
   FormField,
+  FormSectionDefinition,
   FormSection,
   FormTemplate,
   LocationOption,
@@ -13,6 +15,25 @@ import type {
   Participant,
   SessionUser
 } from "./types";
+
+function normalizeIdentity(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+function toFieldKey(label: string, fallback: string) {
+  const normalized = label
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return normalized || fallback;
+}
 
 function canSeeAllEvents(user: SessionUser) {
   return user.roles.includes("administrador");
@@ -828,6 +849,250 @@ export async function getFormTemplateStructure(db: D1Database, templateId: strin
       fields: fields.results.filter((field) => field.section_id === section.id)
     }))
   };
+}
+
+export async function listFormSectionDefinitions(db: D1Database) {
+  return db
+    .prepare(
+      `SELECT id, section_key, title, description, status
+       FROM form_section_definitions
+       WHERE status = 'active'
+       ORDER BY title`
+    )
+    .all<FormSectionDefinition>();
+}
+
+export async function listFormControlDefinitions(db: D1Database) {
+  return db
+    .prepare(
+      `SELECT id, control_key, label, field_type, catalog_key, default_required, validation_rules, default_config, status
+       FROM form_control_definitions
+       WHERE status = 'active'
+       ORDER BY label`
+    )
+    .all<FormControlDefinition>();
+}
+
+async function normalizeTemplateSectionOrder(db: D1Database, templateId: string) {
+  const sections = await db
+    .prepare("SELECT id FROM form_template_sections WHERE template_id = ? ORDER BY order_index, title")
+    .bind(templateId)
+    .all<{ id: string }>();
+
+  await db.batch(sections.results.map((section, index) =>
+    db.prepare("UPDATE form_template_sections SET order_index = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+      .bind((index + 1) * 10, section.id)
+  ));
+}
+
+async function normalizeTemplateFieldOrder(db: D1Database, sectionId: string) {
+  const fields = await db
+    .prepare("SELECT id FROM form_template_fields WHERE section_id = ? ORDER BY order_index, label")
+    .bind(sectionId)
+    .all<{ id: string }>();
+
+  await db.batch(fields.results.map((field, index) =>
+    db.prepare("UPDATE form_template_fields SET order_index = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+      .bind((index + 1) * 10, field.id)
+  ));
+}
+
+async function nextSectionOrder(db: D1Database, templateId: string, position: string, targetSectionId?: string | null) {
+  if ((position === "before" || position === "after") && targetSectionId) {
+    const target = await db
+      .prepare("SELECT order_index FROM form_template_sections WHERE id = ? AND template_id = ?")
+      .bind(targetSectionId, templateId)
+      .first<{ order_index: number }>();
+    if (target) {
+      return position === "before" ? target.order_index - 1 : target.order_index + 1;
+    }
+  }
+
+  if (position === "start") {
+    const first = await db
+      .prepare("SELECT MIN(order_index) AS order_index FROM form_template_sections WHERE template_id = ?")
+      .bind(templateId)
+      .first<{ order_index: number | null }>();
+    return (first?.order_index ?? 10) - 1;
+  }
+
+  const last = await db
+    .prepare("SELECT MAX(order_index) AS order_index FROM form_template_sections WHERE template_id = ?")
+    .bind(templateId)
+    .first<{ order_index: number | null }>();
+  return (last?.order_index ?? 0) + 10;
+}
+
+async function nextFieldOrder(db: D1Database, sectionId: string, position: string, targetFieldId?: string | null) {
+  if ((position === "before" || position === "after") && targetFieldId) {
+    const target = await db
+      .prepare("SELECT order_index FROM form_template_fields WHERE id = ? AND section_id = ?")
+      .bind(targetFieldId, sectionId)
+      .first<{ order_index: number }>();
+    if (target) {
+      return position === "before" ? target.order_index - 1 : target.order_index + 1;
+    }
+  }
+
+  if (position === "start") {
+    const first = await db
+      .prepare("SELECT MIN(order_index) AS order_index FROM form_template_fields WHERE section_id = ?")
+      .bind(sectionId)
+      .first<{ order_index: number | null }>();
+    return (first?.order_index ?? 10) - 1;
+  }
+
+  const last = await db
+    .prepare("SELECT MAX(order_index) AS order_index FROM form_template_fields WHERE section_id = ?")
+    .bind(sectionId)
+    .first<{ order_index: number | null }>();
+  return (last?.order_index ?? 0) + 10;
+}
+
+export async function addTemplateSection(db: D1Database, templateId: string, input: {
+  sectionDefinitionId: string;
+  title?: string;
+  position?: string;
+  targetSectionId?: string | null;
+}) {
+  const template = await getFormTemplate(db, templateId);
+  if (!template) return { ok: false, message: "Modelo de formulario no encontrado." };
+
+  const definition = await db
+    .prepare("SELECT id, section_key, title FROM form_section_definitions WHERE id = ? AND status = 'active'")
+    .bind(input.sectionDefinitionId)
+    .first<{ id: string; section_key: string; title: string }>();
+  if (!definition) return { ok: false, message: "Seccion no disponible en la paleta." };
+
+  const title = input.title?.trim() || definition.title;
+  const suffix = crypto.randomUUID().slice(0, 10);
+  const sectionKey = `${definition.section_key}_${toFieldKey(title, suffix)}`;
+  const duplicate = await db
+    .prepare("SELECT id FROM form_template_sections WHERE template_id = ? AND section_key = ?")
+    .bind(templateId, sectionKey)
+    .first<{ id: string }>();
+  if (duplicate) return { ok: false, message: "Esta seccion ya existe en el modelo con el mismo titulo." };
+
+  const sectionId = `tplsec_${suffix}`;
+  await normalizeTemplateSectionOrder(db, templateId);
+  const orderIndex = await nextSectionOrder(db, templateId, input.position ?? "end", input.targetSectionId);
+
+  await db
+    .prepare(
+      `INSERT INTO form_template_sections (id, template_id, section_key, title, order_index)
+       VALUES (?, ?, ?, ?, ?)`
+    )
+    .bind(sectionId, templateId, sectionKey, title, orderIndex)
+    .run();
+  await normalizeTemplateSectionOrder(db, templateId);
+
+  return { ok: true, template: await getFormTemplate(db, templateId), ...(await getFormTemplateStructure(db, templateId)) };
+}
+
+export async function removeTemplateSection(db: D1Database, templateId: string, sectionId: string) {
+  const existing = await db
+    .prepare("SELECT id FROM form_template_sections WHERE id = ? AND template_id = ?")
+    .bind(sectionId, templateId)
+    .first<{ id: string }>();
+  if (!existing) return { ok: false, message: "Seccion no encontrada en el modelo." };
+
+  await db.prepare("DELETE FROM form_template_sections WHERE id = ? AND template_id = ?").bind(sectionId, templateId).run();
+  await normalizeTemplateSectionOrder(db, templateId);
+  return { ok: true, template: await getFormTemplate(db, templateId), ...(await getFormTemplateStructure(db, templateId)) };
+}
+
+export async function addTemplateField(db: D1Database, templateId: string, input: {
+  sectionId: string;
+  controlDefinitionId: string;
+  label?: string;
+  isRequired?: boolean;
+  position?: string;
+  targetFieldId?: string | null;
+}) {
+  const template = await getFormTemplate(db, templateId);
+  if (!template) return { ok: false, message: "Modelo de formulario no encontrado." };
+
+  const section = await db
+    .prepare("SELECT id FROM form_template_sections WHERE id = ? AND template_id = ?")
+    .bind(input.sectionId, templateId)
+    .first<{ id: string }>();
+  if (!section) return { ok: false, message: "Seleccione una seccion valida." };
+
+  const control = await db
+    .prepare(
+      `SELECT id, control_key, label, field_type, catalog_key, default_required, default_config
+       FROM form_control_definitions
+       WHERE id = ? AND status = 'active'`
+    )
+    .bind(input.controlDefinitionId)
+    .first<FormControlDefinition>();
+  if (!control) return { ok: false, message: "Control no disponible en la paleta." };
+
+  const label = input.label?.trim() || control.label;
+  const normalizedLabel = normalizeIdentity(label);
+  const duplicate = await db
+    .prepare(
+      `SELECT id
+       FROM form_template_fields
+       WHERE template_id = ?
+         AND json_extract(config, '$.controlDefinitionId') = ?
+         AND json_extract(config, '$.normalizedLabel') = ?`
+    )
+    .bind(templateId, control.id, normalizedLabel)
+    .first<{ id: string }>();
+  if (duplicate) {
+    return { ok: false, message: "Este control ya existe en el modelo con la misma etiqueta. Si representa otra pregunta, cambie la etiqueta visible." };
+  }
+
+  const fieldId = `tplfield_${crypto.randomUUID().slice(0, 10)}`;
+  const baseFieldKey = toFieldKey(label, control.control_key);
+  let fieldKey = baseFieldKey;
+  let counter = 2;
+  while (await db.prepare("SELECT id FROM form_template_fields WHERE template_id = ? AND field_key = ?").bind(templateId, fieldKey).first()) {
+    fieldKey = `${baseFieldKey}_${counter}`;
+    counter += 1;
+  }
+  const config = JSON.stringify({
+    ...(control.default_config ? JSON.parse(control.default_config) as Record<string, unknown> : {}),
+    controlDefinitionId: control.id,
+    normalizedLabel
+  });
+  await normalizeTemplateFieldOrder(db, input.sectionId);
+  const orderIndex = await nextFieldOrder(db, input.sectionId, input.position ?? "end", input.targetFieldId);
+
+  await db
+    .prepare(
+      `INSERT INTO form_template_fields (id, template_id, section_id, field_key, label, field_type, catalog_key, is_required, order_index, config)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+    .bind(
+      fieldId,
+      templateId,
+      input.sectionId,
+      fieldKey,
+      label,
+      control.field_type,
+      control.catalog_key,
+      input.isRequired === false ? 0 : control.default_required,
+      orderIndex,
+      config
+    )
+    .run();
+  await normalizeTemplateFieldOrder(db, input.sectionId);
+
+  return { ok: true, template: await getFormTemplate(db, templateId), ...(await getFormTemplateStructure(db, templateId)) };
+}
+
+export async function removeTemplateField(db: D1Database, templateId: string, fieldId: string) {
+  const field = await db
+    .prepare("SELECT section_id FROM form_template_fields WHERE id = ? AND template_id = ?")
+    .bind(fieldId, templateId)
+    .first<{ section_id: string }>();
+  if (!field) return { ok: false, message: "Control no encontrado en el modelo." };
+
+  await db.prepare("DELETE FROM form_template_fields WHERE id = ? AND template_id = ?").bind(fieldId, templateId).run();
+  await normalizeTemplateFieldOrder(db, field.section_id);
+  return { ok: true, template: await getFormTemplate(db, templateId), ...(await getFormTemplateStructure(db, templateId)) };
 }
 
 export async function updateFormTemplateDetails(db: D1Database, templateId: string, input: {

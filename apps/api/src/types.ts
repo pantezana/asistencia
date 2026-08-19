@@ -117,6 +117,26 @@ export type FormField = {
   config: string;
 };
 
+export type FormSectionDefinition = {
+  id: string;
+  section_key: string;
+  title: string;
+  description: string | null;
+  status: string;
+};
+
+export type FormControlDefinition = {
+  id: string;
+  control_key: string;
+  label: string;
+  field_type: string;
+  catalog_key: string | null;
+  default_required: number;
+  validation_rules: string;
+  default_config: string;
+  status: string;
+};
+
 export type Catalog = {
   id: string;
   catalog_key: string;

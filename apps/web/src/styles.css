@@ -796,6 +796,43 @@ select {
   flex: 1 1 240px;
 }
 
+.builder-panel {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.builder-card {
+  background: #f8fafc;
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.builder-card h4,
+.builder-card p {
+  margin-bottom: 4px;
+}
+
+.builder-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.check-field {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  padding-top: 22px;
+}
+
+.check-field input {
+  width: auto;
+}
+
 .form-structure {
   display: grid;
   gap: 16px;
@@ -811,6 +848,18 @@ select {
   margin: 0 0 10px;
 }
 
+.structure-section-heading {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.structure-section-heading h4 {
+  margin: 0;
+}
+
 .field-grid {
   display: grid;
   gap: 10px;
@@ -821,13 +870,33 @@ select {
   background: #f8fafc;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
-  display: grid;
-  gap: 4px;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
   padding: 10px;
 }
 
 .field-chip strong {
   font-size: 14px;
+}
+
+.field-chip span {
+  display: block;
+  margin-top: 3px;
+}
+
+.text-button {
+  background: transparent;
+  border: 0;
+  color: #2563eb;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 0;
+}
+
+.text-button.danger {
+  color: #be123c;
 }
 
 .catalog-items {
@@ -875,6 +944,7 @@ select {
   .event-panel,
   .split-grid,
   .form-grid,
+  .builder-grid,
   .session-draft {
     align-items: stretch;
     grid-template-columns: 1fr;

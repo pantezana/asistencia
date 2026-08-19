@@ -5,6 +5,8 @@ import { createSession, getSessionUser, requireAuth, revokeCurrentSession, verif
 import {
   associateEventForm,
   associateEventFormTemplate,
+  addTemplateField,
+  addTemplateSection,
   closeEventSession,
   cloneFormTemplate,
   cloneForm,
@@ -30,12 +32,16 @@ import {
   listDistrictsByProvince,
   listEventModules,
   listEventSessions,
+  listFormControlDefinitions,
+  listFormSectionDefinitions,
   listFormTemplates,
   listProvincesByDepartment,
   isShortLinkAvailable,
   normalizePublicSlug,
   openEventSession,
   registerAttendance,
+  removeTemplateField,
+  removeTemplateSection,
   updateCatalogItemStatus,
   updateEventDetails,
   updateEventSessionDetails,
@@ -748,6 +754,75 @@ app.get("/api/admin/form-templates/:templateId", async (c) => {
 
   const structure = await getFormTemplateStructure(c.env.DB, templateId);
   return c.json({ ok: true, template, ...structure });
+});
+
+app.get("/api/admin/form-builder/palette", async (c) => {
+  const [sections, controls] = await Promise.all([
+    listFormSectionDefinitions(c.env.DB),
+    listFormControlDefinitions(c.env.DB)
+  ]);
+
+  return c.json({ ok: true, sections: sections.results, controls: controls.results });
+});
+
+app.post("/api/admin/form-templates/:templateId/sections", async (c) => {
+  const templateId = c.req.param("templateId");
+  const body = await c.req.json<{
+    sectionDefinitionId?: string;
+    title?: string;
+    position?: string;
+    targetSectionId?: string | null;
+  }>().catch(() => null);
+
+  if (!body?.sectionDefinitionId) {
+    return c.json({ ok: false, message: "Seleccione una seccion de la paleta." }, 400);
+  }
+
+  const result = await addTemplateSection(c.env.DB, templateId, {
+    sectionDefinitionId: body.sectionDefinitionId,
+    title: body.title,
+    position: body.position,
+    targetSectionId: body.targetSectionId
+  });
+
+  return c.json(result, result.ok ? 200 : 400);
+});
+
+app.delete("/api/admin/form-templates/:templateId/sections/:sectionId", async (c) => {
+  const result = await removeTemplateSection(c.env.DB, c.req.param("templateId"), c.req.param("sectionId"));
+  return c.json(result, result.ok ? 200 : 400);
+});
+
+app.post("/api/admin/form-templates/:templateId/fields", async (c) => {
+  const templateId = c.req.param("templateId");
+  const body = await c.req.json<{
+    sectionId?: string;
+    controlDefinitionId?: string;
+    label?: string;
+    isRequired?: boolean;
+    position?: string;
+    targetFieldId?: string | null;
+  }>().catch(() => null);
+
+  if (!body?.sectionId || !body.controlDefinitionId) {
+    return c.json({ ok: false, message: "Seleccione seccion y control." }, 400);
+  }
+
+  const result = await addTemplateField(c.env.DB, templateId, {
+    sectionId: body.sectionId,
+    controlDefinitionId: body.controlDefinitionId,
+    label: body.label,
+    isRequired: body.isRequired,
+    position: body.position,
+    targetFieldId: body.targetFieldId
+  });
+
+  return c.json(result, result.ok ? 200 : 400);
+});
+
+app.delete("/api/admin/form-templates/:templateId/fields/:fieldId", async (c) => {
+  const result = await removeTemplateField(c.env.DB, c.req.param("templateId"), c.req.param("fieldId"));
+  return c.json(result, result.ok ? 200 : 400);
 });
 
 app.put("/api/admin/form-templates/:templateId", async (c) => {
