@@ -62,6 +62,8 @@ export type AdminEvent = EventSummary & {
   module_count: number;
   session_count: number;
   open_session_count: number;
+  associated_form_id: string | null;
+  associated_form_name: string | null;
 };
 
 export type AdminForm = {

@@ -148,10 +148,13 @@ export async function listAdminEvents(db: D1Database, user: SessionUser) {
       e.short_link_slug,
       COUNT(DISTINCT m.id) AS module_count,
       COUNT(DISTINCT s.id) AS session_count,
-      COUNT(DISTINCT CASE WHEN s.attendance_status = 'open' THEN s.id END) AS open_session_count
+      COUNT(DISTINCT CASE WHEN s.attendance_status = 'open' THEN s.id END) AS open_session_count,
+      af.id AS associated_form_id,
+      af.name AS associated_form_name
      FROM events e
      LEFT JOIN event_modules m ON m.event_id = e.id
      LEFT JOIN event_sessions s ON s.event_id = e.id
+     LEFT JOIN forms af ON af.event_id = e.id AND af.short_link_slug = e.short_link_slug AND af.status = 'active'
      ${whereSql}
      GROUP BY e.id
      ORDER BY e.created_at DESC`
@@ -493,6 +496,11 @@ export async function updateEventDetails(db: D1Database, eventId: string, input:
   endTime: string;
   status: string;
 }) {
+  const currentEvent = await db
+    .prepare("SELECT short_link_slug FROM events WHERE id = ?")
+    .bind(eventId)
+    .first<{ short_link_slug: string }>();
+  const nextSlug = normalizePublicSlug(input.shortLinkSlug);
   const result = await db
     .prepare(
       `UPDATE events
@@ -508,21 +516,122 @@ export async function updateEventDetails(db: D1Database, eventId: string, input:
       input.startTime,
       input.endTime,
       input.status,
-      normalizePublicSlug(input.shortLinkSlug),
+      nextSlug,
       eventId
     )
     .run();
 
-  await db
-    .prepare(
-      `UPDATE forms
-       SET short_link_slug = ?, updated_at = CURRENT_TIMESTAMP
-       WHERE event_id = ? AND cloned_from_form_id = 'form_inauguracion_otca'`
-    )
-    .bind(normalizePublicSlug(input.shortLinkSlug), eventId)
-    .run();
+  if (currentEvent) {
+    await db
+      .prepare(
+        `UPDATE forms
+         SET short_link_slug = ?, updated_at = CURRENT_TIMESTAMP
+         WHERE event_id = ? AND status = 'active' AND short_link_slug = ?`
+      )
+      .bind(nextSlug, eventId, currentEvent.short_link_slug)
+      .run();
+  }
 
   return result.meta.changes > 0;
+}
+
+export async function associateEventForm(db: D1Database, eventId: string, formId: string, user: SessionUser) {
+  const event = await db
+    .prepare("SELECT id, title, short_link_slug FROM events WHERE id = ?")
+    .bind(eventId)
+    .first<{ id: string; title: string; short_link_slug: string }>();
+  const source = await getAdminForm(db, formId, user);
+
+  if (!event || !source || source.status !== "active") {
+    return null;
+  }
+
+  const suffix = crypto.randomUUID().slice(0, 8);
+  const backupSlug = `${event.short_link_slug}-anterior-${suffix}`;
+  const statements: D1PreparedStatement[] = [
+    db
+      .prepare(
+        `UPDATE forms
+         SET short_link_slug = ?, status = 'inactive', updated_at = CURRENT_TIMESTAMP
+         WHERE event_id = ? AND short_link_slug = ? AND id <> ?`
+      )
+      .bind(backupSlug, eventId, event.short_link_slug, formId)
+  ];
+
+  let associatedFormId = formId;
+
+  if (source.event_id === eventId) {
+    statements.push(
+      db
+        .prepare("UPDATE forms SET short_link_slug = ?, status = 'active', updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+        .bind(event.short_link_slug, formId)
+    );
+  } else {
+    associatedFormId = `form_assoc_${suffix}`;
+    const sections = await db
+      .prepare("SELECT id, section_key, title, order_index FROM form_sections WHERE form_id = ? ORDER BY order_index")
+      .bind(formId)
+      .all<FormSection>();
+    const fields = await db
+      .prepare(
+        "SELECT id, section_id, field_key, label, field_type, catalog_key, is_required, order_index, config FROM form_fields WHERE form_id = ? ORDER BY order_index"
+      )
+      .bind(formId)
+      .all<FormField>();
+
+    statements.push(
+      db
+        .prepare(
+          `INSERT INTO forms (id, event_id, name, status, short_link_slug, welcome_title_template, cloned_from_form_id)
+           VALUES (?, ?, ?, 'active', ?, ?, ?)`
+        )
+        .bind(
+          associatedFormId,
+          eventId,
+          source.name,
+          event.short_link_slug,
+          source.welcome_title_template,
+          source.id
+        )
+    );
+
+    for (const section of sections.results) {
+      const newSectionId = `${section.id}_${suffix}`;
+      statements.push(
+        db
+          .prepare(
+            `INSERT INTO form_sections (id, form_id, section_key, title, order_index)
+             VALUES (?, ?, ?, ?, ?)`
+          )
+          .bind(newSectionId, associatedFormId, section.section_key, section.title, section.order_index)
+      );
+
+      for (const field of fields.results.filter((item) => item.section_id === section.id)) {
+        statements.push(
+          db
+            .prepare(
+              `INSERT INTO form_fields (id, form_id, section_id, field_key, label, field_type, catalog_key, is_required, order_index, config)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+            )
+            .bind(
+              `${field.id}_${suffix}`,
+              associatedFormId,
+              newSectionId,
+              field.field_key,
+              field.label,
+              field.field_type,
+              field.catalog_key,
+              field.is_required,
+              field.order_index,
+              field.config
+            )
+        );
+      }
+    }
+  }
+
+  await db.batch(statements);
+  return getAdminForm(db, associatedFormId, user);
 }
 
 export async function listAdminForms(db: D1Database, user: SessionUser) {

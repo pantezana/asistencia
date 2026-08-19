@@ -3,6 +3,7 @@ import { cors } from "hono/cors";
 import QRCode from "qrcode";
 import { createSession, getSessionUser, requireAuth, revokeCurrentSession, verifyPassword } from "./auth";
 import {
+  associateEventForm,
   closeEventSession,
   cloneForm,
   createCatalogItem,
@@ -561,6 +562,30 @@ app.put("/api/admin/events/:eventId", async (c) => {
   });
 
   return c.json({ ok: updated });
+});
+
+app.put("/api/admin/events/:eventId/form-association", async (c) => {
+  const eventId = c.req.param("eventId");
+  const canManage = await userCanManageEvent(c.env.DB, eventId, c.get("user"));
+
+  if (!canManage) {
+    return c.json({ ok: false, message: "Evento no encontrado o no autorizado." }, 404);
+  }
+
+  const body = await c.req.json<{ formId?: string }>().catch(() => null);
+  const formId = body?.formId?.trim();
+
+  if (!formId) {
+    return c.json({ ok: false, message: "Seleccione un formulario activo." }, 400);
+  }
+
+  const form = await associateEventForm(c.env.DB, eventId, formId, c.get("user"));
+
+  if (!form) {
+    return c.json({ ok: false, message: "No se pudo asociar el formulario seleccionado." }, 400);
+  }
+
+  return c.json({ ok: true, form });
 });
 
 app.get("/api/admin/events/:eventId/sessions", async (c) => {

@@ -84,6 +84,8 @@ type AdminEvent = {
   module_count: number;
   session_count: number;
   open_session_count: number;
+  associated_form_id: string | null;
+  associated_form_name: string | null;
 };
 
 type AdminSession = {
@@ -102,6 +104,7 @@ type AdminSession = {
 
 type AdminForm = {
   id: string;
+  event_id: string;
   event_title: string;
   name: string;
   status: string;
@@ -354,6 +357,8 @@ function AdminShell() {
   const [createdEvent, setCreatedEvent] = React.useState<CreatedEventResult | null>(null);
   const [qrPreview, setQrPreview] = React.useState<QrPreview | null>(null);
   const [savingEvent, setSavingEvent] = React.useState(false);
+  const [savingFormAssociation, setSavingFormAssociation] = React.useState(false);
+  const [associatedFormDraftId, setAssociatedFormDraftId] = React.useState("");
   const [eventDraft, setEventDraft] = React.useState({
     title: "",
     shortLinkSlug: "",
@@ -438,6 +443,7 @@ function AdminShell() {
       endTime: event.end_time,
       status: event.status
     });
+    setAssociatedFormDraftId(event.associated_form_id ?? "");
   }, [events, selectedEventId]);
 
   React.useEffect(() => {
@@ -703,6 +709,30 @@ function AdminShell() {
     setActionMessage("Evento actualizado correctamente.");
   }
 
+  async function saveFormAssociation() {
+    if (!selectedEventId || !associatedFormDraftId) return;
+
+    setSavingFormAssociation(true);
+    setActionMessage(null);
+    const response = await fetch(`/api/admin/events/${selectedEventId}/form-association`, {
+      method: "PUT",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ formId: associatedFormDraftId })
+    });
+    const payload = (await response.json()) as { ok: boolean; message?: string };
+    setSavingFormAssociation(false);
+
+    if (!response.ok || !payload.ok) {
+      setActionMessage(payload.message ?? "No se pudo asociar el formulario.");
+      return;
+    }
+
+    await loadEvents();
+    await loadForms();
+    setActionMessage("Formulario asociado correctamente. El enlace y el QR del evento se conservaron.");
+  }
+
   const selectedEvent = events.find((event) => event.id === selectedEventId) ?? events[0];
   const openSession = sessions.find((session) => session.attendance_status === "open");
   const selectedSession = sessions.find((session) => session.id === selectedSessionId) ?? sessions[0];
@@ -710,6 +740,7 @@ function AdminShell() {
   const selectedEventPublicUrl = selectedEvent ? `${window.location.origin}/f/${selectedEvent.short_link_slug}` : "";
   const selectedEventQrUrl = selectedEvent ? `${window.location.origin}/api/public/forms/${selectedEvent.short_link_slug}/qr` : "";
   const selectedCatalog = catalogs.find((catalog) => catalog.catalog_key === selectedCatalogKey) ?? catalogs[0];
+  const activeForms = forms.filter((form) => form.status === "active");
 
   return (
     <div className="app-shell">
@@ -934,6 +965,18 @@ function AdminShell() {
                     <small>{window.location.origin}/f/{eventEditDraft.shortLinkSlug || "enlace-corto"}</small>
                   </label>
                   <label>
+                    Formulario asociado
+                    <select value={associatedFormDraftId} onChange={(event) => setAssociatedFormDraftId(event.target.value)}>
+                      <option value="">Seleccione formulario activo</option>
+                      {activeForms.map((form) => (
+                        <option key={form.id} value={form.id}>
+                          {form.name} ({form.section_count} secciones, {form.field_count} campos)
+                        </option>
+                      ))}
+                    </select>
+                    <small>{selectedEvent.associated_form_name ?? "Sin formulario activo asociado"}</small>
+                  </label>
+                  <label>
                     Estado
                     <select value={eventEditDraft.status} onChange={(event) => setEventEditDraft((current) => ({ ...current, status: event.target.value }))}>
                       <option value="draft">Borrador</option>
@@ -973,6 +1016,14 @@ function AdminShell() {
                 <div className="actions">
                   <button className="button" type="submit" disabled={savingEvent}>
                     {savingEvent ? "Guardando..." : "Guardar cambios"}
+                  </button>
+                  <button
+                    className="button secondary"
+                    type="button"
+                    disabled={savingFormAssociation || !associatedFormDraftId}
+                    onClick={() => void saveFormAssociation()}
+                  >
+                    {savingFormAssociation ? "Asociando..." : "Guardar formulario asociado"}
                   </button>
                   <a className="button secondary" href={`/f/${selectedEvent.short_link_slug}`}>Abrir formulario</a>
                   <a className="button secondary" href={`/api/admin/events/${selectedEvent.id}/attendance.xlsx`}>
