@@ -7,6 +7,7 @@ import type {
   EventSummary,
   FormField,
   FormSection,
+  FormTemplate,
   LocationOption,
   OpenSession,
   Participant,
@@ -49,6 +50,7 @@ export async function getPublicFormContextBySlug(db: D1Database, slug: string) {
         f.name AS form_name,
         f.status AS form_status,
         f.short_link_slug AS form_short_link_slug,
+        f.form_template_id,
         f.welcome_title_template,
         e.id AS event_id,
         e.title AS event_title,
@@ -71,6 +73,7 @@ export async function getPublicFormContextBySlug(db: D1Database, slug: string) {
       form_name: string;
       form_status: string;
       form_short_link_slug: string;
+      form_template_id: string | null;
       welcome_title_template: string;
       event_title: string;
       source_title: string | null;
@@ -150,11 +153,14 @@ export async function listAdminEvents(db: D1Database, user: SessionUser) {
       COUNT(DISTINCT s.id) AS session_count,
       COUNT(DISTINCT CASE WHEN s.attendance_status = 'open' THEN s.id END) AS open_session_count,
       af.id AS associated_form_id,
-      af.name AS associated_form_name
+      af.name AS associated_form_name,
+      ft.id AS associated_template_id,
+      ft.name AS associated_template_name
      FROM events e
      LEFT JOIN event_modules m ON m.event_id = e.id
      LEFT JOIN event_sessions s ON s.event_id = e.id
      LEFT JOIN forms af ON af.event_id = e.id AND af.short_link_slug = e.short_link_slug AND af.status = 'active'
+     LEFT JOIN form_templates ft ON ft.id = af.form_template_id
      ${whereSql}
      GROUP BY e.id
      ORDER BY e.created_at DESC`
@@ -634,6 +640,85 @@ export async function associateEventForm(db: D1Database, eventId: string, formId
   return getAdminForm(db, associatedFormId, user);
 }
 
+export async function associateEventFormTemplate(db: D1Database, eventId: string, templateId: string) {
+  const event = await db
+    .prepare("SELECT id, title, short_link_slug FROM events WHERE id = ?")
+    .bind(eventId)
+    .first<{ id: string; title: string; short_link_slug: string }>();
+  const template = await db
+    .prepare("SELECT id, name, status FROM form_templates WHERE id = ?")
+    .bind(templateId)
+    .first<{ id: string; name: string; status: string }>();
+
+  if (!event || !template || template.status !== "active") {
+    return null;
+  }
+
+  const suffix = crypto.randomUUID().slice(0, 8);
+  const publishedFormId = `form_pub_${suffix}`;
+  const publicationId = `pub_${suffix}`;
+  const backupSlug = `${event.short_link_slug}-anterior-${suffix}`;
+  const historicalStatus = `inactive_${suffix}`;
+  const statements: D1PreparedStatement[] = [
+    db
+      .prepare(
+        `UPDATE forms
+         SET short_link_slug = ?, status = 'inactive', updated_at = CURRENT_TIMESTAMP
+         WHERE event_id = ? AND short_link_slug = ?`
+      )
+      .bind(backupSlug, eventId, event.short_link_slug),
+    db
+      .prepare(
+        "UPDATE event_form_publications SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE event_id = ? AND status = 'active'"
+      )
+      .bind(historicalStatus, eventId),
+    db
+      .prepare(
+        `INSERT INTO forms (id, event_id, name, status, short_link_slug, welcome_title_template, cloned_from_form_id, form_template_id)
+         VALUES (?, ?, ?, 'active', ?, ?, NULL, ?)`
+      )
+      .bind(
+        publishedFormId,
+        eventId,
+        template.name,
+        event.short_link_slug,
+        "Bienvenido a {{event.title}} - {{session.title}}: {{session.theme}}",
+        template.id
+      ),
+    db
+      .prepare(
+        `INSERT INTO event_form_publications (id, event_id, form_template_id, published_form_id, status)
+         VALUES (?, ?, ?, ?, 'active')`
+      )
+      .bind(publicationId, eventId, template.id, publishedFormId)
+  ];
+
+  await db.batch(statements);
+  return db
+    .prepare(
+      `SELECT
+        f.id,
+        f.event_id,
+        e.title AS event_title,
+        f.name,
+        f.status,
+        f.short_link_slug,
+        f.welcome_title_template,
+        f.cloned_from_form_id,
+        f.form_template_id,
+        COUNT(DISTINCT fts.id) AS section_count,
+        COUNT(DISTINCT ftf.id) AS field_count
+       FROM forms f
+       INNER JOIN events e ON e.id = f.event_id
+       LEFT JOIN form_template_sections fts ON fts.template_id = f.form_template_id
+       LEFT JOIN form_template_fields ftf ON ftf.template_id = f.form_template_id
+       WHERE f.id = ?
+       GROUP BY f.id`
+    )
+    .bind(publishedFormId)
+    .first<AdminForm>();
+}
+
 export async function listAdminForms(db: D1Database, user: SessionUser) {
   const whereSql = canSeeAllEvents(user) ? "" : "WHERE e.created_by_user_id = ?";
   const statement = db.prepare(
@@ -646,6 +731,7 @@ export async function listAdminForms(db: D1Database, user: SessionUser) {
       f.short_link_slug,
       f.welcome_title_template,
       f.cloned_from_form_id,
+      f.form_template_id,
       COUNT(DISTINCT fs.id) AS section_count,
       COUNT(DISTINCT ff.id) AS field_count
      FROM forms f
@@ -660,6 +746,27 @@ export async function listAdminForms(db: D1Database, user: SessionUser) {
   return canSeeAllEvents(user) ? statement.all<AdminForm>() : statement.bind(user.id).all<AdminForm>();
 }
 
+export async function listFormTemplates(db: D1Database) {
+  return db
+    .prepare(
+      `SELECT
+        ft.id,
+        ft.name,
+        ft.description,
+        ft.status,
+        ft.source_form_id,
+        COUNT(DISTINCT fts.id) AS section_count,
+        COUNT(DISTINCT ftf.id) AS field_count
+       FROM form_templates ft
+       LEFT JOIN form_template_sections fts ON fts.template_id = ft.id
+       LEFT JOIN form_template_fields ftf ON ftf.template_id = ft.id
+       WHERE ft.status = 'active'
+       GROUP BY ft.id
+       ORDER BY ft.name`
+    )
+    .all<FormTemplate>();
+}
+
 export async function getAdminForm(db: D1Database, formId: string, user: SessionUser) {
   const whereSql = canSeeAllEvents(user) ? "WHERE f.id = ?" : "WHERE f.id = ? AND e.created_by_user_id = ?";
   const statement = db.prepare(
@@ -672,6 +779,7 @@ export async function getAdminForm(db: D1Database, formId: string, user: Session
       f.short_link_slug,
       f.welcome_title_template,
       f.cloned_from_form_id,
+      f.form_template_id,
       COUNT(DISTINCT fs.id) AS section_count,
       COUNT(DISTINCT ff.id) AS field_count
      FROM forms f
@@ -688,6 +796,41 @@ export async function getAdminForm(db: D1Database, formId: string, user: Session
 }
 
 export async function getFormStructure(db: D1Database, formId: string) {
+  const form = await db
+    .prepare("SELECT form_template_id FROM forms WHERE id = ?")
+    .bind(formId)
+    .first<{ form_template_id: string | null }>();
+
+  if (form?.form_template_id) {
+    const [sections, fields] = await Promise.all([
+      db
+        .prepare(
+          `SELECT id, section_key, title, order_index
+           FROM form_template_sections
+           WHERE template_id = ?
+           ORDER BY order_index`
+        )
+        .bind(form.form_template_id)
+        .all<FormSection>(),
+      db
+        .prepare(
+          `SELECT id, section_id, field_key, label, field_type, catalog_key, is_required, order_index, config
+           FROM form_template_fields
+           WHERE template_id = ?
+           ORDER BY order_index`
+        )
+        .bind(form.form_template_id)
+        .all<FormField>()
+    ]);
+
+    return {
+      sections: sections.results.map((section) => ({
+        ...section,
+        fields: fields.results.filter((field) => field.section_id === section.id)
+      }))
+    };
+  }
+
   const [sections, fields] = await Promise.all([
     db
       .prepare(
@@ -826,13 +969,22 @@ export async function getAttendanceReportData(db: D1Database, eventId: string) {
     .first<{ id: string; title: string; short_link_slug: string }>();
   const fields = await db
     .prepare(
-      `SELECT DISTINCT ff.field_key, ff.label, ff.order_index
-       FROM form_fields ff
-       INNER JOIN forms f ON f.id = ff.form_id
-       WHERE f.event_id = ?
-       ORDER BY ff.order_index`
+      `SELECT field_key, label, MIN(order_index) AS order_index
+       FROM (
+         SELECT ff.field_key, ff.label, ff.order_index
+         FROM form_fields ff
+         INNER JOIN forms f ON f.id = ff.form_id
+         WHERE f.event_id = ?
+         UNION ALL
+         SELECT ftf.field_key, ftf.label, ftf.order_index
+         FROM form_template_fields ftf
+         INNER JOIN forms f ON f.form_template_id = ftf.template_id
+         WHERE f.event_id = ?
+       )
+       GROUP BY field_key, label
+       ORDER BY order_index`
     )
-    .bind(eventId)
+    .bind(eventId, eventId)
     .all<{ field_key: string; label: string; order_index: number }>();
   const rows = await db
     .prepare(

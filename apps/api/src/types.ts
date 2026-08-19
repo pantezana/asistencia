@@ -64,6 +64,8 @@ export type AdminEvent = EventSummary & {
   open_session_count: number;
   associated_form_id: string | null;
   associated_form_name: string | null;
+  associated_template_id: string | null;
+  associated_template_name: string | null;
 };
 
 export type AdminForm = {
@@ -75,6 +77,17 @@ export type AdminForm = {
   short_link_slug: string;
   welcome_title_template: string;
   cloned_from_form_id: string | null;
+  form_template_id: string | null;
+  section_count: number;
+  field_count: number;
+};
+
+export type FormTemplate = {
+  id: string;
+  name: string;
+  description: string | null;
+  status: string;
+  source_form_id: string | null;
   section_count: number;
   field_count: number;
 };

@@ -86,6 +86,8 @@ type AdminEvent = {
   open_session_count: number;
   associated_form_id: string | null;
   associated_form_name: string | null;
+  associated_template_id: string | null;
+  associated_template_name: string | null;
 };
 
 type AdminSession = {
@@ -160,6 +162,16 @@ type CreatedEventResult = {
   slug: string;
   publicUrl: string;
   qrUrl: string;
+};
+
+type FormTemplate = {
+  id: string;
+  name: string;
+  description: string | null;
+  status: string;
+  source_form_id: string | null;
+  section_count: number;
+  field_count: number;
 };
 
 type QrPreview = {
@@ -344,6 +356,7 @@ function AdminShell() {
   const [selectedSessionId, setSelectedSessionId] = React.useState<string | null>(null);
   const [savingSession, setSavingSession] = React.useState(false);
   const [forms, setForms] = React.useState<AdminForm[]>([]);
+  const [formTemplates, setFormTemplates] = React.useState<FormTemplate[]>([]);
   const [selectedFormId, setSelectedFormId] = React.useState<string | null>(null);
   const [formSections, setFormSections] = React.useState<FormSection[]>([]);
   const [catalogs, setCatalogs] = React.useState<Catalog[]>([]);
@@ -358,7 +371,7 @@ function AdminShell() {
   const [qrPreview, setQrPreview] = React.useState<QrPreview | null>(null);
   const [savingEvent, setSavingEvent] = React.useState(false);
   const [savingFormAssociation, setSavingFormAssociation] = React.useState(false);
-  const [associatedFormDraftId, setAssociatedFormDraftId] = React.useState("");
+  const [associatedTemplateDraftId, setAssociatedTemplateDraftId] = React.useState("");
   const [eventDraft, setEventDraft] = React.useState({
     title: "",
     shortLinkSlug: "",
@@ -403,6 +416,7 @@ function AdminShell() {
     if (user) {
       void loadEvents();
       void loadForms();
+      void loadFormTemplates();
       void loadCatalogs();
     }
   }, [user]);
@@ -443,7 +457,7 @@ function AdminShell() {
       endTime: event.end_time,
       status: event.status
     });
-    setAssociatedFormDraftId(event.associated_form_id ?? "");
+    setAssociatedTemplateDraftId(event.associated_template_id ?? "");
   }, [events, selectedEventId]);
 
   React.useEffect(() => {
@@ -594,6 +608,13 @@ function AdminShell() {
     await loadSessions(selectedEventId);
   }
 
+  async function loadFormTemplates() {
+    const response = await fetch("/api/admin/form-templates", { credentials: "include" });
+    if (!response.ok) return;
+    const payload = (await response.json()) as { templates: FormTemplate[] };
+    setFormTemplates(payload.templates);
+  }
+
   function editSession(session: AdminSession) {
     setSelectedSessionId(session.id);
     setSessionEditDraft({
@@ -710,15 +731,15 @@ function AdminShell() {
   }
 
   async function saveFormAssociation() {
-    if (!selectedEventId || !associatedFormDraftId) return;
+    if (!selectedEventId || !associatedTemplateDraftId) return;
 
     setSavingFormAssociation(true);
     setActionMessage(null);
-    const response = await fetch(`/api/admin/events/${selectedEventId}/form-association`, {
+    const response = await fetch(`/api/admin/events/${selectedEventId}/form-template`, {
       method: "PUT",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ formId: associatedFormDraftId })
+      body: JSON.stringify({ templateId: associatedTemplateDraftId })
     });
     const payload = (await response.json()) as { ok: boolean; message?: string };
     setSavingFormAssociation(false);
@@ -730,7 +751,8 @@ function AdminShell() {
 
     await loadEvents();
     await loadForms();
-    setActionMessage("Formulario asociado correctamente. El enlace y el QR del evento se conservaron.");
+    await loadFormTemplates();
+    setActionMessage("Modelo de formulario asociado correctamente. El enlace y el QR del evento se conservaron.");
   }
 
   const selectedEvent = events.find((event) => event.id === selectedEventId) ?? events[0];
@@ -740,7 +762,7 @@ function AdminShell() {
   const selectedEventPublicUrl = selectedEvent ? `${window.location.origin}/f/${selectedEvent.short_link_slug}` : "";
   const selectedEventQrUrl = selectedEvent ? `${window.location.origin}/api/public/forms/${selectedEvent.short_link_slug}/qr` : "";
   const selectedCatalog = catalogs.find((catalog) => catalog.catalog_key === selectedCatalogKey) ?? catalogs[0];
-  const activeForms = forms.filter((form) => form.status === "active");
+  const activeFormTemplates = formTemplates.filter((template) => template.status === "active");
 
   return (
     <div className="app-shell">
@@ -965,16 +987,16 @@ function AdminShell() {
                     <small>{window.location.origin}/f/{eventEditDraft.shortLinkSlug || "enlace-corto"}</small>
                   </label>
                   <label>
-                    Formulario asociado
-                    <select value={associatedFormDraftId} onChange={(event) => setAssociatedFormDraftId(event.target.value)}>
-                      <option value="">Seleccione formulario activo</option>
-                      {activeForms.map((form) => (
-                        <option key={form.id} value={form.id}>
-                          {form.name} ({form.section_count} secciones, {form.field_count} campos)
+                    Modelo de formulario asociado
+                    <select value={associatedTemplateDraftId} onChange={(event) => setAssociatedTemplateDraftId(event.target.value)}>
+                      <option value="">Seleccione modelo activo</option>
+                      {activeFormTemplates.map((template) => (
+                        <option key={template.id} value={template.id}>
+                          {template.name} ({template.section_count} secciones, {template.field_count} campos)
                         </option>
                       ))}
                     </select>
-                    <small>{selectedEvent.associated_form_name ?? "Sin formulario activo asociado"}</small>
+                    <small>{selectedEvent.associated_template_name ?? selectedEvent.associated_form_name ?? "Sin modelo activo asociado"}</small>
                   </label>
                   <label>
                     Estado
@@ -1020,10 +1042,10 @@ function AdminShell() {
                   <button
                     className="button secondary"
                     type="button"
-                    disabled={savingFormAssociation || !associatedFormDraftId}
+                    disabled={savingFormAssociation || !associatedTemplateDraftId}
                     onClick={() => void saveFormAssociation()}
                   >
-                    {savingFormAssociation ? "Asociando..." : "Guardar formulario asociado"}
+                    {savingFormAssociation ? "Asociando..." : "Guardar modelo asociado"}
                   </button>
                   <a className="button secondary" href={`/f/${selectedEvent.short_link_slug}`}>Abrir formulario</a>
                   <a className="button secondary" href={`/api/admin/events/${selectedEvent.id}/attendance.xlsx`}>

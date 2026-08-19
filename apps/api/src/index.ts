@@ -4,6 +4,7 @@ import QRCode from "qrcode";
 import { createSession, getSessionUser, requireAuth, revokeCurrentSession, verifyPassword } from "./auth";
 import {
   associateEventForm,
+  associateEventFormTemplate,
   closeEventSession,
   cloneForm,
   createCatalogItem,
@@ -26,6 +27,7 @@ import {
   listDistrictsByProvince,
   listEventModules,
   listEventSessions,
+  listFormTemplates,
   listProvincesByDepartment,
   isShortLinkAvailable,
   normalizePublicSlug,
@@ -167,6 +169,7 @@ async function getPublicContext(db: D1Database, slug: string) {
       name: context.form_name,
       status: context.form_status,
       short_link_slug: context.form_short_link_slug,
+      form_template_id: context.form_template_id,
       welcome_title_template: context.welcome_title_template
     }
   };
@@ -588,6 +591,30 @@ app.put("/api/admin/events/:eventId/form-association", async (c) => {
   return c.json({ ok: true, form });
 });
 
+app.put("/api/admin/events/:eventId/form-template", async (c) => {
+  const eventId = c.req.param("eventId");
+  const canManage = await userCanManageEvent(c.env.DB, eventId, c.get("user"));
+
+  if (!canManage) {
+    return c.json({ ok: false, message: "Evento no encontrado o no autorizado." }, 404);
+  }
+
+  const body = await c.req.json<{ templateId?: string }>().catch(() => null);
+  const templateId = body?.templateId?.trim();
+
+  if (!templateId) {
+    return c.json({ ok: false, message: "Seleccione un modelo de formulario activo." }, 400);
+  }
+
+  const form = await associateEventFormTemplate(c.env.DB, eventId, templateId);
+
+  if (!form) {
+    return c.json({ ok: false, message: "No se pudo publicar el modelo de formulario seleccionado." }, 400);
+  }
+
+  return c.json({ ok: true, form });
+});
+
 app.get("/api/admin/events/:eventId/sessions", async (c) => {
   const eventId = c.req.param("eventId");
   const canManage = await userCanManageEvent(c.env.DB, eventId, c.get("user"));
@@ -699,6 +726,11 @@ app.put("/api/admin/events/:eventId/sessions/:sessionId", async (c) => {
 app.get("/api/admin/forms", async (c) => {
   const forms = await listAdminForms(c.env.DB, c.get("user"));
   return c.json({ ok: true, forms: forms.results });
+});
+
+app.get("/api/admin/form-templates", async (c) => {
+  const templates = await listFormTemplates(c.env.DB);
+  return c.json({ ok: true, templates: templates.results });
 });
 
 app.get("/api/admin/forms/:formId", async (c) => {
