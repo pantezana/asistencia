@@ -83,7 +83,7 @@ Objetivo:
 - Incorporar y excluir secciones dentro de un modelo.
 - Incorporar y excluir controles dentro de una seccion.
 - Definir posicion al agregar secciones o controles.
-- Impedir duplicados dentro de un mismo modelo.
+- Impedir duplicados reales dentro de un mismo modelo, permitiendo reutilizar controles globales con etiquetas distintas.
 - Crear el control `Rango de edad` asociado al catalogo `rangoedad`.
 - Preparar versionado para modelos usados historicamente.
 

@@ -11,7 +11,7 @@ El usuario debe poder:
 - Incorporar o excluir controles dentro de una seccion.
 - Definir la posicion exacta de una seccion o control.
 - Reutilizar preguntas existentes desde una paleta central.
-- Evitar duplicados dentro del mismo modelo.
+- Evitar duplicados reales dentro del mismo modelo, permitiendo reutilizar el mismo control global cuando represente preguntas distintas.
 - Mantener trazabilidad cuando un modelo ya fue usado en asistencias.
 
 Esta funcionalidad convierte a los modelos en una mascara dinamica y reutilizable, separada del evento y de la publicacion publica.
@@ -74,7 +74,31 @@ Cada control debe tener:
 - Configuracion adicional.
 - Estado: activo, inactivo o archivado.
 
-### 2.4 Paleta de controles
+### 2.4 Instancia de control en un modelo
+
+Uso concreto de un control global dentro de un modelo.
+
+Un mismo control global puede aparecer mas de una vez en un modelo si cada aparicion representa una pregunta distinta para el usuario.
+
+Ejemplos validos:
+
+- Control global `fecha` usado como `Fecha de Nacimiento`.
+- Control global `fecha` usado como `Fecha de Inscripcion`.
+- Control global `fecha` usado como `Fecha de Entrega`.
+- Control global `departamento` usado como `Departamento de residencia`.
+- Control global `departamento` usado como `Departamento del lugar de trabajo`.
+
+Cada instancia debe tener:
+
+- Identificador propio: `field_instance_id`.
+- Referencia al control global: `control_id`.
+- Etiqueta visible propia.
+- Clave de respuesta propia: `field_key`.
+- Seccion donde se ubica.
+- Orden.
+- Reglas propias de obligatoriedad y visibilidad.
+
+### 2.5 Paleta de controles
 
 Biblioteca central de preguntas disponibles para construir modelos.
 
@@ -151,6 +175,7 @@ Funciones minimas:
 - Agregar seccion.
 - Quitar seccion.
 - Agregar control a una seccion.
+- Definir la etiqueta visible de la instancia al agregar un control.
 - Quitar control de una seccion.
 - Cambiar orden de secciones.
 - Cambiar orden de controles dentro de una seccion.
@@ -195,21 +220,36 @@ Resultado:
 
 Dentro de un mismo modelo:
 
-- No se debe permitir agregar dos veces el mismo control global.
-- No se debe permitir agregar dos veces la misma seccion global.
-- La validacion debe revisar por `control_key` o `control_definition_id`, no solo por etiqueta visible.
+- Si se agrega el mismo control global con la misma etiqueta visible normalizada, se considera duplicado y no debe permitirse.
+- Si se agrega el mismo control global con una etiqueta visible distinta, se considera una nueva pregunta y debe permitirse.
+- Si se agrega una seccion global con el mismo titulo visible normalizado, se considera duplicado y no debe permitirse.
+- Si se agrega una seccion global con un titulo visible distinto, se considera una nueva instancia de seccion y puede permitirse.
+- La validacion debe revisar la combinacion `control_id + etiqueta_visible_normalizada` para controles.
+- La validacion debe revisar la combinacion `section_id + titulo_visible_normalizado` para secciones.
+- La comparacion debe ignorar mayusculas, espacios repetidos y acentos cuando se use para detectar duplicados operativos.
 
 Mensaje sugerido:
 
-`Este control ya existe en el modelo. Si necesita una variante, cree un nuevo control con una clave distinta.`
+`Este control ya existe en el modelo con la misma etiqueta. Si representa otra pregunta, cambie la etiqueta visible antes de agregarlo.`
 
-Excepcion:
+Ejemplos:
 
-Si en el futuro se permite repetir una pregunta en varias secciones, debe manejarse como una copia local con `field_instance_id` diferente y una configuracion explicita `allow_multiple_instances = true`. Para el MVP, no se permite duplicar.
+- No permitido: control global `departamento` + etiqueta `Departamento`, agregado dos veces.
+- Permitido: control global `departamento` + etiqueta `Departamento de residencia`.
+- Permitido: control global `departamento` + etiqueta `Departamento del lugar de trabajo`.
+- No permitido: control global `fecha` + etiqueta `Fecha`, agregado dos veces.
+- Permitido: control global `fecha` + etiqueta `Fecha de Nacimiento`.
+- Permitido: control global `fecha` + etiqueta `Fecha de Inscripcion`.
+- Permitido: control global `fecha` + etiqueta `Fecha de Entrega`.
+
+Regla para reportes:
+
+- Cuando haya varias instancias del mismo control global, los reportes deben usar la etiqueta visible de la instancia.
+- Si dos etiquetas pudieran generar columnas ambiguas, el reporte debe prefijar la seccion: `Ubicacion - Departamento de residencia`.
 
 ## 9. Propiedades editables del control dentro de un modelo
 
-Un control puede tener una definicion global, pero dentro de un modelo puede requerir ajustes.
+Un control puede tener una definicion global, pero cada instancia dentro de un modelo puede requerir ajustes.
 
 Propiedades globales:
 
@@ -221,6 +261,7 @@ Propiedades globales:
 Propiedades configurables por modelo:
 
 - Etiqueta visible.
+- Clave interna de respuesta derivada de la etiqueta o definida manualmente.
 - Texto de ayuda.
 - Obligatoriedad.
 - Visibilidad.
@@ -229,7 +270,14 @@ Propiedades configurables por modelo:
 - Reglas condicionales.
 - Placeholder.
 
-Esto permite que una misma pregunta exista en la paleta, pero pueda mostrarse con una etiqueta mas adecuada en un modelo especifico sin romper otros modelos.
+Esto permite que un mismo control exista en la paleta, pero pueda convertirse en varias preguntas distintas dentro de un modelo sin romper otros modelos.
+
+Regla de clave interna:
+
+- Cada instancia debe tener un `field_key` unico dentro del modelo o version.
+- El `field_key` no debe depender solo del `control_key` global.
+- Si el usuario agrega varias fechas, deben generarse claves como `fecha_nacimiento`, `fecha_inscripcion` o `fecha_entrega`.
+- Si el usuario agrega varias ubicaciones, deben generarse claves como `departamento_residencia` o `departamento_lugar_trabajo`.
 
 ## 10. Versionado y seguridad historica
 
@@ -309,7 +357,7 @@ Flujo esperado:
 6. El administrador abre la paleta de controles.
 7. Busca `Rango de edad`.
 8. Selecciona seccion destino y posicion.
-9. El sistema valida que no exista ya en el modelo.
+9. El sistema valida que no exista ya en el modelo la misma combinacion control global + etiqueta visible.
 10. El administrador guarda como borrador o publica una nueva version.
 
 Resultado esperado:
@@ -333,6 +381,7 @@ Acciones:
 
 - `Agregar seccion`.
 - `Agregar control`.
+- `Editar etiqueta de pregunta`.
 - `Quitar del modelo`.
 - `Mover arriba`.
 - `Mover abajo`.
@@ -370,6 +419,13 @@ Responsabilidades:
 - `form_template_version_sections`: secciones incluidas en una version.
 - `form_template_version_fields`: controles incluidos en cada seccion y su configuracion local.
 
+Reglas de unicidad recomendadas:
+
+- `form_template_version_fields` debe impedir duplicados por `template_version_id + control_id + normalized_label`.
+- `form_template_version_fields` debe exigir `field_key` unico por `template_version_id`.
+- `form_template_version_sections` debe impedir duplicados por `template_version_id + section_id + normalized_title`.
+- `form_template_version_sections` debe exigir una clave de instancia unica cuando una seccion global se use mas de una vez con titulos distintos.
+
 Campos importantes para `form_controls`:
 
 - `id`
@@ -390,6 +446,7 @@ Campos importantes para `form_template_version_fields`:
 - `control_id`
 - `field_key`
 - `label_override`
+- `normalized_label`
 - `is_required`
 - `order_index`
 - `visibility_rules`
@@ -429,8 +486,11 @@ Las operaciones del editor deben trabajar sobre una version borrador cuando el m
 - Se puede agregar un control existente a una seccion del modelo.
 - Se puede excluir un control del modelo.
 - Se puede definir posicion al agregar secciones o controles.
-- No se permite agregar un control duplicado dentro del mismo modelo.
-- No se permite agregar una seccion duplicada dentro del mismo modelo.
+- No se permite agregar el mismo control global con la misma etiqueta visible dentro del mismo modelo.
+- Se permite agregar el mismo control global varias veces si cada instancia tiene una etiqueta visible distinta y un `field_key` unico.
+- No se permite agregar la misma seccion global con el mismo titulo visible dentro del mismo modelo.
+- Se permite agregar la misma seccion global varias veces si cada instancia tiene un titulo visible distinto.
+- El reporte diferencia correctamente controles repetidos por su etiqueta visible y, si hace falta, por la seccion.
 - Existe el catalogo `rangoedad` con sus cuatro opciones iniciales.
 - Existe el control `Rango de edad` en la paleta.
 - El control `Rango de edad` puede agregarse al modelo `Formulario de asistencia - Plantilla FDC_Rango_Edad`.
