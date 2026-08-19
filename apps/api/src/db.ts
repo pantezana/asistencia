@@ -763,15 +763,172 @@ export async function listFormTemplates(db: D1Database) {
         ft.status,
         ft.source_form_id,
         COUNT(DISTINCT fts.id) AS section_count,
-        COUNT(DISTINCT ftf.id) AS field_count
+        COUNT(DISTINCT ftf.id) AS field_count,
+        COUNT(DISTINCT efp.event_id) AS event_count,
+        COUNT(DISTINCT CASE WHEN efp.status = 'active' THEN efp.event_id END) AS active_publication_count
        FROM form_templates ft
        LEFT JOIN form_template_sections fts ON fts.template_id = ft.id
        LEFT JOIN form_template_fields ftf ON ftf.template_id = ft.id
-       WHERE ft.status = 'active'
+       LEFT JOIN event_form_publications efp ON efp.form_template_id = ft.id
        GROUP BY ft.id
        ORDER BY ft.name`
     )
     .all<FormTemplate>();
+}
+
+export async function getFormTemplate(db: D1Database, templateId: string) {
+  return db
+    .prepare(
+      `SELECT
+        ft.id,
+        ft.name,
+        ft.description,
+        ft.status,
+        ft.source_form_id,
+        COUNT(DISTINCT fts.id) AS section_count,
+        COUNT(DISTINCT ftf.id) AS field_count,
+        COUNT(DISTINCT efp.event_id) AS event_count,
+        COUNT(DISTINCT CASE WHEN efp.status = 'active' THEN efp.event_id END) AS active_publication_count
+       FROM form_templates ft
+       LEFT JOIN form_template_sections fts ON fts.template_id = ft.id
+       LEFT JOIN form_template_fields ftf ON ftf.template_id = ft.id
+       LEFT JOIN event_form_publications efp ON efp.form_template_id = ft.id
+       WHERE ft.id = ?
+       GROUP BY ft.id`
+    )
+    .bind(templateId)
+    .first<FormTemplate>();
+}
+
+export async function getFormTemplateStructure(db: D1Database, templateId: string) {
+  const [sections, fields] = await Promise.all([
+    db
+      .prepare(
+        `SELECT id, section_key, title, order_index
+         FROM form_template_sections
+         WHERE template_id = ?
+         ORDER BY order_index`
+      )
+      .bind(templateId)
+      .all<FormSection>(),
+    db
+      .prepare(
+        `SELECT id, section_id, field_key, label, field_type, catalog_key, is_required, order_index, config
+         FROM form_template_fields
+         WHERE template_id = ?
+         ORDER BY order_index`
+      )
+      .bind(templateId)
+      .all<FormField>()
+  ]);
+
+  return {
+    sections: sections.results.map((section) => ({
+      ...section,
+      fields: fields.results.filter((field) => field.section_id === section.id)
+    }))
+  };
+}
+
+export async function updateFormTemplateDetails(db: D1Database, templateId: string, input: {
+  name: string;
+  description?: string;
+  status: string;
+}) {
+  const template = await getFormTemplate(db, templateId);
+
+  if (!template) {
+    return { ok: false, message: "Modelo de formulario no encontrado." };
+  }
+
+  if (template.active_publication_count > 0 && input.status !== "active") {
+    return { ok: false, message: "No se puede inactivar un modelo asociado a eventos activos. Primero cambie el modelo de esos eventos." };
+  }
+
+  const status = ["draft", "active", "inactive", "archived"].includes(input.status) ? input.status : template.status;
+  await db
+    .prepare(
+      "UPDATE form_templates SET name = ?, description = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+    )
+    .bind(input.name.trim(), input.description?.trim() || null, status, templateId)
+    .run();
+
+  await db
+    .prepare(
+      `UPDATE forms
+       SET name = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE form_template_id = ? AND status = 'active'`
+    )
+    .bind(input.name.trim(), templateId)
+    .run();
+
+  return { ok: true, template: await getFormTemplate(db, templateId) };
+}
+
+export async function cloneFormTemplate(db: D1Database, templateId: string) {
+  const source = await getFormTemplate(db, templateId);
+
+  if (!source) {
+    return null;
+  }
+
+  const suffix = crypto.randomUUID().slice(0, 8);
+  const cloneId = `tpl_clone_${suffix}`;
+  const sections = await db
+    .prepare("SELECT id, section_key, title, order_index FROM form_template_sections WHERE template_id = ? ORDER BY order_index")
+    .bind(templateId)
+    .all<FormSection>();
+  const fields = await db
+    .prepare(
+      "SELECT id, section_id, field_key, label, field_type, catalog_key, is_required, order_index, config FROM form_template_fields WHERE template_id = ? ORDER BY order_index"
+    )
+    .bind(templateId)
+    .all<FormField>();
+  const statements: D1PreparedStatement[] = [
+    db
+      .prepare(
+        `INSERT INTO form_templates (id, name, description, status, source_form_id)
+         VALUES (?, ?, ?, 'draft', ?)`
+      )
+      .bind(cloneId, `${source.name} - copia`, source.description, source.source_form_id)
+  ];
+
+  for (const section of sections.results) {
+    const sectionId = `${section.id}_${suffix}`;
+    statements.push(
+      db
+        .prepare(
+          `INSERT INTO form_template_sections (id, template_id, section_key, title, order_index)
+           VALUES (?, ?, ?, ?, ?)`
+        )
+        .bind(sectionId, cloneId, section.section_key, section.title, section.order_index)
+    );
+
+    for (const field of fields.results.filter((item) => item.section_id === section.id)) {
+      statements.push(
+        db
+          .prepare(
+            `INSERT INTO form_template_fields (id, template_id, section_id, field_key, label, field_type, catalog_key, is_required, order_index, config)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          )
+          .bind(
+            `${field.id}_${suffix}`,
+            cloneId,
+            sectionId,
+            field.field_key,
+            field.label,
+            field.field_type,
+            field.catalog_key,
+            field.is_required,
+            field.order_index,
+            field.config
+          )
+      );
+    }
+  }
+
+  await db.batch(statements);
+  return getFormTemplate(db, cloneId);
 }
 
 export async function getAdminForm(db: D1Database, formId: string, user: SessionUser) {

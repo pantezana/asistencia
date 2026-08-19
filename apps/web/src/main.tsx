@@ -104,24 +104,6 @@ type AdminSession = {
   module_title: string;
 };
 
-type AdminForm = {
-  id: string;
-  event_id: string;
-  event_title: string;
-  name: string;
-  status: string;
-  short_link_slug: string;
-  welcome_title_template: string;
-  cloned_from_form_id: string | null;
-  form_template_id: string | null;
-  template_name: string | null;
-  is_event_publication: number;
-  associated_event_id: string | null;
-  associated_event_title: string | null;
-  section_count: number;
-  field_count: number;
-};
-
 type FormField = {
   id: string;
   label: string;
@@ -177,6 +159,8 @@ type FormTemplate = {
   source_form_id: string | null;
   section_count: number;
   field_count: number;
+  event_count: number;
+  active_publication_count: number;
 };
 
 type QrPreview = {
@@ -360,12 +344,11 @@ function AdminShell() {
   const [sessions, setSessions] = React.useState<AdminSession[]>([]);
   const [selectedSessionId, setSelectedSessionId] = React.useState<string | null>(null);
   const [savingSession, setSavingSession] = React.useState(false);
-  const [forms, setForms] = React.useState<AdminForm[]>([]);
   const [formTemplates, setFormTemplates] = React.useState<FormTemplate[]>([]);
-  const [selectedFormId, setSelectedFormId] = React.useState<string | null>(null);
-  const [formEditDraft, setFormEditDraft] = React.useState({ name: "", status: "active" });
-  const [savingForm, setSavingForm] = React.useState(false);
-  const [formSections, setFormSections] = React.useState<FormSection[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = React.useState<string | null>(null);
+  const [templateEditDraft, setTemplateEditDraft] = React.useState({ name: "", description: "", status: "active" });
+  const [savingTemplate, setSavingTemplate] = React.useState(false);
+  const [templateSections, setTemplateSections] = React.useState<FormSection[]>([]);
   const [catalogs, setCatalogs] = React.useState<Catalog[]>([]);
   const [selectedCatalogKey, setSelectedCatalogKey] = React.useState<string | null>(null);
   const [catalogItems, setCatalogItems] = React.useState<CatalogItem[]>([]);
@@ -422,7 +405,6 @@ function AdminShell() {
   React.useEffect(() => {
     if (user) {
       void loadEvents();
-      void loadForms();
       void loadFormTemplates();
       void loadCatalogs();
     }
@@ -468,16 +450,20 @@ function AdminShell() {
   }, [events, selectedEventId]);
 
   React.useEffect(() => {
-    if (selectedFormId) {
-      void loadFormDetail(selectedFormId);
+    if (selectedTemplateId) {
+      void loadFormTemplateDetail(selectedTemplateId);
     }
-  }, [selectedFormId]);
+  }, [selectedTemplateId]);
 
   React.useEffect(() => {
-    const form = forms.find((item) => item.id === selectedFormId);
-    if (!form) return;
-    setFormEditDraft({ name: form.name, status: form.status });
-  }, [forms, selectedFormId]);
+    const template = formTemplates.find((item) => item.id === selectedTemplateId);
+    if (!template) return;
+    setTemplateEditDraft({
+      name: template.name,
+      description: template.description ?? "",
+      status: template.status
+    });
+  }, [formTemplates, selectedTemplateId]);
 
   React.useEffect(() => {
     if (selectedCatalogKey) {
@@ -514,76 +500,48 @@ function AdminShell() {
     setSelectedSessionId((current) => payload.sessions.some((session) => session.id === current) ? current : payload.sessions[0]?.id ?? null);
   }
 
-  async function loadForms() {
-    const response = await fetch("/api/admin/forms", { credentials: "include" });
-    if (!response.ok) return;
-    const payload = (await response.json()) as { forms: AdminForm[] };
-    setForms(payload.forms);
-    setSelectedFormId((current) => current ?? payload.forms[0]?.id ?? null);
-  }
-
-  async function loadFormDetail(formId: string) {
-    const response = await fetch(`/api/admin/forms/${formId}`, { credentials: "include" });
-    if (!response.ok) return;
-    const payload = (await response.json()) as { form: AdminForm; sections: FormSection[] };
-    setForms((current) => current.map((form) => form.id === payload.form.id ? payload.form : form));
-    setFormSections(payload.sections);
-  }
-
-  async function saveSelectedForm(event: React.FormEvent<HTMLFormElement>) {
+  async function saveSelectedTemplate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selectedForm) return;
+    if (!selectedTemplateId) return;
 
-    setSavingForm(true);
+    setSavingTemplate(true);
     setActionMessage(null);
-    const response = await fetch(`/api/admin/forms/${selectedForm.id}`, {
+    const response = await fetch(`/api/admin/form-templates/${selectedTemplateId}`, {
       method: "PUT",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(formEditDraft)
+      body: JSON.stringify(templateEditDraft)
     });
-    const payload = (await response.json()) as { ok: boolean; message?: string; form?: AdminForm };
-    setSavingForm(false);
+    const payload = (await response.json()) as { ok: boolean; message?: string; template?: FormTemplate };
+    setSavingTemplate(false);
 
     if (!response.ok || !payload.ok) {
-      setActionMessage(payload.message ?? "No se pudo actualizar el formulario.");
+      setActionMessage(payload.message ?? "No se pudo actualizar el modelo.");
       return;
     }
 
-    await loadForms();
     await loadFormTemplates();
-    setSelectedFormId(payload.form?.id ?? selectedForm.id);
-    setActionMessage("Formulario actualizado correctamente.");
+    await loadEvents();
+    setSelectedTemplateId(payload.template?.id ?? selectedTemplateId);
+    setActionMessage("Modelo de formulario actualizado correctamente.");
   }
 
-  async function cloneSelectedForm() {
-    if (!selectedFormId) return;
-    const response = await fetch(`/api/admin/forms/${selectedFormId}/clone`, {
+  async function cloneSelectedTemplate() {
+    if (!selectedTemplateId) return;
+    const response = await fetch(`/api/admin/form-templates/${selectedTemplateId}/clone`, {
       method: "POST",
       credentials: "include"
     });
+    const payload = (await response.json()) as { ok: boolean; message?: string; template?: FormTemplate };
 
-    if (!response.ok) {
-      setActionMessage("No se pudo clonar el formulario.");
+    if (!response.ok || !payload.ok || !payload.template) {
+      setActionMessage(payload.message ?? "No se pudo clonar el modelo.");
       return;
     }
 
-    const payload = (await response.json()) as { form: AdminForm };
-    setActionMessage("Formulario clonado como borrador.");
-    await loadForms();
-    setSelectedFormId(payload.form.id);
-  }
-
-  async function changeFormStatus(form: AdminForm, status: "active" | "inactive" | "draft") {
-    const response = await fetch(`/api/admin/forms/${form.id}/status`, {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status })
-    });
-
-    setActionMessage(response.ok ? "Estado del formulario actualizado." : "No se pudo actualizar el formulario.");
-    await loadForms();
+    await loadFormTemplates();
+    setSelectedTemplateId(payload.template.id);
+    setActionMessage("Modelo clonado como borrador.");
   }
 
   async function loadCatalogs() {
@@ -653,6 +611,15 @@ function AdminShell() {
     if (!response.ok) return;
     const payload = (await response.json()) as { templates: FormTemplate[] };
     setFormTemplates(payload.templates);
+    setSelectedTemplateId((current) => current ?? payload.templates[0]?.id ?? null);
+  }
+
+  async function loadFormTemplateDetail(templateId: string) {
+    const response = await fetch(`/api/admin/form-templates/${templateId}`, { credentials: "include" });
+    if (!response.ok) return;
+    const payload = (await response.json()) as { template: FormTemplate; sections: FormSection[] };
+    setFormTemplates((current) => current.map((template) => template.id === payload.template.id ? payload.template : template));
+    setTemplateSections(payload.sections);
   }
 
   function editSession(session: AdminSession) {
@@ -742,7 +709,7 @@ function AdminShell() {
     setCreatedEvent(result);
     setSelectedEventId(result.eventId);
     await loadEvents();
-    await loadForms();
+    await loadFormTemplates();
     setActionMessage("Evento, cronograma y formulario creados correctamente.");
   }
 
@@ -790,7 +757,6 @@ function AdminShell() {
     }
 
     await loadEvents();
-    await loadForms();
     await loadFormTemplates();
     setActionMessage("Modelo de formulario asociado correctamente. El enlace y el QR del evento se conservaron.");
   }
@@ -798,7 +764,7 @@ function AdminShell() {
   const selectedEvent = events.find((event) => event.id === selectedEventId) ?? events[0];
   const openSession = sessions.find((session) => session.attendance_status === "open");
   const selectedSession = sessions.find((session) => session.id === selectedSessionId) ?? sessions[0];
-  const selectedForm = forms.find((form) => form.id === selectedFormId) ?? forms[0];
+  const selectedTemplate = formTemplates.find((template) => template.id === selectedTemplateId) ?? formTemplates[0];
   const selectedEventPublicUrl = selectedEvent ? `${window.location.origin}/f/${selectedEvent.short_link_slug}` : "";
   const selectedEventQrUrl = selectedEvent ? `${window.location.origin}/api/public/forms/${selectedEvent.short_link_slug}/qr` : "";
   const selectedCatalog = catalogs.find((catalog) => catalog.catalog_key === selectedCatalogKey) ?? catalogs[0];
@@ -1200,111 +1166,101 @@ function AdminShell() {
         <section className="workspace-section" id="formularios">
           <div className="section-heading">
             <div>
-              <p className="eyebrow">Plantillas y formularios</p>
-              <h2>Formularios de asistencia</h2>
+              <p className="eyebrow">Plantillas reutilizables</p>
+              <h2>Modelos de formulario</h2>
             </div>
             <div className="actions">
-              <button className="button secondary" type="button" onClick={cloneSelectedForm} disabled={!selectedForm}>
-                Clonar formulario
+              <button className="button secondary" type="button" onClick={cloneSelectedTemplate} disabled={!selectedTemplate}>
+                Clonar modelo
               </button>
             </div>
           </div>
 
           <div className="split-grid">
             <div className="list-panel">
-              {forms.map((form) => (
+              {formTemplates.map((template) => (
                 <button
-                  className={`list-row ${form.id === selectedForm?.id ? "selected" : ""}`}
-                  key={form.id}
+                  className={`list-row ${template.id === selectedTemplate?.id ? "selected" : ""}`}
+                  key={template.id}
                   type="button"
-                  onClick={() => setSelectedFormId(form.id)}
+                  onClick={() => setSelectedTemplateId(template.id)}
                 >
-                  <strong>{form.name}</strong>
-                  <span>{form.section_count} secciones Â· {form.field_count} campos</span>
-                  <small>{form.status}</small>
+                  <strong>{template.name}</strong>
+                  <span>{template.section_count} secciones · {template.field_count} campos</span>
+                  <small>{template.status} · {template.active_publication_count > 0 ? `${template.active_publication_count} evento(s)` : "Libre"}</small>
                 </button>
               ))}
             </div>
 
             <div className="detail-panel">
-              {selectedForm ? (
+              {selectedTemplate ? (
                 <>
                   <div className="detail-heading">
                     <div>
-                      <h3>{selectedForm.name}</h3>
-                      <p>{selectedForm.template_name ? `Modelo: ${selectedForm.template_name}` : selectedForm.event_title}</p>
+                      <h3>{selectedTemplate.name}</h3>
+                      <p>{selectedTemplate.description ?? "Modelo reutilizable para formularios públicos de asistencia."}</p>
                     </div>
-                    <span className={`status ${selectedForm.status === "active" ? "open" : "closed"}`}>
-                      {selectedForm.status}
+                    <span className={`status ${selectedTemplate.status === "active" ? "open" : "closed"}`}>
+                      {selectedTemplate.status}
                     </span>
                   </div>
-                  <form className="admin-form-panel compact-form" onSubmit={saveSelectedForm}>
+                  <form className="admin-form-panel compact-form" onSubmit={saveSelectedTemplate}>
                     <div className="form-grid">
                       <label className="wide-field">
-                        Nombre del formulario
+                        Nombre del modelo
                         <input
-                          value={formEditDraft.name}
-                          onChange={(event) => setFormEditDraft((current) => ({ ...current, name: event.target.value }))}
+                          value={templateEditDraft.name}
+                          onChange={(event) => setTemplateEditDraft((current) => ({ ...current, name: event.target.value }))}
                           required
+                        />
+                      </label>
+                      <label className="wide-field">
+                        Descripción
+                        <input
+                          value={templateEditDraft.description}
+                          onChange={(event) => setTemplateEditDraft((current) => ({ ...current, description: event.target.value }))}
                         />
                       </label>
                       <label>
                         Estado
                         <select
-                          value={formEditDraft.status}
-                          onChange={(event) => setFormEditDraft((current) => ({ ...current, status: event.target.value }))}
-                          disabled={Boolean(selectedForm.is_event_publication)}
+                          value={templateEditDraft.status}
+                          onChange={(event) => setTemplateEditDraft((current) => ({ ...current, status: event.target.value }))}
+                          disabled={selectedTemplate.active_publication_count > 0}
                         >
                           <option value="draft">Borrador</option>
                           <option value="active">Activo</option>
                           <option value="inactive">Inactivo</option>
+                          <option value="archived">Archivado</option>
                         </select>
-                        {selectedForm.is_event_publication ? (
-                          <small>Publicado en evento: no se puede inactivar sin asociar otro modelo.</small>
+                        {selectedTemplate.active_publication_count > 0 ? (
+                          <small>Usado por eventos activos: primero cambie el modelo de esos eventos.</small>
                         ) : null}
                       </label>
                       <label>
-                        Asociación
+                        Uso actual
                         <input
                           readOnly
-                          value={selectedForm.is_event_publication ? "Asociado a evento" : "Libre / no publicado"}
+                          value={selectedTemplate.active_publication_count > 0 ? `Asociado a ${selectedTemplate.active_publication_count} evento(s)` : "Libre / no publicado"}
                         />
                       </label>
-                      <label className="wide-field">
-                        Evento
-                        <input readOnly value={selectedForm.associated_event_title ?? selectedForm.event_title ?? "Sin evento asociado"} />
-                      </label>
                       <label>
-                        Enlace público
-                        <input readOnly value={`${window.location.origin}/f/${selectedForm.short_link_slug}`} />
+                        Historial de uso
+                        <input readOnly value={`${selectedTemplate.event_count} evento(s) en total`} />
                       </label>
                       <label>
                         Estructura
-                        <input readOnly value={`${selectedForm.section_count} secciones / ${selectedForm.field_count} campos`} />
+                        <input readOnly value={`${selectedTemplate.section_count} secciones / ${selectedTemplate.field_count} campos`} />
                       </label>
                     </div>
                     <div className="actions">
-                      <button className="button" type="submit" disabled={savingForm}>
-                        {savingForm ? "Guardando..." : "Guardar formulario"}
+                      <button className="button" type="submit" disabled={savingTemplate}>
+                        {savingTemplate ? "Guardando..." : "Guardar modelo"}
                       </button>
                     </div>
                   </form>
-                  <div className="detail-actions">
-                    <a className="button secondary" href={`/f/${selectedForm.short_link_slug}`}>Ver pÃºblico</a>
-                    <button className="button secondary" type="button" onClick={() => changeFormStatus(selectedForm, "active")}>
-                      Activar
-                    </button>
-                    <button
-                      className="button secondary"
-                      type="button"
-                      onClick={() => changeFormStatus(selectedForm, "inactive")}
-                      disabled={Boolean(selectedForm.is_event_publication)}
-                    >
-                      Inactivar
-                    </button>
-                  </div>
                   <div className="form-structure">
-                    {formSections.map((section) => (
+                    {templateSections.map((section) => (
                       <div className="structure-section" key={section.id}>
                         <h4>{section.title}</h4>
                         <div className="field-grid">
@@ -1320,7 +1276,7 @@ function AdminShell() {
                   </div>
                 </>
               ) : (
-                <p className="blocked-message">No hay formularios configurados.</p>
+                <p className="blocked-message">No hay modelos de formulario configurados.</p>
               )}
             </div>
           </div>

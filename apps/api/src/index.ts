@@ -6,6 +6,7 @@ import {
   associateEventForm,
   associateEventFormTemplate,
   closeEventSession,
+  cloneFormTemplate,
   cloneForm,
   createCatalogItem,
   createEventWithSchedule,
@@ -14,6 +15,8 @@ import {
   getAdminForm,
   getAttendanceReportData,
   getFormStructure,
+  getFormTemplate,
+  getFormTemplateStructure,
   getOpenSessionForEvent,
   getPublicFormContextBySlug,
   getPublicFormStructure,
@@ -37,6 +40,7 @@ import {
   updateEventDetails,
   updateEventSessionDetails,
   updateFormDetails,
+  updateFormTemplateDetails,
   updateFormStatus,
   userCanManageEvent
 } from "./db";
@@ -732,6 +736,47 @@ app.get("/api/admin/forms", async (c) => {
 app.get("/api/admin/form-templates", async (c) => {
   const templates = await listFormTemplates(c.env.DB);
   return c.json({ ok: true, templates: templates.results });
+});
+
+app.get("/api/admin/form-templates/:templateId", async (c) => {
+  const templateId = c.req.param("templateId");
+  const template = await getFormTemplate(c.env.DB, templateId);
+
+  if (!template) {
+    return c.json({ ok: false, message: "Modelo de formulario no encontrado." }, 404);
+  }
+
+  const structure = await getFormTemplateStructure(c.env.DB, templateId);
+  return c.json({ ok: true, template, ...structure });
+});
+
+app.put("/api/admin/form-templates/:templateId", async (c) => {
+  const templateId = c.req.param("templateId");
+  const body = await c.req.json<{ name?: string; description?: string; status?: string }>().catch(() => null);
+  const name = body?.name?.trim();
+
+  if (!name) {
+    return c.json({ ok: false, message: "Ingrese el nombre del modelo." }, 400);
+  }
+
+  const result = await updateFormTemplateDetails(c.env.DB, templateId, {
+    name,
+    description: body?.description,
+    status: body?.status ?? "active"
+  });
+
+  return c.json(result, result.ok ? 200 : 400);
+});
+
+app.post("/api/admin/form-templates/:templateId/clone", async (c) => {
+  const templateId = c.req.param("templateId");
+  const template = await cloneFormTemplate(c.env.DB, templateId);
+
+  if (!template) {
+    return c.json({ ok: false, message: "Modelo de formulario no encontrado." }, 404);
+  }
+
+  return c.json({ ok: true, template });
 });
 
 app.get("/api/admin/forms/:formId", async (c) => {

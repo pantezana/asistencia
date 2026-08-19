@@ -94,6 +94,8 @@ export type FormTemplate = {
   source_form_id: string | null;
   section_count: number;
   field_count: number;
+  event_count: number;
+  active_publication_count: number;
 };
 
 export type FormSection = {
