@@ -1095,6 +1095,88 @@ export async function removeTemplateField(db: D1Database, templateId: string, fi
   return { ok: true, template: await getFormTemplate(db, templateId), ...(await getFormTemplateStructure(db, templateId)) };
 }
 
+export async function updateTemplateField(db: D1Database, templateId: string, fieldId: string, input: {
+  sectionId: string;
+  label?: string;
+  isRequired?: boolean;
+  position?: string;
+  targetFieldId?: string | null;
+}) {
+  const field = await db
+    .prepare(
+      `SELECT id, section_id, label, order_index, config
+       FROM form_template_fields
+       WHERE id = ? AND template_id = ?`
+    )
+    .bind(fieldId, templateId)
+    .first<{ id: string; section_id: string; label: string; order_index: number; config: string }>();
+  if (!field) return { ok: false, message: "Control no encontrado en el modelo." };
+
+  const section = await db
+    .prepare("SELECT id FROM form_template_sections WHERE id = ? AND template_id = ?")
+    .bind(input.sectionId, templateId)
+    .first<{ id: string }>();
+  if (!section) return { ok: false, message: "Seleccione una seccion valida." };
+
+  const label = input.label?.trim() || field.label;
+  const normalizedLabel = normalizeIdentity(label);
+  const currentConfig = field.config ? JSON.parse(field.config) as Record<string, unknown> : {};
+  const controlDefinitionId = typeof currentConfig.controlDefinitionId === "string" ? currentConfig.controlDefinitionId : null;
+
+  if (controlDefinitionId) {
+    const duplicate = await db
+      .prepare(
+        `SELECT id
+         FROM form_template_fields
+         WHERE template_id = ?
+           AND id <> ?
+           AND json_extract(config, '$.controlDefinitionId') = ?
+           AND json_extract(config, '$.normalizedLabel') = ?`
+      )
+      .bind(templateId, fieldId, controlDefinitionId, normalizedLabel)
+      .first<{ id: string }>();
+    if (duplicate) {
+      return { ok: false, message: "Este control ya existe en el modelo con la misma etiqueta. Si representa otra pregunta, cambie la etiqueta visible." };
+    }
+  }
+
+  const position = input.position ?? "same";
+  if (position !== "same" || field.section_id !== input.sectionId) {
+    await normalizeTemplateFieldOrder(db, input.sectionId);
+  }
+  const orderIndex = position !== "same" || field.section_id !== input.sectionId
+    ? await nextFieldOrder(db, input.sectionId, position === "same" ? "end" : position, input.targetFieldId === fieldId ? null : input.targetFieldId)
+    : field.order_index;
+  const config = JSON.stringify({
+    ...currentConfig,
+    normalizedLabel
+  });
+
+  await db
+    .prepare(
+      `UPDATE form_template_fields
+       SET section_id = ?, label = ?, is_required = ?, order_index = ?, config = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ? AND template_id = ?`
+    )
+    .bind(
+      input.sectionId,
+      label,
+      input.isRequired === false ? 0 : 1,
+      orderIndex,
+      config,
+      fieldId,
+      templateId
+    )
+    .run();
+
+  await normalizeTemplateFieldOrder(db, input.sectionId);
+  if (field.section_id !== input.sectionId) {
+    await normalizeTemplateFieldOrder(db, field.section_id);
+  }
+
+  return { ok: true, template: await getFormTemplate(db, templateId), ...(await getFormTemplateStructure(db, templateId)) };
+}
+
 export async function updateFormTemplateDetails(db: D1Database, templateId: string, input: {
   name: string;
   description?: string;

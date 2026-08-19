@@ -48,6 +48,7 @@ import {
   updateFormDetails,
   updateFormTemplateDetails,
   updateFormStatus,
+  updateTemplateField,
   userCanManageEvent
 } from "./db";
 import type { AppContext } from "./types";
@@ -822,6 +823,32 @@ app.post("/api/admin/form-templates/:templateId/fields", async (c) => {
 
 app.delete("/api/admin/form-templates/:templateId/fields/:fieldId", async (c) => {
   const result = await removeTemplateField(c.env.DB, c.req.param("templateId"), c.req.param("fieldId"));
+  return c.json(result, result.ok ? 200 : 400);
+});
+
+app.put("/api/admin/form-templates/:templateId/fields/:fieldId", async (c) => {
+  const templateId = c.req.param("templateId");
+  const fieldId = c.req.param("fieldId");
+  const body = await c.req.json<{
+    sectionId?: string;
+    label?: string;
+    isRequired?: boolean;
+    position?: string;
+    targetFieldId?: string | null;
+  }>().catch(() => null);
+
+  if (!body?.sectionId) {
+    return c.json({ ok: false, message: "Seleccione una seccion valida." }, 400);
+  }
+
+  const result = await updateTemplateField(c.env.DB, templateId, fieldId, {
+    sectionId: body.sectionId,
+    label: body.label,
+    isRequired: body.isRequired,
+    position: body.position,
+    targetFieldId: body.targetFieldId
+  });
+
   return c.json(result, result.ok ? 200 : 400);
 });
 

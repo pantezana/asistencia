@@ -385,6 +385,14 @@ function AdminShell() {
     position: "end",
     targetFieldId: ""
   });
+  const [editingFieldId, setEditingFieldId] = React.useState<string | null>(null);
+  const [templateFieldEditDraft, setTemplateFieldEditDraft] = React.useState({
+    sectionId: "",
+    label: "",
+    isRequired: true,
+    position: "same",
+    targetFieldId: ""
+  });
   const [editingTemplateStructure, setEditingTemplateStructure] = React.useState(false);
   const [catalogs, setCatalogs] = React.useState<Catalog[]>([]);
   const [selectedCatalogKey, setSelectedCatalogKey] = React.useState<string | null>(null);
@@ -806,6 +814,57 @@ function AdminShell() {
     setActionMessage("Control quitado del modelo.");
   }
 
+  function editTemplateField(section: FormSection, field: FormField) {
+    setEditingFieldId(field.id);
+    setTemplateFieldEditDraft({
+      sectionId: section.id,
+      label: field.label,
+      isRequired: Boolean(field.is_required),
+      position: "same",
+      targetFieldId: ""
+    });
+  }
+
+  function cancelTemplateFieldEdit() {
+    setEditingFieldId(null);
+    setTemplateFieldEditDraft({
+      sectionId: "",
+      label: "",
+      isRequired: true,
+      position: "same",
+      targetFieldId: ""
+    });
+  }
+
+  async function saveTemplateFieldEdit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedTemplateId || !editingFieldId || !templateFieldEditDraft.sectionId) return;
+
+    setEditingTemplateStructure(true);
+    setActionMessage(null);
+    const response = await fetch(`/api/admin/form-templates/${selectedTemplateId}/fields/${editingFieldId}`, {
+      method: "PUT",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...templateFieldEditDraft,
+        targetFieldId: templateFieldEditDraft.targetFieldId || null
+      })
+    });
+    const payload = (await response.json()) as { ok: boolean; message?: string; template?: FormTemplate; sections?: FormSection[] };
+    setEditingTemplateStructure(false);
+
+    if (!response.ok || !payload.ok) {
+      setActionMessage(payload.message ?? "No se pudo editar el control.");
+      return;
+    }
+
+    applyTemplateStructurePayload(payload);
+    await loadFormTemplates();
+    cancelTemplateFieldEdit();
+    setActionMessage("Control actualizado correctamente.");
+  }
+
   function editSession(session: AdminSession) {
     setSelectedSessionId(session.id);
     setSessionEditDraft({
@@ -983,6 +1042,8 @@ function AdminShell() {
   const activeFormTemplates = formTemplates.filter((template) => template.status === "active");
   const fieldTargetSection = templateSections.find((section) => section.id === templateFieldDraft.sectionId) ?? templateSections[0];
   const targetFields = fieldTargetSection?.fields ?? [];
+  const editTargetSection = templateSections.find((section) => section.id === templateFieldEditDraft.sectionId) ?? templateSections[0];
+  const editTargetFields = (editTargetSection?.fields ?? []).filter((field) => field.id !== editingFieldId);
 
   return (
     <div className="app-shell">
@@ -1624,6 +1685,78 @@ function AdminShell() {
                         </button>
                       </div>
                     </form>
+
+                    {editingFieldId ? (
+                      <form className="builder-card highlighted" onSubmit={saveTemplateFieldEdit}>
+                        <div>
+                          <h4>Editar control</h4>
+                          <p>Actualice etiqueta, obligatoriedad o posicion del control dentro del modelo.</p>
+                        </div>
+                        <div className="builder-grid">
+                          <label>
+                            Seccion destino
+                            <select
+                              value={templateFieldEditDraft.sectionId}
+                              onChange={(event) => setTemplateFieldEditDraft((current) => ({ ...current, sectionId: event.target.value, targetFieldId: "" }))}
+                            >
+                              {templateSections.map((section) => (
+                                <option key={section.id} value={section.id}>{section.title}</option>
+                              ))}
+                            </select>
+                          </label>
+                          <label>
+                            Etiqueta visible
+                            <input
+                              value={templateFieldEditDraft.label}
+                              onChange={(event) => setTemplateFieldEditDraft((current) => ({ ...current, label: event.target.value }))}
+                              required
+                            />
+                          </label>
+                          <label>
+                            Posicion
+                            <select
+                              value={templateFieldEditDraft.position}
+                              onChange={(event) => setTemplateFieldEditDraft((current) => ({ ...current, position: event.target.value }))}
+                            >
+                              <option value="same">Mantener posicion</option>
+                              <option value="end">Al final</option>
+                              <option value="start">Al inicio</option>
+                              <option value="before">Antes de</option>
+                              <option value="after">Despues de</option>
+                            </select>
+                          </label>
+                          <label>
+                            Referencia
+                            <select
+                              value={templateFieldEditDraft.targetFieldId}
+                              onChange={(event) => setTemplateFieldEditDraft((current) => ({ ...current, targetFieldId: event.target.value }))}
+                              disabled={!["before", "after"].includes(templateFieldEditDraft.position)}
+                            >
+                              <option value="">Seleccione</option>
+                              {editTargetFields.map((field) => (
+                                <option key={field.id} value={field.id}>{field.label}</option>
+                              ))}
+                            </select>
+                          </label>
+                          <label className="check-field">
+                            <input
+                              checked={templateFieldEditDraft.isRequired}
+                              onChange={(event) => setTemplateFieldEditDraft((current) => ({ ...current, isRequired: event.target.checked }))}
+                              type="checkbox"
+                            />
+                            Obligatorio
+                          </label>
+                        </div>
+                        <div className="actions">
+                          <button className="button" type="submit" disabled={editingTemplateStructure}>
+                            Guardar control
+                          </button>
+                          <button className="button secondary" type="button" onClick={cancelTemplateFieldEdit}>
+                            Cancelar
+                          </button>
+                        </div>
+                      </form>
+                    ) : null}
                   </div>
 
                   <div className="form-structure">
@@ -1642,6 +1775,9 @@ function AdminShell() {
                                 <strong>{field.label}</strong>
                                 <span>{field.field_type}{field.catalog_key ? ` · ${field.catalog_key}` : ""}{field.is_required ? " · obligatorio" : ""}</span>
                               </div>
+                              <button className="text-button" type="button" onClick={() => editTemplateField(section, field)}>
+                                Editar
+                              </button>
                               <button className="text-button danger" type="button" onClick={() => void removeFieldFromTemplate(field.id)}>
                                 Quitar
                               </button>
