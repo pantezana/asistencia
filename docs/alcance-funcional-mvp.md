@@ -42,6 +42,8 @@ Reglas:
 
 ## 4. Formularios de asistencia
 
+> Nota de arquitectura: para la evolucion del sistema, los formularios deben separarse en modelos reutilizables y publicaciones por evento. Ver `docs/especificacion-evento-formulario.md`.
+
 Cada evento debe poder tener uno o más formularios de asistencia.
 
 Funciones requeridas:

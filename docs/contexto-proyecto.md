@@ -220,6 +220,8 @@ El número de documento será el dato principal para identificar si una persona 
 
 ### Formulario de asistencia
 
+> Nota de arquitectura: la mascara de preguntas debe modelarse como plantilla reutilizable y la publicacion debe pertenecer al evento. Ver `docs/especificacion-evento-formulario.md`.
+
 Cada evento tendrá un formulario público de registro/asistencia. El sistema debe permitir crear formularios nuevos y también clonar o copiar formularios existentes para reutilizar su estructura.
 
 El formulario debe:

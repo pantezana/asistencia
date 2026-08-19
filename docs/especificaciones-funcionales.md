@@ -245,6 +245,8 @@ La apertura y cierre de asistencia debe controlarse por cada sesión del cronogr
 
 ## 10. Formularios de asistencia
 
+> Nota de arquitectura: la relacion evento-formulario debe evolucionar hacia modelos de formulario reutilizables y publicaciones por evento. Ver `docs/especificacion-evento-formulario.md`. La clonacion debe usarse solo cuando se requiera una variante editable; si dos eventos usan las mismas preguntas, deben poder compartir el mismo modelo de formulario sin duplicar estructura.
+
 Cada evento debe poder tener un formulario de asistencia.
 
 Funciones iniciales:
