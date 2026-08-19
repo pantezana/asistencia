@@ -36,6 +36,7 @@ import {
   updateCatalogItemStatus,
   updateEventDetails,
   updateEventSessionDetails,
+  updateFormDetails,
   updateFormStatus,
   userCanManageEvent
 } from "./db";
@@ -745,6 +746,23 @@ app.get("/api/admin/forms/:formId", async (c) => {
   return c.json({ ok: true, form, ...structure });
 });
 
+app.put("/api/admin/forms/:formId", async (c) => {
+  const formId = c.req.param("formId");
+  const body = await c.req.json<{ name?: string; status?: string }>().catch(() => null);
+  const name = body?.name?.trim();
+
+  if (!name) {
+    return c.json({ ok: false, message: "Ingrese el nombre del formulario." }, 400);
+  }
+
+  const result = await updateFormDetails(c.env.DB, formId, {
+    name,
+    status: body?.status ?? "active"
+  }, c.get("user"));
+
+  return c.json(result, result.ok ? 200 : 400);
+});
+
 app.post("/api/admin/forms/:formId/clone", async (c) => {
   const formId = c.req.param("formId");
   const form = await cloneForm(c.env.DB, formId, c.get("user"));
@@ -769,6 +787,10 @@ app.post("/api/admin/forms/:formId/status", async (c) => {
 
   if (!form) {
     return c.json({ ok: false, message: "Formulario no encontrado o no autorizado." }, 404);
+  }
+
+  if (form.is_event_publication && status !== "active") {
+    return c.json({ ok: false, message: "No se puede inactivar un formulario asociado al enlace publico del evento." }, 400);
   }
 
   await updateFormStatus(c.env.DB, formId, status);

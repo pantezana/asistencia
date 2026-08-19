@@ -732,12 +732,19 @@ export async function listAdminForms(db: D1Database, user: SessionUser) {
       f.welcome_title_template,
       f.cloned_from_form_id,
       f.form_template_id,
-      COUNT(DISTINCT fs.id) AS section_count,
-      COUNT(DISTINCT ff.id) AS field_count
+      ft.name AS template_name,
+      CASE WHEN e.short_link_slug = f.short_link_slug AND f.status = 'active' THEN 1 ELSE 0 END AS is_event_publication,
+      CASE WHEN e.short_link_slug = f.short_link_slug AND f.status = 'active' THEN e.id ELSE NULL END AS associated_event_id,
+      CASE WHEN e.short_link_slug = f.short_link_slug AND f.status = 'active' THEN e.title ELSE NULL END AS associated_event_title,
+      COUNT(DISTINCT COALESCE(fts.id, fs.id)) AS section_count,
+      COUNT(DISTINCT COALESCE(ftf.id, ff.id)) AS field_count
      FROM forms f
      INNER JOIN events e ON e.id = f.event_id
      LEFT JOIN form_sections fs ON fs.form_id = f.id
      LEFT JOIN form_fields ff ON ff.form_id = f.id
+     LEFT JOIN form_templates ft ON ft.id = f.form_template_id
+     LEFT JOIN form_template_sections fts ON fts.template_id = f.form_template_id
+     LEFT JOIN form_template_fields ftf ON ftf.template_id = f.form_template_id
      ${whereSql}
      GROUP BY f.id
      ORDER BY f.created_at DESC`
@@ -780,12 +787,19 @@ export async function getAdminForm(db: D1Database, formId: string, user: Session
       f.welcome_title_template,
       f.cloned_from_form_id,
       f.form_template_id,
-      COUNT(DISTINCT fs.id) AS section_count,
-      COUNT(DISTINCT ff.id) AS field_count
+      ft.name AS template_name,
+      CASE WHEN e.short_link_slug = f.short_link_slug AND f.status = 'active' THEN 1 ELSE 0 END AS is_event_publication,
+      CASE WHEN e.short_link_slug = f.short_link_slug AND f.status = 'active' THEN e.id ELSE NULL END AS associated_event_id,
+      CASE WHEN e.short_link_slug = f.short_link_slug AND f.status = 'active' THEN e.title ELSE NULL END AS associated_event_title,
+      COUNT(DISTINCT COALESCE(fts.id, fs.id)) AS section_count,
+      COUNT(DISTINCT COALESCE(ftf.id, ff.id)) AS field_count
      FROM forms f
      INNER JOIN events e ON e.id = f.event_id
      LEFT JOIN form_sections fs ON fs.form_id = f.id
      LEFT JOIN form_fields ff ON ff.form_id = f.id
+     LEFT JOIN form_templates ft ON ft.id = f.form_template_id
+     LEFT JOIN form_template_sections fts ON fts.template_id = f.form_template_id
+     LEFT JOIN form_template_fields ftf ON ftf.template_id = f.form_template_id
      ${whereSql}
      GROUP BY f.id`
   );
@@ -1050,6 +1064,33 @@ export async function updateFormStatus(db: D1Database, formId: string, status: s
     .run();
 
   return result.meta.changes > 0;
+}
+
+export async function updateFormDetails(db: D1Database, formId: string, input: { name: string; status: string }, user: SessionUser) {
+  const form = await getAdminForm(db, formId, user);
+
+  if (!form) {
+    return { ok: false, message: "Formulario no encontrado o no autorizado." };
+  }
+
+  if (form.is_event_publication && input.status !== "active") {
+    return { ok: false, message: "No se puede inactivar un formulario asociado al enlace publico del evento. Primero asocie otro modelo al evento." };
+  }
+
+  const status = ["draft", "active", "inactive"].includes(input.status) ? input.status : form.status;
+  await db
+    .prepare("UPDATE forms SET name = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+    .bind(input.name.trim(), status, formId)
+    .run();
+
+  if (form.form_template_id) {
+    await db
+      .prepare("UPDATE form_templates SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+      .bind(input.name.trim(), form.form_template_id)
+      .run();
+  }
+
+  return { ok: true, form: await getAdminForm(db, formId, user) };
 }
 
 export async function cloneForm(db: D1Database, sourceFormId: string, user: SessionUser) {

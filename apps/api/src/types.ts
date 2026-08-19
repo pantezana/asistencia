@@ -78,6 +78,10 @@ export type AdminForm = {
   welcome_title_template: string;
   cloned_from_form_id: string | null;
   form_template_id: string | null;
+  template_name: string | null;
+  is_event_publication: number;
+  associated_event_id: string | null;
+  associated_event_title: string | null;
   section_count: number;
   field_count: number;
 };

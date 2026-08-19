@@ -113,6 +113,11 @@ type AdminForm = {
   short_link_slug: string;
   welcome_title_template: string;
   cloned_from_form_id: string | null;
+  form_template_id: string | null;
+  template_name: string | null;
+  is_event_publication: number;
+  associated_event_id: string | null;
+  associated_event_title: string | null;
   section_count: number;
   field_count: number;
 };
@@ -358,6 +363,8 @@ function AdminShell() {
   const [forms, setForms] = React.useState<AdminForm[]>([]);
   const [formTemplates, setFormTemplates] = React.useState<FormTemplate[]>([]);
   const [selectedFormId, setSelectedFormId] = React.useState<string | null>(null);
+  const [formEditDraft, setFormEditDraft] = React.useState({ name: "", status: "active" });
+  const [savingForm, setSavingForm] = React.useState(false);
   const [formSections, setFormSections] = React.useState<FormSection[]>([]);
   const [catalogs, setCatalogs] = React.useState<Catalog[]>([]);
   const [selectedCatalogKey, setSelectedCatalogKey] = React.useState<string | null>(null);
@@ -467,6 +474,12 @@ function AdminShell() {
   }, [selectedFormId]);
 
   React.useEffect(() => {
+    const form = forms.find((item) => item.id === selectedFormId);
+    if (!form) return;
+    setFormEditDraft({ name: form.name, status: form.status });
+  }, [forms, selectedFormId]);
+
+  React.useEffect(() => {
     if (selectedCatalogKey) {
       void loadCatalogItems(selectedCatalogKey);
     }
@@ -512,8 +525,35 @@ function AdminShell() {
   async function loadFormDetail(formId: string) {
     const response = await fetch(`/api/admin/forms/${formId}`, { credentials: "include" });
     if (!response.ok) return;
-    const payload = (await response.json()) as { sections: FormSection[] };
+    const payload = (await response.json()) as { form: AdminForm; sections: FormSection[] };
+    setForms((current) => current.map((form) => form.id === payload.form.id ? payload.form : form));
     setFormSections(payload.sections);
+  }
+
+  async function saveSelectedForm(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedForm) return;
+
+    setSavingForm(true);
+    setActionMessage(null);
+    const response = await fetch(`/api/admin/forms/${selectedForm.id}`, {
+      method: "PUT",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(formEditDraft)
+    });
+    const payload = (await response.json()) as { ok: boolean; message?: string; form?: AdminForm };
+    setSavingForm(false);
+
+    if (!response.ok || !payload.ok) {
+      setActionMessage(payload.message ?? "No se pudo actualizar el formulario.");
+      return;
+    }
+
+    await loadForms();
+    await loadFormTemplates();
+    setSelectedFormId(payload.form?.id ?? selectedForm.id);
+    setActionMessage("Formulario actualizado correctamente.");
   }
 
   async function cloneSelectedForm() {
@@ -1192,18 +1232,74 @@ function AdminShell() {
                   <div className="detail-heading">
                     <div>
                       <h3>{selectedForm.name}</h3>
-                      <p>{selectedForm.event_title}</p>
+                      <p>{selectedForm.template_name ? `Modelo: ${selectedForm.template_name}` : selectedForm.event_title}</p>
                     </div>
                     <span className={`status ${selectedForm.status === "active" ? "open" : "closed"}`}>
                       {selectedForm.status}
                     </span>
                   </div>
+                  <form className="admin-form-panel compact-form" onSubmit={saveSelectedForm}>
+                    <div className="form-grid">
+                      <label className="wide-field">
+                        Nombre del formulario
+                        <input
+                          value={formEditDraft.name}
+                          onChange={(event) => setFormEditDraft((current) => ({ ...current, name: event.target.value }))}
+                          required
+                        />
+                      </label>
+                      <label>
+                        Estado
+                        <select
+                          value={formEditDraft.status}
+                          onChange={(event) => setFormEditDraft((current) => ({ ...current, status: event.target.value }))}
+                          disabled={Boolean(selectedForm.is_event_publication)}
+                        >
+                          <option value="draft">Borrador</option>
+                          <option value="active">Activo</option>
+                          <option value="inactive">Inactivo</option>
+                        </select>
+                        {selectedForm.is_event_publication ? (
+                          <small>Publicado en evento: no se puede inactivar sin asociar otro modelo.</small>
+                        ) : null}
+                      </label>
+                      <label>
+                        Asociación
+                        <input
+                          readOnly
+                          value={selectedForm.is_event_publication ? "Asociado a evento" : "Libre / no publicado"}
+                        />
+                      </label>
+                      <label className="wide-field">
+                        Evento
+                        <input readOnly value={selectedForm.associated_event_title ?? selectedForm.event_title ?? "Sin evento asociado"} />
+                      </label>
+                      <label>
+                        Enlace público
+                        <input readOnly value={`${window.location.origin}/f/${selectedForm.short_link_slug}`} />
+                      </label>
+                      <label>
+                        Estructura
+                        <input readOnly value={`${selectedForm.section_count} secciones / ${selectedForm.field_count} campos`} />
+                      </label>
+                    </div>
+                    <div className="actions">
+                      <button className="button" type="submit" disabled={savingForm}>
+                        {savingForm ? "Guardando..." : "Guardar formulario"}
+                      </button>
+                    </div>
+                  </form>
                   <div className="detail-actions">
                     <a className="button secondary" href={`/f/${selectedForm.short_link_slug}`}>Ver pÃºblico</a>
                     <button className="button secondary" type="button" onClick={() => changeFormStatus(selectedForm, "active")}>
                       Activar
                     </button>
-                    <button className="button secondary" type="button" onClick={() => changeFormStatus(selectedForm, "inactive")}>
+                    <button
+                      className="button secondary"
+                      type="button"
+                      onClick={() => changeFormStatus(selectedForm, "inactive")}
+                      disabled={Boolean(selectedForm.is_event_publication)}
+                    >
                       Inactivar
                     </button>
                   </div>
