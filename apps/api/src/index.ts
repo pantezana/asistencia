@@ -44,7 +44,9 @@ import {
   removeTemplateField,
   removeTemplateSection,
   updateCatalogItemStatus,
+  updateCatalogItem,
   updateCatalogStatus,
+  updateCatalogWithControl,
   updateEventDetails,
   updateEventSessionDetails,
   updateFormDetails,
@@ -973,6 +975,24 @@ app.post("/api/admin/catalogs", async (c) => {
   return c.json(result, result.ok ? 201 : 400);
 });
 
+app.put("/api/admin/catalogs/:catalogKey", async (c) => {
+  const body = await c.req.json<{
+    catalogKey?: string;
+    catalogName?: string;
+    controlLabel?: string;
+    description?: string;
+  }>().catch(() => null);
+
+  const result = await updateCatalogWithControl(c.env.DB, c.req.param("catalogKey"), {
+    nextCatalogKey: body?.catalogKey ?? "",
+    catalogName: body?.catalogName ?? "",
+    controlLabel: body?.controlLabel ?? "",
+    description: body?.description
+  });
+
+  return c.json(result, result.ok ? 200 : 400);
+});
+
 app.post("/api/admin/catalogs/:catalogKey/status", async (c) => {
   const body = await c.req.json<{ status?: string }>().catch(() => null);
   const status = body?.status === "active" ? "active" : "inactive";
@@ -1022,6 +1042,16 @@ app.post("/api/admin/catalog-items/:itemId/status", async (c) => {
   }
 
   return c.json({ ok: true });
+});
+
+app.put("/api/admin/catalog-items/:itemId", async (c) => {
+  const body = await c.req.json<{ name?: string; description?: string }>().catch(() => null);
+  const result = await updateCatalogItem(c.env.DB, c.req.param("itemId"), {
+    name: body?.name ?? "",
+    description: body?.description
+  });
+
+  return c.json(result, result.ok ? 200 : 400);
 });
 
 app.post("/api/admin/events/:eventId/sessions/:sessionId/open", async (c) => {

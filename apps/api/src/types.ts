@@ -143,6 +143,7 @@ export type Catalog = {
   name: string;
   description: string | null;
   status: string;
+  control_label: string;
   item_count: number;
   active_item_count: number;
 };

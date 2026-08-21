@@ -146,6 +146,8 @@ type Catalog = {
   catalog_key: string;
   name: string;
   status: string;
+  description: string | null;
+  control_label: string;
   item_count: number;
   active_item_count: number;
 };
@@ -440,6 +442,14 @@ function AdminShell() {
     controlLabel: "",
     description: ""
   });
+  const [catalogEditDraft, setCatalogEditDraft] = React.useState({
+    catalogKey: "",
+    catalogName: "",
+    controlLabel: "",
+    description: ""
+  });
+  const [editingCatalogItemId, setEditingCatalogItemId] = React.useState<string | null>(null);
+  const [catalogItemEditDraft, setCatalogItemEditDraft] = React.useState({ name: "", description: "" });
   const [savingCatalog, setSavingCatalog] = React.useState(false);
   const [selectedEventId, setSelectedEventId] = React.useState<string | null>(null);
   const [actionMessage, setActionMessage] = React.useState<string | null>(null);
@@ -586,6 +596,19 @@ function AdminShell() {
     }
   }, [selectedCatalogKey]);
 
+  React.useEffect(() => {
+    const catalog = catalogs.find((item) => item.catalog_key === selectedCatalogKey);
+    if (!catalog) return;
+    setCatalogEditDraft({
+      catalogKey: catalog.catalog_key,
+      catalogName: catalog.name,
+      controlLabel: catalog.control_label ?? catalog.name,
+      description: catalog.description ?? ""
+    });
+    setEditingCatalogItemId(null);
+    setCatalogItemEditDraft({ name: "", description: "" });
+  }, [catalogs, selectedCatalogKey]);
+
   if (loading) {
     return <PublicMessage title="Asistencia" message="Validando sesiÃ³n..." />;
   }
@@ -719,6 +742,36 @@ function AdminShell() {
     setActionMessage("Catalogo y control de paleta creados correctamente.");
   }
 
+  async function saveCatalogDetails(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedCatalogKey || !catalogEditDraft.catalogKey.trim() || !catalogEditDraft.catalogName.trim() || !catalogEditDraft.controlLabel.trim()) return;
+
+    setSavingCatalog(true);
+    setActionMessage(null);
+    const response = await fetch(`/api/admin/catalogs/${selectedCatalogKey}`, {
+      method: "PUT",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(catalogEditDraft)
+    });
+    const payload = (await response.json()) as { ok: boolean; message?: string; catalogKey?: string };
+    setSavingCatalog(false);
+
+    if (!response.ok || !payload.ok || !payload.catalogKey) {
+      setActionMessage(payload.message ?? "No se pudo actualizar el catalogo.");
+      return;
+    }
+
+    await loadCatalogs();
+    await loadFormBuilderPalette();
+    if (selectedTemplateId) {
+      await loadFormTemplateDetail(selectedTemplateId);
+    }
+    setSelectedCatalogKey(payload.catalogKey);
+    await loadCatalogItems(payload.catalogKey);
+    setActionMessage("Catalogo actualizado correctamente.");
+  }
+
   async function toggleCatalogStatus(catalog: Catalog) {
     const nextStatus = catalog.status === "active" ? "inactive" : "active";
     setActionMessage(null);
@@ -752,6 +805,42 @@ function AdminShell() {
       body: JSON.stringify({ status: item.status === "active" ? "inactive" : "active" })
     });
     await loadCatalogItems(selectedCatalogKey);
+  }
+
+  function startCatalogItemEdit(item: CatalogItem) {
+    setEditingCatalogItemId(item.id);
+    setCatalogItemEditDraft({
+      name: item.name,
+      description: item.description ?? ""
+    });
+  }
+
+  function cancelCatalogItemEdit() {
+    setEditingCatalogItemId(null);
+    setCatalogItemEditDraft({ name: "", description: "" });
+  }
+
+  async function saveCatalogItem(itemId: string) {
+    if (!selectedCatalogKey || !catalogItemEditDraft.name.trim()) return;
+
+    setActionMessage(null);
+    const response = await fetch(`/api/admin/catalog-items/${itemId}`, {
+      method: "PUT",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(catalogItemEditDraft)
+    });
+    const payload = (await response.json()) as { ok: boolean; message?: string };
+
+    if (!response.ok || !payload.ok) {
+      setActionMessage(payload.message ?? "No se pudo actualizar el elemento.");
+      return;
+    }
+
+    cancelCatalogItemEdit();
+    await loadCatalogs();
+    await loadCatalogItems(selectedCatalogKey);
+    setActionMessage("Elemento actualizado correctamente.");
   }
 
   async function changeSessionState(session: AdminSession, action: "open" | "close") {
@@ -2018,6 +2107,52 @@ function AdminShell() {
                       {selectedCatalog.status === "active" ? "Inactivar catalogo" : "Activar catalogo"}
                     </button>
                   </div>
+                  <form className="admin-form-panel compact-form embedded-form" onSubmit={saveCatalogDetails}>
+                    <div className="detail-heading">
+                      <div>
+                        <h4>Editar catalogo</h4>
+                        <p>Actualice la clave, nombre descriptivo y nombre visible en la paleta de controles.</p>
+                      </div>
+                    </div>
+                    <div className="form-grid">
+                      <label>
+                        Clave del catalogo
+                        <input
+                          value={catalogEditDraft.catalogKey}
+                          onChange={(event) => setCatalogEditDraft((current) => ({ ...current, catalogKey: event.target.value }))}
+                          required
+                        />
+                      </label>
+                      <label>
+                        Nombre del catalogo
+                        <input
+                          value={catalogEditDraft.catalogName}
+                          onChange={(event) => setCatalogEditDraft((current) => ({ ...current, catalogName: event.target.value }))}
+                          required
+                        />
+                      </label>
+                      <label>
+                        Nombre en paleta
+                        <input
+                          value={catalogEditDraft.controlLabel}
+                          onChange={(event) => setCatalogEditDraft((current) => ({ ...current, controlLabel: event.target.value }))}
+                          required
+                        />
+                      </label>
+                      <label className="wide-field">
+                        Descripcion
+                        <input
+                          value={catalogEditDraft.description}
+                          onChange={(event) => setCatalogEditDraft((current) => ({ ...current, description: event.target.value }))}
+                        />
+                      </label>
+                    </div>
+                    <div className="actions">
+                      <button className="button secondary" type="submit" disabled={savingCatalog}>
+                        {savingCatalog ? "Guardando..." : "Guardar catalogo"}
+                      </button>
+                    </div>
+                  </form>
                   <form className="inline-form" onSubmit={addCatalogItem}>
                     <input
                       value={newCatalogItemName}
@@ -2029,13 +2164,45 @@ function AdminShell() {
                   <div className="catalog-items">
                     {catalogItems.map((item) => (
                       <div className="catalog-item" key={item.id}>
-                        <div>
-                          <strong>{item.name}</strong>
-                          <span>{item.description}</span>
-                        </div>
-                        <button className="button secondary table-action" type="button" onClick={() => toggleCatalogItem(item)}>
-                          {item.status === "active" ? "Inactivar" : "Activar"}
-                        </button>
+                        {editingCatalogItemId === item.id ? (
+                          <>
+                            <div className="catalog-item-edit">
+                              <input
+                                value={catalogItemEditDraft.name}
+                                onChange={(event) => setCatalogItemEditDraft((current) => ({ ...current, name: event.target.value }))}
+                                aria-label="Nombre del elemento"
+                              />
+                              <input
+                                value={catalogItemEditDraft.description}
+                                onChange={(event) => setCatalogItemEditDraft((current) => ({ ...current, description: event.target.value }))}
+                                aria-label="Descripcion del elemento"
+                              />
+                            </div>
+                            <div className="row-actions">
+                              <button className="button secondary table-action" type="button" onClick={() => void saveCatalogItem(item.id)}>
+                                Guardar
+                              </button>
+                              <button className="button secondary table-action" type="button" onClick={cancelCatalogItemEdit}>
+                                Cancelar
+                              </button>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div>
+                              <strong>{item.name}</strong>
+                              <span>{item.description}</span>
+                            </div>
+                            <div className="row-actions">
+                              <button className="button secondary table-action" type="button" onClick={() => startCatalogItemEdit(item)}>
+                                Editar
+                              </button>
+                              <button className="button secondary table-action" type="button" onClick={() => toggleCatalogItem(item)}>
+                                {item.status === "active" ? "Inactivar" : "Activar"}
+                              </button>
+                            </div>
+                          </>
+                        )}
                       </div>
                     ))}
                   </div>

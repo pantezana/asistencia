@@ -1711,10 +1711,12 @@ export async function listCatalogs(db: D1Database) {
         c.name,
         c.description,
         c.status,
-        COUNT(i.id) AS item_count,
-        COUNT(CASE WHEN i.status = 'active' THEN 1 END) AS active_item_count
+        COALESCE(MAX(fcd.label), c.name) AS control_label,
+        COUNT(DISTINCT i.id) AS item_count,
+        COUNT(DISTINCT CASE WHEN i.status = 'active' THEN i.id END) AS active_item_count
        FROM system_catalogs c
        LEFT JOIN system_catalog_items i ON i.catalog_id = c.id
+       LEFT JOIN form_control_definitions fcd ON fcd.catalog_key = c.catalog_key
        GROUP BY c.id
        ORDER BY c.catalog_key`
     )
@@ -1770,6 +1772,72 @@ export async function createCatalogWithControl(db: D1Database, input: {
   return { ok: true, catalogKey };
 }
 
+export async function updateCatalogWithControl(db: D1Database, catalogKey: string, input: {
+  nextCatalogKey: string;
+  catalogName: string;
+  controlLabel: string;
+  description?: string;
+}) {
+  const current = await db
+    .prepare("SELECT id, catalog_key FROM system_catalogs WHERE catalog_key = ?")
+    .bind(catalogKey)
+    .first<{ id: string; catalog_key: string }>();
+  if (!current) {
+    return { ok: false, message: "Catalogo no encontrado." };
+  }
+
+  const nextCatalogKey = toFieldKey(input.nextCatalogKey, "").replace(/^_+|_+$/g, "");
+  const catalogName = input.catalogName.trim();
+  const controlLabel = input.controlLabel.trim();
+
+  if (!nextCatalogKey || !catalogName || !controlLabel) {
+    return { ok: false, message: "Ingrese clave, nombre del catalogo y nombre para la paleta." };
+  }
+
+  if (nextCatalogKey !== current.catalog_key) {
+    const duplicate = await db
+      .prepare("SELECT id FROM system_catalogs WHERE catalog_key = ?")
+      .bind(nextCatalogKey)
+      .first<{ id: string }>();
+    if (duplicate) {
+      return { ok: false, message: "Ya existe un catalogo con esa clave." };
+    }
+  }
+
+  await db.batch([
+    db
+      .prepare(
+        `UPDATE system_catalogs
+         SET catalog_key = ?, name = ?, description = ?, updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?`
+      )
+      .bind(nextCatalogKey, catalogName, input.description?.trim() || catalogName, current.id),
+    db
+      .prepare(
+        `UPDATE form_control_definitions
+         SET catalog_key = ?, label = ?, updated_at = CURRENT_TIMESTAMP
+         WHERE catalog_key = ?`
+      )
+      .bind(nextCatalogKey, controlLabel, current.catalog_key),
+    db
+      .prepare(
+        `UPDATE form_fields
+         SET catalog_key = ?, updated_at = CURRENT_TIMESTAMP
+         WHERE catalog_key = ?`
+      )
+      .bind(nextCatalogKey, current.catalog_key),
+    db
+      .prepare(
+        `UPDATE form_template_fields
+         SET catalog_key = ?, updated_at = CURRENT_TIMESTAMP
+         WHERE catalog_key = ?`
+      )
+      .bind(nextCatalogKey, current.catalog_key)
+  ]);
+
+  return { ok: true, catalogKey: nextCatalogKey };
+}
+
 export async function updateCatalogStatus(db: D1Database, catalogKey: string, status: string) {
   const nextStatus = status === "active" ? "active" : "inactive";
   const result = await db
@@ -1821,6 +1889,47 @@ export async function createCatalogItem(db: D1Database, catalogKey: string, name
     .run();
 
   return itemId;
+}
+
+export async function updateCatalogItem(db: D1Database, itemId: string, input: {
+  name: string;
+  description?: string;
+}) {
+  const name = input.name.trim();
+  if (!name) {
+    return { ok: false, message: "Ingrese el nombre del elemento." };
+  }
+
+  const item = await db
+    .prepare("SELECT id, catalog_id FROM system_catalog_items WHERE id = ?")
+    .bind(itemId)
+    .first<{ id: string; catalog_id: string }>();
+  if (!item) {
+    return { ok: false, message: "Elemento no encontrado." };
+  }
+
+  const duplicate = await db
+    .prepare(
+      `SELECT id
+       FROM system_catalog_items
+       WHERE catalog_id = ? AND id <> ? AND UPPER(name) = UPPER(?)`
+    )
+    .bind(item.catalog_id, itemId, name)
+    .first<{ id: string }>();
+  if (duplicate) {
+    return { ok: false, message: "Ya existe un elemento con ese nombre en este catalogo." };
+  }
+
+  await db
+    .prepare(
+      `UPDATE system_catalog_items
+       SET name = ?, description = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`
+    )
+    .bind(name, input.description?.trim() || name, itemId)
+    .run();
+
+  return { ok: true };
 }
 
 export async function updateCatalogItemStatus(db: D1Database, itemId: string, status: string) {

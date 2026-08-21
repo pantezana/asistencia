@@ -811,6 +811,11 @@ select {
   padding: 14px;
 }
 
+.embedded-form {
+  background: #f8fafc;
+  margin: 14px 0;
+}
+
 .builder-card.highlighted {
   background: #eff6ff;
   border-color: #93c5fd;
@@ -938,6 +943,19 @@ select {
   display: grid;
   gap: 3px;
   min-width: 0;
+}
+
+.catalog-item-edit {
+  flex: 1 1 480px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.row-actions {
+  align-items: center;
+  display: flex;
+  flex-shrink: 0;
+  gap: 8px;
+  justify-content: flex-end;
 }
 
 @media (max-width: 800px) {
