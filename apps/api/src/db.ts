@@ -35,6 +35,21 @@ function toFieldKey(label: string, fallback: string) {
   return normalized || fallback;
 }
 
+function applyTextValidationConfig(config: Record<string, unknown>, fieldType: string, textValidation?: string) {
+  const next = { ...config };
+  delete next.textValidation;
+
+  if (fieldType !== "text") {
+    return next;
+  }
+
+  if (textValidation === "letters" || textValidation === "numbers" || textValidation === "none") {
+    next.textValidation = textValidation;
+  }
+
+  return next;
+}
+
 function catalogOrderSql() {
   return `
     CASE
@@ -1025,6 +1040,7 @@ export async function addTemplateField(db: D1Database, templateId: string, input
   controlDefinitionId: string;
   label?: string;
   isRequired?: boolean;
+  textValidation?: string;
   position?: string;
   targetFieldId?: string | null;
 }) {
@@ -1071,11 +1087,11 @@ export async function addTemplateField(db: D1Database, templateId: string, input
     fieldKey = `${baseFieldKey}_${counter}`;
     counter += 1;
   }
-  const config = JSON.stringify({
+  const config = JSON.stringify(applyTextValidationConfig({
     ...(control.default_config ? JSON.parse(control.default_config) as Record<string, unknown> : {}),
     controlDefinitionId: control.id,
     normalizedLabel
-  });
+  }, control.field_type, input.textValidation));
   await normalizeTemplateFieldOrder(db, input.sectionId);
   const orderIndex = await nextFieldOrder(db, input.sectionId, input.position ?? "end", input.targetFieldId);
 
@@ -1118,17 +1134,18 @@ export async function updateTemplateField(db: D1Database, templateId: string, fi
   sectionId: string;
   label?: string;
   isRequired?: boolean;
+  textValidation?: string;
   position?: string;
   targetFieldId?: string | null;
 }) {
   const field = await db
     .prepare(
-      `SELECT id, section_id, label, order_index, config
+      `SELECT id, section_id, label, field_type, order_index, config
        FROM form_template_fields
        WHERE id = ? AND template_id = ?`
     )
     .bind(fieldId, templateId)
-    .first<{ id: string; section_id: string; label: string; order_index: number; config: string }>();
+    .first<{ id: string; section_id: string; label: string; field_type: string; order_index: number; config: string }>();
   if (!field) return { ok: false, message: "Control no encontrado en el modelo." };
 
   const section = await db
@@ -1166,10 +1183,10 @@ export async function updateTemplateField(db: D1Database, templateId: string, fi
   const orderIndex = position !== "same" || field.section_id !== input.sectionId
     ? await nextFieldOrder(db, input.sectionId, position === "same" ? "end" : position, input.targetFieldId === fieldId ? null : input.targetFieldId)
     : field.order_index;
-  const config = JSON.stringify({
+  const config = JSON.stringify(applyTextValidationConfig({
     ...currentConfig,
     normalizedLabel
-  });
+  }, field.field_type, input.textValidation));
 
   await db
     .prepare(

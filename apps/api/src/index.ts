@@ -803,6 +803,7 @@ app.post("/api/admin/form-templates/:templateId/fields", async (c) => {
     controlDefinitionId?: string;
     label?: string;
     isRequired?: boolean;
+    textValidation?: string;
     position?: string;
     targetFieldId?: string | null;
   }>().catch(() => null);
@@ -816,6 +817,7 @@ app.post("/api/admin/form-templates/:templateId/fields", async (c) => {
     controlDefinitionId: body.controlDefinitionId,
     label: body.label,
     isRequired: body.isRequired,
+    textValidation: body.textValidation,
     position: body.position,
     targetFieldId: body.targetFieldId
   });
@@ -835,6 +837,7 @@ app.put("/api/admin/form-templates/:templateId/fields/:fieldId", async (c) => {
     sectionId?: string;
     label?: string;
     isRequired?: boolean;
+    textValidation?: string;
     position?: string;
     targetFieldId?: string | null;
   }>().catch(() => null);
@@ -847,6 +850,7 @@ app.put("/api/admin/form-templates/:templateId/fields/:fieldId", async (c) => {
     sectionId: body.sectionId,
     label: body.label,
     isRequired: body.isRequired,
+    textValidation: body.textValidation,
     position: body.position,
     targetFieldId: body.targetFieldId
   });

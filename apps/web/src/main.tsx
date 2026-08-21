@@ -111,6 +111,7 @@ type FormField = {
   field_type: string;
   catalog_key: string | null;
   is_required: number;
+  config: string;
 };
 
 type FormSection = {
@@ -135,6 +136,8 @@ type FormControlDefinition = {
   field_type: string;
   catalog_key: string | null;
   default_required: number;
+  validation_rules: string;
+  default_config: string;
   status: string;
 };
 
@@ -216,6 +219,35 @@ function publicFieldLabel(field: PublicFormField) {
   return cleanText(field.label);
 }
 
+function parseFieldConfig(config: string | null | undefined) {
+  try {
+    return JSON.parse(config || "{}") as Record<string, unknown>;
+  } catch {
+    return {};
+  }
+}
+
+function textValidationFromConfig(config: string | null | undefined) {
+  const value = parseFieldConfig(config).textValidation;
+  return value === "letters" || value === "numbers" || value === "none" ? value : null;
+}
+
+function legacyTextValidation(fieldKey: string) {
+  if (["datos_generales_celular", "organizacion_ruc"].includes(fieldKey)) return "numbers";
+  if (["datos_generales_nombres", "datos_generales_paterno", "datos_generales_materno"].includes(fieldKey)) return "letters";
+  return null;
+}
+
+function textValidationForField(field: Pick<PublicFormField | FormField, "field_key" | "config">) {
+  return textValidationFromConfig(field.config) ?? legacyTextValidation(field.field_key);
+}
+
+function textValidationLabel(value: string | null) {
+  if (value === "letters") return "solo texto";
+  if (value === "numbers") return "solo numeros";
+  return "";
+}
+
 function textInputProps(field: PublicFormField) {
   if (field.field_key === "datos_generales_correo_electronico") {
     return {
@@ -226,7 +258,9 @@ function textInputProps(field: PublicFormField) {
     };
   }
 
-  if (["datos_generales_celular", "organizacion_ruc"].includes(field.field_key)) {
+  const textValidation = textValidationForField(field);
+
+  if (textValidation === "numbers") {
     return {
       type: "text",
       inputMode: "numeric" as const,
@@ -235,7 +269,7 @@ function textInputProps(field: PublicFormField) {
     };
   }
 
-  if (["datos_generales_nombres", "datos_generales_paterno", "datos_generales_materno"].includes(field.field_key)) {
+  if (textValidation === "letters") {
     return {
       type: "text",
       pattern: "[A-Za-zÁÉÍÓÚÜÑáéíóúüñ\\s]+",
@@ -382,6 +416,7 @@ function AdminShell() {
     controlDefinitionId: "",
     label: "",
     isRequired: true,
+    textValidation: "none",
     position: "end",
     targetFieldId: ""
   });
@@ -390,6 +425,7 @@ function AdminShell() {
     sectionId: "",
     label: "",
     isRequired: true,
+    textValidation: "none",
     position: "same",
     targetFieldId: ""
   });
@@ -524,7 +560,8 @@ function AdminShell() {
     setTemplateFieldDraft((current) => ({
       ...current,
       controlDefinitionId: current.controlDefinitionId || controlPalette[0]?.id || "",
-      label: current.label || controlPalette[0]?.label || ""
+      label: current.label || controlPalette[0]?.label || "",
+      textValidation: current.controlDefinitionId ? current.textValidation : textValidationFromConfig(controlPalette[0]?.default_config) ?? "none"
     }));
     setTemplateSectionDraft((current) => ({
       ...current,
@@ -879,6 +916,7 @@ function AdminShell() {
       sectionId: section.id,
       label: field.label,
       isRequired: Boolean(field.is_required),
+      textValidation: field.field_type === "text" ? textValidationForField(field) ?? "none" : "none",
       position: "same",
       targetFieldId: ""
     });
@@ -890,6 +928,7 @@ function AdminShell() {
       sectionId: "",
       label: "",
       isRequired: true,
+      textValidation: "none",
       position: "same",
       targetFieldId: ""
     });
@@ -1103,6 +1142,10 @@ function AdminShell() {
   const targetFields = fieldTargetSection?.fields ?? [];
   const editTargetSection = templateSections.find((section) => section.id === templateFieldEditDraft.sectionId) ?? templateSections[0];
   const editTargetFields = (editTargetSection?.fields ?? []).filter((field) => field.id !== editingFieldId);
+  const selectedPaletteControl = controlPalette.find((control) => control.id === templateFieldDraft.controlDefinitionId);
+  const addFieldSupportsTextValidation = selectedPaletteControl?.field_type === "text";
+  const editingField = templateSections.flatMap((section) => section.fields).find((field) => field.id === editingFieldId);
+  const editFieldSupportsTextValidation = editingField?.field_type === "text";
 
   return (
     <div className="app-shell">
@@ -1685,7 +1728,8 @@ function AdminShell() {
                                 ...current,
                                 controlDefinitionId: event.target.value,
                                 label: control?.label ?? current.label,
-                                isRequired: control ? Boolean(control.default_required) : current.isRequired
+                                isRequired: control ? Boolean(control.default_required) : current.isRequired,
+                                textValidation: control?.field_type === "text" ? textValidationFromConfig(control.default_config) ?? "none" : "none"
                               }));
                             }}
                           >
@@ -1737,6 +1781,19 @@ function AdminShell() {
                           />
                           Obligatorio
                         </label>
+                        {addFieldSupportsTextValidation ? (
+                          <label>
+                            Validacion de texto
+                            <select
+                              value={templateFieldDraft.textValidation}
+                              onChange={(event) => setTemplateFieldDraft((current) => ({ ...current, textValidation: event.target.value }))}
+                            >
+                              <option value="none">Sin validacion especial</option>
+                              <option value="letters">Solo texto</option>
+                              <option value="numbers">Solo numeros</option>
+                            </select>
+                          </label>
+                        ) : null}
                       </div>
                       <div className="actions">
                         <button className="button secondary" type="submit" disabled={editingTemplateStructure || templateSections.length === 0 || controlPalette.length === 0}>
@@ -1805,6 +1862,19 @@ function AdminShell() {
                             />
                             Obligatorio
                           </label>
+                          {editFieldSupportsTextValidation ? (
+                            <label>
+                              Validacion de texto
+                              <select
+                                value={templateFieldEditDraft.textValidation}
+                                onChange={(event) => setTemplateFieldEditDraft((current) => ({ ...current, textValidation: event.target.value }))}
+                              >
+                                <option value="none">Sin validacion especial</option>
+                                <option value="letters">Solo texto</option>
+                                <option value="numbers">Solo numeros</option>
+                              </select>
+                            </label>
+                          ) : null}
                         </div>
                         <div className="actions">
                           <button className="button" type="submit" disabled={editingTemplateStructure}>
@@ -1832,7 +1902,12 @@ function AdminShell() {
                             <div className="field-chip" key={field.id}>
                               <div>
                                 <strong>{field.label}</strong>
-                                <span>{field.field_type}{field.catalog_key ? ` · ${field.catalog_key}` : ""}{field.is_required ? " · obligatorio" : ""}</span>
+                                <span>
+                                  {field.field_type}
+                                  {field.catalog_key ? ` · ${field.catalog_key}` : ""}
+                                  {field.is_required ? " · obligatorio" : ""}
+                                  {field.field_type === "text" && textValidationLabel(textValidationForField(field)) ? ` · ${textValidationLabel(textValidationForField(field))}` : ""}
+                                </span>
                               </div>
                               <div className="field-chip-actions">
                                 <button className="text-button" type="button" onClick={() => editTemplateField(section, field)}>
@@ -2296,8 +2371,12 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
     }
   }
 
+  function publicFieldByKey(fieldKey: string) {
+    return data?.sections?.flatMap((section) => section.fields).find((field) => field.field_key === fieldKey);
+  }
+
   function updateField(fieldKey: string, value: string) {
-    const sanitizedValue = sanitizeFieldValue(fieldKey, value);
+    const sanitizedValue = sanitizeFieldValue(fieldKey, value, publicFieldByKey(fieldKey));
     setFields((current) => {
       if (fieldKey === "ubicacion_pais" && !isPeru(sanitizedValue)) {
         const { ubicacion_departamento, ubicacion_provincia, ubicacion_distrito, ...rest } = current;
@@ -2357,12 +2436,14 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  function sanitizeFieldValue(fieldKey: string, value: string) {
-    if (["datos_generales_celular", "organizacion_ruc"].includes(fieldKey)) {
+  function sanitizeFieldValue(fieldKey: string, value: string, field?: PublicFormField) {
+    const textValidation = field ? textValidationForField(field) : legacyTextValidation(fieldKey);
+
+    if (textValidation === "numbers") {
       return value.replace(/\D/g, "");
     }
 
-    if (["datos_generales_nombres", "datos_generales_paterno", "datos_generales_materno"].includes(fieldKey)) {
+    if (textValidation === "letters") {
       return value.replace(/[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ\s]/g, "");
     }
 
