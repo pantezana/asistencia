@@ -2746,7 +2746,7 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
   function nextPublicSection(event: React.FormEvent<HTMLFormElement>, sectionCount: number) {
     event.preventDefault();
 
-    if (currentPublicSection?.section_key === "datos_generales" && !isEmailValid()) {
+    if (currentPublicSection?.section_key === "datos_generales" && !isEmailValid(currentPublicSection)) {
       setMessage("Ingrese un correo electrónico válido, por ejemplo nombre@dominio.com.");
       return;
     }
@@ -2766,8 +2766,13 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  function isEmailValid() {
+  function isEmailValid(section: PublicFormSection) {
+    const emailField = section.fields.find((field) => field.field_key === "datos_generales_correo_electronico");
+    if (!emailField) return true;
+
     const email = fields.datos_generales_correo_electronico?.trim() ?? "";
+    if (!email) return !Boolean(emailField.is_required);
+
     return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email);
   }
 
