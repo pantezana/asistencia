@@ -2771,16 +2771,41 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
     return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email);
   }
 
-  function isActivityProductField(fieldKey: string) {
+  function normalizedPublicText(value: string | null | undefined) {
+    return cleanText(value)
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim()
+      .toLowerCase();
+  }
+
+  function isActivityProductField(field: PublicFormField | string) {
+    const fieldKey = typeof field === "string" ? field : field.field_key;
+    const label = typeof field === "string" ? "" : normalizedPublicText(field.label);
+
     return [
       "actividad_producto_agrario",
       "actividad_productos_pecuario",
       "actividad_productos_forestales"
-    ].includes(fieldKey);
+    ].includes(fieldKey) || label === "principal producto";
   }
 
   function updateProducerAnswer(value: string) {
     setFields((current) => {
+      if (value !== "SI") {
+        const productFieldKeys = data?.sections
+          ?.flatMap((section) => section.fields)
+          .filter((field) => isActivityProductField(field))
+          .map((field) => field.field_key) ?? [];
+        const next: Record<string, string> = { ...current, actividad_es_productor_agrario_pecuario_forestal: value };
+
+        productFieldKeys.forEach((fieldKey) => {
+          delete next[fieldKey];
+        });
+
+        return next;
+      }
+
       return { ...current, actividad_es_productor_agrario_pecuario_forestal: value };
     });
     setMessage(null);
@@ -2917,6 +2942,10 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
                     return null;
                   }
 
+                  if (isActivityProductField(field) && fields.actividad_es_productor_agrario_pecuario_forestal !== "SI") {
+                    return null;
+                  }
+
                   if (field.field_key === "ubicacion_departamento") {
 	                    return (
 	                      <label key={field.id}>
@@ -3046,7 +3075,6 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
                               Boolean(field.is_required) &&
                               !isOptionalForeignLocationField(field.field_key) &&
                               !isOptionalOrganizationLocationField(field.field_key) &&
-                              !isActivityProductField(field.field_key) &&
                               field.field_key !== "organizacion_ruc"
                             }
                         >
