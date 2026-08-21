@@ -398,6 +398,13 @@ function AdminShell() {
   const [selectedCatalogKey, setSelectedCatalogKey] = React.useState<string | null>(null);
   const [catalogItems, setCatalogItems] = React.useState<CatalogItem[]>([]);
   const [newCatalogItemName, setNewCatalogItemName] = React.useState("");
+  const [newCatalogDraft, setNewCatalogDraft] = React.useState({
+    catalogKey: "",
+    catalogName: "",
+    controlLabel: "",
+    description: ""
+  });
+  const [savingCatalog, setSavingCatalog] = React.useState(false);
   const [selectedEventId, setSelectedEventId] = React.useState<string | null>(null);
   const [actionMessage, setActionMessage] = React.useState<string | null>(null);
   const [showCreateEvent, setShowCreateEvent] = React.useState(false);
@@ -645,6 +652,58 @@ function AdminShell() {
       await loadCatalogs();
       await loadCatalogItems(selectedCatalogKey);
     }
+  }
+
+  async function createCatalog(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!newCatalogDraft.catalogKey.trim() || !newCatalogDraft.catalogName.trim() || !newCatalogDraft.controlLabel.trim()) return;
+
+    setSavingCatalog(true);
+    setActionMessage(null);
+    const response = await fetch("/api/admin/catalogs", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(newCatalogDraft)
+    });
+    const payload = (await response.json()) as { ok: boolean; message?: string; catalogKey?: string };
+    setSavingCatalog(false);
+
+    if (!response.ok || !payload.ok || !payload.catalogKey) {
+      setActionMessage(payload.message ?? "No se pudo crear el catalogo.");
+      return;
+    }
+
+    setNewCatalogDraft({ catalogKey: "", catalogName: "", controlLabel: "", description: "" });
+    await loadCatalogs();
+    await loadFormBuilderPalette();
+    setSelectedCatalogKey(payload.catalogKey);
+    await loadCatalogItems(payload.catalogKey);
+    setActionMessage("Catalogo y control de paleta creados correctamente.");
+  }
+
+  async function toggleCatalogStatus(catalog: Catalog) {
+    const nextStatus = catalog.status === "active" ? "inactive" : "active";
+    setActionMessage(null);
+    const response = await fetch(`/api/admin/catalogs/${catalog.catalog_key}/status`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: nextStatus })
+    });
+    const payload = (await response.json()) as { ok: boolean; message?: string };
+
+    if (!response.ok || !payload.ok) {
+      setActionMessage(payload.message ?? "No se pudo actualizar el catalogo.");
+      return;
+    }
+
+    await loadCatalogs();
+    await loadFormBuilderPalette();
+    if (selectedCatalogKey === catalog.catalog_key) {
+      await loadCatalogItems(catalog.catalog_key);
+    }
+    setActionMessage(nextStatus === "active" ? "Catalogo activado correctamente." : "Catalogo inactivado correctamente.");
   }
 
   async function toggleCatalogItem(item: CatalogItem) {
@@ -1805,6 +1864,57 @@ function AdminShell() {
             </div>
           </div>
 
+          <form className="admin-form-panel compact-form" onSubmit={createCatalog}>
+            <div className="detail-heading">
+              <div>
+                <h3>Crear catalogo para nuevo select</h3>
+                <p>El catalogo nuevo crea automaticamente un control tipo select en la paleta de modelos.</p>
+              </div>
+            </div>
+            <div className="form-grid">
+              <label>
+                Clave del catalogo
+                <input
+                  value={newCatalogDraft.catalogKey}
+                  onChange={(event) => setNewCatalogDraft((current) => ({ ...current, catalogKey: event.target.value }))}
+                  placeholder="ejemplo: tipoinstitucion"
+                  required
+                />
+              </label>
+              <label>
+                Nombre del catalogo
+                <input
+                  value={newCatalogDraft.catalogName}
+                  onChange={(event) => setNewCatalogDraft((current) => ({ ...current, catalogName: event.target.value }))}
+                  placeholder="Tipo de institucion"
+                  required
+                />
+              </label>
+              <label>
+                Nombre en paleta
+                <input
+                  value={newCatalogDraft.controlLabel}
+                  onChange={(event) => setNewCatalogDraft((current) => ({ ...current, controlLabel: event.target.value }))}
+                  placeholder="Tipo de institucion"
+                  required
+                />
+              </label>
+              <label className="wide-field">
+                Descripcion
+                <input
+                  value={newCatalogDraft.description}
+                  onChange={(event) => setNewCatalogDraft((current) => ({ ...current, description: event.target.value }))}
+                  placeholder="Descripcion opcional"
+                />
+              </label>
+            </div>
+            <div className="actions">
+              <button className="button" type="submit" disabled={savingCatalog}>
+                {savingCatalog ? "Creando..." : "Crear catalogo y control"}
+              </button>
+            </div>
+          </form>
+
           <div className="split-grid">
             <div className="list-panel compact-list">
               {catalogs.map((catalog) => (
@@ -1816,6 +1926,7 @@ function AdminShell() {
                 >
                   <strong>{catalog.catalog_key}</strong>
                   <span>{catalog.active_item_count} activos de {catalog.item_count}</span>
+                  <small>{catalog.status}</small>
                 </button>
               ))}
             </div>
@@ -1828,6 +1939,9 @@ function AdminShell() {
                       <h3>{selectedCatalog.catalog_key}</h3>
                       <p>Mantenimiento bÃ¡sico de opciones para campos tipo select.</p>
                     </div>
+                    <button className="button secondary" type="button" onClick={() => void toggleCatalogStatus(selectedCatalog)}>
+                      {selectedCatalog.status === "active" ? "Inactivar catalogo" : "Activar catalogo"}
+                    </button>
                   </div>
                   <form className="inline-form" onSubmit={addCatalogItem}>
                     <input

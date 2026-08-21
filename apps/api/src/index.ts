@@ -11,6 +11,7 @@ import {
   cloneFormTemplate,
   cloneForm,
   createCatalogItem,
+  createCatalogWithControl,
   createEventWithSchedule,
   createParticipant,
   findParticipantByDocument,
@@ -43,6 +44,7 @@ import {
   removeTemplateField,
   removeTemplateSection,
   updateCatalogItemStatus,
+  updateCatalogStatus,
   updateEventDetails,
   updateEventSessionDetails,
   updateFormDetails,
@@ -947,6 +949,36 @@ app.post("/api/admin/forms/:formId/status", async (c) => {
 app.get("/api/admin/catalogs", async (c) => {
   const catalogs = await listCatalogs(c.env.DB);
   return c.json({ ok: true, catalogs: catalogs.results });
+});
+
+app.post("/api/admin/catalogs", async (c) => {
+  const body = await c.req.json<{
+    catalogKey?: string;
+    catalogName?: string;
+    controlLabel?: string;
+    description?: string;
+  }>().catch(() => null);
+
+  const result = await createCatalogWithControl(c.env.DB, {
+    catalogKey: body?.catalogKey ?? "",
+    catalogName: body?.catalogName ?? "",
+    controlLabel: body?.controlLabel ?? "",
+    description: body?.description
+  });
+
+  return c.json(result, result.ok ? 201 : 400);
+});
+
+app.post("/api/admin/catalogs/:catalogKey/status", async (c) => {
+  const body = await c.req.json<{ status?: string }>().catch(() => null);
+  const status = body?.status === "active" ? "active" : "inactive";
+  const ok = await updateCatalogStatus(c.env.DB, c.req.param("catalogKey"), status);
+
+  if (!ok) {
+    return c.json({ ok: false, message: "Catalogo no encontrado." }, 404);
+  }
+
+  return c.json({ ok: true });
 });
 
 app.get("/api/admin/catalogs/:catalogKey/items", async (c) => {

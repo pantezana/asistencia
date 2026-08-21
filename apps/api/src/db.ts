@@ -882,10 +882,12 @@ export async function listFormSectionDefinitions(db: D1Database) {
 export async function listFormControlDefinitions(db: D1Database) {
   return db
     .prepare(
-      `SELECT id, control_key, label, field_type, catalog_key, default_required, validation_rules, default_config, status
-       FROM form_control_definitions
-       WHERE status = 'active'
-       ORDER BY label`
+      `SELECT fcd.id, fcd.control_key, fcd.label, fcd.field_type, fcd.catalog_key, fcd.default_required, fcd.validation_rules, fcd.default_config, fcd.status
+       FROM form_control_definitions fcd
+       LEFT JOIN system_catalogs c ON c.catalog_key = fcd.catalog_key
+       WHERE fcd.status = 'active'
+         AND (fcd.catalog_key IS NULL OR c.status = 'active')
+       ORDER BY fcd.label`
     )
     .all<FormControlDefinition>();
 }
@@ -1700,6 +1702,72 @@ export async function listCatalogs(db: D1Database) {
        ORDER BY c.catalog_key`
     )
     .all<Catalog>();
+}
+
+export async function createCatalogWithControl(db: D1Database, input: {
+  catalogKey: string;
+  catalogName: string;
+  controlLabel: string;
+  description?: string;
+}) {
+  const catalogKey = toFieldKey(input.catalogKey, "").replace(/^_+|_+$/g, "");
+  const catalogName = input.catalogName.trim();
+  const controlLabel = input.controlLabel.trim();
+
+  if (!catalogKey || !catalogName || !controlLabel) {
+    return { ok: false, message: "Ingrese nombre del catalogo y nombre para la paleta." };
+  }
+
+  const existing = await db
+    .prepare("SELECT id FROM system_catalogs WHERE catalog_key = ?")
+    .bind(catalogKey)
+    .first<{ id: string }>();
+  if (existing) {
+    return { ok: false, message: "Ya existe un catalogo con esa clave." };
+  }
+
+  const catalogId = `cat_${catalogKey}`;
+  const controlKey = toFieldKey(controlLabel, catalogKey);
+  let finalControlKey = controlKey;
+  let counter = 2;
+  while (await db.prepare("SELECT id FROM form_control_definitions WHERE control_key = ?").bind(finalControlKey).first()) {
+    finalControlKey = `${controlKey}_${counter}`;
+    counter += 1;
+  }
+
+  await db.batch([
+    db
+      .prepare(
+        `INSERT INTO system_catalogs (id, catalog_key, name, description, status)
+         VALUES (?, ?, ?, ?, 'active')`
+      )
+      .bind(catalogId, catalogKey, catalogName, input.description?.trim() || catalogName),
+    db
+      .prepare(
+        `INSERT INTO form_control_definitions (id, control_key, label, field_type, catalog_key, default_required, validation_rules, default_config, status)
+         VALUES (?, ?, ?, 'select', ?, 1, '{}', '{}', 'active')`
+      )
+      .bind(`ctrldef_${finalControlKey}`, finalControlKey, controlLabel, catalogKey)
+  ]);
+
+  return { ok: true, catalogKey };
+}
+
+export async function updateCatalogStatus(db: D1Database, catalogKey: string, status: string) {
+  const nextStatus = status === "active" ? "active" : "inactive";
+  const result = await db
+    .prepare("UPDATE system_catalogs SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE catalog_key = ?")
+    .bind(nextStatus, catalogKey)
+    .run();
+
+  if (result.meta.changes > 0) {
+    await db
+      .prepare("UPDATE form_control_definitions SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE catalog_key = ?")
+      .bind(nextStatus, catalogKey)
+      .run();
+  }
+
+  return result.meta.changes > 0;
 }
 
 export async function listCatalogItems(db: D1Database, catalogKey: string) {
