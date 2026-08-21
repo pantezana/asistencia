@@ -2751,11 +2751,6 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
       return;
     }
 
-    if (currentPublicSection?.section_key === "actividad" && !isActivitySectionValid()) {
-      setMessage("Seleccione al menos un producto agrario, pecuario o forestal, o responda NO.");
-      return;
-    }
-
     if (publicSectionIndex >= sectionCount - 1) {
       void submitAttendance();
       return;
@@ -2784,30 +2779,8 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
     ].includes(fieldKey);
   }
 
-  function isActivitySectionValid() {
-    if (fields.actividad_es_productor_agrario_pecuario_forestal !== "SI") {
-      return true;
-    }
-
-    return Boolean(
-      fields.actividad_producto_agrario ||
-      fields.actividad_productos_pecuario ||
-      fields.actividad_productos_forestales
-    );
-  }
-
   function updateProducerAnswer(value: string) {
     setFields((current) => {
-      if (value !== "SI") {
-        const {
-          actividad_producto_agrario,
-          actividad_productos_pecuario,
-          actividad_productos_forestales,
-          ...rest
-        } = current;
-        return { ...rest, actividad_es_productor_agrario_pecuario_forestal: value };
-      }
-
       return { ...current, actividad_es_productor_agrario_pecuario_forestal: value };
     });
     setMessage(null);
@@ -2921,23 +2894,6 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
                 {currentPublicSection.fields.some((field) => field.field_key === "organizacion_pais") && fields.organizacion_pais && !isPeru(fields.organizacion_pais) ? (
                   <p className="field-note">Para sedes fuera de Perú no se requiere departamento, provincia ni distrito.</p>
                 ) : null}
-                {false && currentPublicSection.section_key === "actividad" ? (
-                  <label>
-                    Es Productor Agrario, Pecuario o Forestal
-                    <select
-                      value={fields.actividad_es_productor_agrario_pecuario_forestal ?? ""}
-                      onChange={(event) => updateProducerAnswer(event.target.value)}
-                      required
-                    >
-                      <option value="">Seleccione</option>
-                      <option value="SI">SI</option>
-                      <option value="NO">NO</option>
-                    </select>
-                  </label>
-                ) : null}
-                {false && currentPublicSection.section_key === "actividad" && fields.actividad_es_productor_agrario_pecuario_forestal === "SI" ? (
-                  <p className="field-note">Seleccione sus productos: debe elegir al menos una opción.</p>
-                ) : null}
                 {currentPublicSection.fields.map((field) => {
                   if (
                     field.field_key === "datos_generales_tipo_docidentidad" ||
@@ -2960,10 +2916,6 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
                   if (isOptionalOrganizationLocationField(field.field_key)) {
                     return null;
                   }
-
-	                  if (isActivityProductField(field.field_key) && fields.actividad_es_productor_agrario_pecuario_forestal !== "SI") {
-	                    return null;
-	                  }
 
                   if (field.field_key === "ubicacion_departamento") {
 	                    return (
@@ -3108,7 +3060,7 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
                       {field.field_key === "actividad_actividad_del_productor" ? (
                         <>
                           <label>
-                            Es Productor Agrario, Pecuario o Forestal
+                            Es Productor Agrícola, Pecuario o Forestal
                             <select
                               value={fields.actividad_es_productor_agrario_pecuario_forestal ?? ""}
                               onChange={(event) => updateProducerAnswer(event.target.value)}
@@ -3119,9 +3071,6 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
                               <option value="NO">NO</option>
                             </select>
                           </label>
-                          {fields.actividad_es_productor_agrario_pecuario_forestal === "SI" ? (
-                            <p className="field-note">Seleccione sus productos: debe elegir al menos una opción.</p>
-                          ) : null}
                         </>
                       ) : null}
                       </React.Fragment>
