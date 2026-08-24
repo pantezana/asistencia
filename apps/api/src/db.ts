@@ -5,6 +5,8 @@ import type {
   CatalogItem,
   DbUserWithPassword,
   EventSummary,
+  EventQuestion,
+  EventQuestionSummaryItem,
   FormControlDefinition,
   FormField,
   FormSectionDefinition,
@@ -65,6 +67,27 @@ function catalogOrderSql() {
     END,
     CASE WHEN c.catalog_key = 'rangoedad' THEN 0 ELSE i.name END,
     i.name`;
+}
+
+function normalizeAnswer(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+async function uniqueQuestionSlug(db: D1Database, base: string, column: "participant_slug" | "presenter_slug") {
+  let slug = normalizePublicSlug(base);
+  if (!slug) slug = crypto.randomUUID().slice(0, 10);
+  let finalSlug = slug;
+  let counter = 2;
+  while (await db.prepare(`SELECT id FROM event_questions WHERE ${column} = ?`).bind(finalSlug).first()) {
+    finalSlug = `${slug}-${counter}`;
+    counter += 1;
+  }
+  return finalSlug;
 }
 
 function canSeeAllEvents(user: SessionUser) {
@@ -233,6 +256,158 @@ export async function userCanManageEvent(db: D1Database, eventId: string, user: 
     .bind(eventId, user.id)
     .first<{ id: string }>()
     .then(Boolean);
+}
+
+export async function listEventQuestions(db: D1Database, eventId: string) {
+  return db
+    .prepare(
+      `SELECT
+        q.*,
+        COUNT(r.id) AS response_count,
+        COUNT(DISTINCT r.participant_id) AS unique_participant_count
+       FROM event_questions q
+       LEFT JOIN event_question_responses r ON r.question_id = q.id AND r.status = 'active'
+       WHERE q.event_id = ?
+       GROUP BY q.id
+       ORDER BY q.created_at DESC`
+    )
+    .bind(eventId)
+    .all<EventQuestion>();
+}
+
+export async function createEventQuestion(db: D1Database, eventId: string, user: SessionUser, input: {
+  questionText: string;
+  description?: string;
+  sessionId?: string | null;
+  allowMultipleResponses?: boolean;
+  maxResponsesPerParticipant?: number | null;
+  maxAnswerLength?: number;
+  participantSlug?: string;
+}) {
+  const questionText = input.questionText.trim();
+  if (!questionText) return { ok: false, message: "Ingrese la pregunta." };
+
+  const event = await db
+    .prepare("SELECT id, short_link_slug FROM events WHERE id = ?")
+    .bind(eventId)
+    .first<{ id: string; short_link_slug: string }>();
+  if (!event) return { ok: false, message: "Evento no encontrado." };
+
+  if (input.sessionId) {
+    const session = await db
+      .prepare("SELECT id FROM event_sessions WHERE id = ? AND event_id = ?")
+      .bind(input.sessionId, eventId)
+      .first<{ id: string }>();
+    if (!session) return { ok: false, message: "Seleccione una sesion valida." };
+  }
+
+  const questionId = `question_${crypto.randomUUID().slice(0, 12)}`;
+  const baseSlug = input.participantSlug || `${event.short_link_slug}-pregunta-${crypto.randomUUID().slice(0, 6)}`;
+  const participantSlug = await uniqueQuestionSlug(db, baseSlug, "participant_slug");
+  const presenterSlug = await uniqueQuestionSlug(db, `${participantSlug}-presentador-${crypto.randomUUID().slice(0, 8)}`, "presenter_slug");
+  const maxAnswerLength = Math.min(Math.max(input.maxAnswerLength || 80, 10), 500);
+
+  await db
+    .prepare(
+      `INSERT INTO event_questions (
+        id, event_id, session_id, question_text, description, interaction_type, status,
+        allow_multiple_responses, allow_response_update, max_responses_per_participant,
+        max_answer_length, participant_slug, presenter_slug, created_by_user_id
+       )
+       VALUES (?, ?, ?, ?, ?, 'word_cloud', 'draft', ?, 0, ?, ?, ?, ?, ?)`
+    )
+    .bind(
+      questionId,
+      eventId,
+      input.sessionId || null,
+      questionText,
+      input.description?.trim() || null,
+      input.allowMultipleResponses ? 1 : 0,
+      input.maxResponsesPerParticipant ?? null,
+      maxAnswerLength,
+      participantSlug,
+      presenterSlug,
+      user.id
+    )
+    .run();
+
+  return { ok: true, question: await getEventQuestionById(db, questionId) };
+}
+
+export async function getEventQuestionById(db: D1Database, questionId: string) {
+  return db
+    .prepare(
+      `SELECT
+        q.*,
+        COUNT(r.id) AS response_count,
+        COUNT(DISTINCT r.participant_id) AS unique_participant_count
+       FROM event_questions q
+       LEFT JOIN event_question_responses r ON r.question_id = q.id AND r.status = 'active'
+       WHERE q.id = ?
+       GROUP BY q.id`
+    )
+    .bind(questionId)
+    .first<EventQuestion>();
+}
+
+export async function updateEventQuestion(db: D1Database, eventId: string, questionId: string, input: {
+  questionText: string;
+  description?: string;
+  sessionId?: string | null;
+  status?: string;
+  allowMultipleResponses?: boolean;
+  maxResponsesPerParticipant?: number | null;
+  maxAnswerLength?: number;
+}) {
+  const current = await db
+    .prepare("SELECT id, event_id, status FROM event_questions WHERE id = ? AND event_id = ?")
+    .bind(questionId, eventId)
+    .first<{ id: string; event_id: string; status: string }>();
+  if (!current) return { ok: false, message: "Pregunta no encontrada." };
+
+  const questionText = input.questionText.trim();
+  if (!questionText) return { ok: false, message: "Ingrese la pregunta." };
+
+  if (input.sessionId) {
+    const session = await db
+      .prepare("SELECT id FROM event_sessions WHERE id = ? AND event_id = ?")
+      .bind(input.sessionId, current.event_id)
+      .first<{ id: string }>();
+    if (!session) return { ok: false, message: "Seleccione una sesion valida." };
+  }
+
+  const status = input.status && ["draft", "open", "closed", "archived"].includes(input.status) ? input.status : current.status;
+  const maxAnswerLength = Math.min(Math.max(input.maxAnswerLength || 80, 10), 500);
+
+  await db
+    .prepare(
+      `UPDATE event_questions
+       SET session_id = ?, question_text = ?, description = ?, status = ?, allow_multiple_responses = ?,
+           max_responses_per_participant = ?, max_answer_length = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`
+    )
+    .bind(
+      input.sessionId || null,
+      questionText,
+      input.description?.trim() || null,
+      status,
+      input.allowMultipleResponses ? 1 : 0,
+      input.maxResponsesPerParticipant ?? null,
+      maxAnswerLength,
+      questionId
+    )
+    .run();
+
+  return { ok: true, question: await getEventQuestionById(db, questionId) };
+}
+
+export async function updateEventQuestionStatus(db: D1Database, eventId: string, questionId: string, status: string) {
+  const nextStatus = ["draft", "open", "closed", "archived"].includes(status) ? status : "draft";
+  const result = await db
+    .prepare("UPDATE event_questions SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND event_id = ?")
+    .bind(nextStatus, questionId, eventId)
+    .run();
+  return result.meta.changes > 0;
 }
 
 export async function listEventModules(db: D1Database, eventId: string) {
@@ -1465,6 +1640,100 @@ export async function hasAttendance(db: D1Database, sessionId: string, participa
     .first<{ id: string }>();
 
   return Boolean(row);
+}
+
+export async function participantHasEventAttendance(db: D1Database, eventId: string, participantId: string) {
+  const row = await db
+    .prepare("SELECT id FROM attendance_records WHERE event_id = ? AND participant_id = ? LIMIT 1")
+    .bind(eventId, participantId)
+    .first<{ id: string }>();
+
+  return Boolean(row);
+}
+
+export async function getPublicQuestionByParticipantSlug(db: D1Database, slug: string) {
+  return db
+    .prepare(
+      `SELECT q.*, e.title AS event_title, e.short_link_slug AS event_slug
+       FROM event_questions q
+       INNER JOIN events e ON e.id = q.event_id
+       WHERE q.participant_slug = ? AND q.status IN ('open', 'closed')`
+    )
+    .bind(slug)
+    .first<EventQuestion & { event_title: string; event_slug: string }>();
+}
+
+export async function getPublicQuestionByPresenterSlug(db: D1Database, slug: string) {
+  return db
+    .prepare(
+      `SELECT q.*, e.title AS event_title, e.short_link_slug AS event_slug
+       FROM event_questions q
+       INNER JOIN events e ON e.id = q.event_id
+       WHERE q.presenter_slug = ? AND q.status IN ('open', 'closed')`
+    )
+    .bind(slug)
+    .first<EventQuestion & { event_title: string; event_slug: string }>();
+}
+
+export async function countQuestionResponsesByParticipant(db: D1Database, questionId: string, participantId: string) {
+  const row = await db
+    .prepare("SELECT COUNT(*) AS count FROM event_question_responses WHERE question_id = ? AND participant_id = ? AND status = 'active'")
+    .bind(questionId, participantId)
+    .first<{ count: number }>();
+  return Number(row?.count ?? 0);
+}
+
+export async function registerQuestionResponse(db: D1Database, question: EventQuestion, participant: Participant, answerText: string) {
+  if (question.status !== "open") return { ok: false, message: "La pregunta no esta abierta para recibir respuestas." };
+
+  const cleanAnswer = answerText.replace(/\s+/g, " ").trim();
+  if (!cleanAnswer) return { ok: false, message: "Ingrese una respuesta." };
+  if (cleanAnswer.length > question.max_answer_length) {
+    return { ok: false, message: `La respuesta no debe superar ${question.max_answer_length} caracteres.` };
+  }
+
+  const currentCount = await countQuestionResponsesByParticipant(db, question.id, participant.id);
+  if (!question.allow_multiple_responses && currentCount > 0) {
+    return { ok: false, message: "Ya registraste una respuesta para esta pregunta." };
+  }
+  if (question.allow_multiple_responses && question.max_responses_per_participant && currentCount >= question.max_responses_per_participant) {
+    return { ok: false, message: "Alcanzaste el maximo de respuestas permitidas para esta pregunta." };
+  }
+
+  await db
+    .prepare(
+      `INSERT INTO event_question_responses (
+        id, question_id, event_id, participant_id, document_type, document_number, answer_text, normalized_answer, status
+       )
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active')`
+    )
+    .bind(
+      `qresp_${crypto.randomUUID().slice(0, 12)}`,
+      question.id,
+      question.event_id,
+      participant.id,
+      participant.document_type,
+      participant.document_number,
+      cleanAnswer,
+      normalizeAnswer(cleanAnswer)
+    )
+    .run();
+
+  return { ok: true };
+}
+
+export async function getQuestionSummary(db: D1Database, questionId: string) {
+  return db
+    .prepare(
+      `SELECT normalized_answer, MIN(answer_text) AS answer, COUNT(*) AS count
+       FROM event_question_responses
+       WHERE question_id = ? AND status = 'active'
+       GROUP BY normalized_answer
+       ORDER BY count DESC, answer ASC
+       LIMIT 120`
+    )
+    .bind(questionId)
+    .all<EventQuestionSummaryItem>();
 }
 
 export async function registerAttendance(db: D1Database, openSession: OpenSession, participantId: string, formId: string) {

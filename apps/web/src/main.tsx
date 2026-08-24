@@ -194,6 +194,31 @@ type QrPreview = {
   slug: string;
 };
 
+type EventQuestion = {
+  id: string;
+  event_id: string;
+  session_id: string | null;
+  question_text: string;
+  description: string | null;
+  interaction_type: string;
+  status: string;
+  allow_multiple_responses: number;
+  max_responses_per_participant: number | null;
+  max_answer_length: number;
+  participant_slug: string;
+  presenter_slug: string;
+  response_count: number;
+  unique_participant_count: number;
+  event_title?: string;
+  event_slug?: string;
+};
+
+type QuestionSummaryItem = {
+  answer: string;
+  normalized_answer: string;
+  count: number;
+};
+
 function cleanText(value: string | null | undefined) {
   return (value ?? "")
     .replaceAll("Ã¡", "á")
@@ -386,6 +411,14 @@ async function downloadQrPdf(qrUrl: string, slug: string) {
 function App() {
   const path = window.location.pathname;
 
+  if (path.startsWith("/q/p/")) {
+    return <QuestionPresenterView slug={path.replace("/q/p/", "")} />;
+  }
+
+  if (path.startsWith("/q/")) {
+    return <QuestionParticipantView slug={path.replace("/q/", "")} />;
+  }
+
   if (path.startsWith("/f/")) {
     return <PublicAttendanceForm slug={path.replace("/f/", "") || "inauguracion-otca"} />;
   }
@@ -398,6 +431,7 @@ function AdminShell() {
   const [loading, setLoading] = React.useState(true);
   const [events, setEvents] = React.useState<AdminEvent[]>([]);
   const [sessions, setSessions] = React.useState<AdminSession[]>([]);
+  const [eventQuestions, setEventQuestions] = React.useState<EventQuestion[]>([]);
   const [selectedSessionId, setSelectedSessionId] = React.useState<string | null>(null);
   const [savingSession, setSavingSession] = React.useState(false);
   const [formTemplates, setFormTemplates] = React.useState<FormTemplate[]>([]);
@@ -491,6 +525,15 @@ function AdminShell() {
     endTime: "",
     status: "closed"
   });
+  const [questionDraft, setQuestionDraft] = React.useState({
+    questionText: "",
+    description: "",
+    sessionId: "",
+    allowMultipleResponses: false,
+    maxResponsesPerParticipant: "",
+    maxAnswerLength: "80",
+    participantSlug: ""
+  });
 
   React.useEffect(() => {
     fetch("/api/auth/me", { credentials: "include" })
@@ -512,6 +555,7 @@ function AdminShell() {
   React.useEffect(() => {
     if (selectedEventId) {
       void loadSessions(selectedEventId);
+      void loadEventQuestions(selectedEventId);
     }
   }, [selectedEventId]);
 
@@ -636,6 +680,13 @@ function AdminShell() {
     const payload = (await response.json()) as { sessions: AdminSession[] };
     setSessions(payload.sessions);
     setSelectedSessionId((current) => payload.sessions.some((session) => session.id === current) ? current : payload.sessions[0]?.id ?? null);
+  }
+
+  async function loadEventQuestions(eventId: string) {
+    const response = await fetch(`/api/admin/events/${eventId}/questions`, { credentials: "include" });
+    if (!response.ok) return;
+    const payload = (await response.json()) as { questions: EventQuestion[] };
+    setEventQuestions(payload.questions);
   }
 
   async function saveSelectedTemplate(event: React.FormEvent<HTMLFormElement>) {
@@ -1090,6 +1141,64 @@ function AdminShell() {
     setActionMessage("Sesion actualizada correctamente.");
   }
 
+  async function createQuestion(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedEventId || !questionDraft.questionText.trim()) return;
+
+    setActionMessage(null);
+    const response = await fetch(`/api/admin/events/${selectedEventId}/questions`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        questionText: questionDraft.questionText,
+        description: questionDraft.description,
+        sessionId: questionDraft.sessionId || null,
+        allowMultipleResponses: questionDraft.allowMultipleResponses,
+        maxResponsesPerParticipant: questionDraft.maxResponsesPerParticipant ? Number(questionDraft.maxResponsesPerParticipant) : null,
+        maxAnswerLength: Number(questionDraft.maxAnswerLength) || 80,
+        participantSlug: questionDraft.participantSlug
+      })
+    });
+    const payload = (await response.json()) as { ok: boolean; message?: string };
+
+    if (!response.ok || !payload.ok) {
+      setActionMessage(payload.message ?? "No se pudo crear la pregunta.");
+      return;
+    }
+
+    setQuestionDraft({
+      questionText: "",
+      description: "",
+      sessionId: "",
+      allowMultipleResponses: false,
+      maxResponsesPerParticipant: "",
+      maxAnswerLength: "80",
+      participantSlug: ""
+    });
+    await loadEventQuestions(selectedEventId);
+    setActionMessage("Pregunta interactiva creada correctamente.");
+  }
+
+  async function changeQuestionStatus(question: EventQuestion, status: string) {
+    if (!selectedEventId) return;
+    const response = await fetch(`/api/admin/events/${selectedEventId}/questions/${question.id}/status`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status })
+    });
+    const payload = (await response.json()) as { ok: boolean; message?: string };
+
+    if (!response.ok || !payload.ok) {
+      setActionMessage(payload.message ?? "No se pudo actualizar la pregunta.");
+      return;
+    }
+
+    await loadEventQuestions(selectedEventId);
+    setActionMessage("Estado de pregunta actualizado.");
+  }
+
   function updateSessionDraft(index: number, field: keyof EventSessionDraft, value: string) {
     setSessionDrafts((current) => current.map((session, itemIndex) =>
       itemIndex === index ? { ...session, [field]: value } : session
@@ -1525,6 +1634,110 @@ function AdminShell() {
                   </a>
                 </div>
               </form>
+            </div>
+          ) : null}
+
+          {selectedEvent ? (
+            <div className="admin-form-panel">
+              <div className="detail-heading">
+                <div>
+                  <p className="eyebrow">Interacción en vivo</p>
+                  <h3>Preguntas interactivas</h3>
+                  <p>Publique preguntas para participantes registrados en la asistencia del evento y visualice una nube de respuestas.</p>
+                </div>
+              </div>
+
+              <form className="builder-card" onSubmit={createQuestion}>
+                <div className="builder-grid">
+                  <label>
+                    Pregunta
+                    <input
+                      value={questionDraft.questionText}
+                      onChange={(event) => setQuestionDraft((current) => ({ ...current, questionText: event.target.value }))}
+                      placeholder="Ejemplo: Describe este aprendizaje en una palabra"
+                      required
+                    />
+                  </label>
+                  <label>
+                    Sesión asociada
+                    <select value={questionDraft.sessionId} onChange={(event) => setQuestionDraft((current) => ({ ...current, sessionId: event.target.value }))}>
+                      <option value="">Todo el evento</option>
+                      {sessions.map((session) => (
+                        <option key={session.id} value={session.id}>{session.title}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Enlace corto de pregunta
+                    <input
+                      value={questionDraft.participantSlug}
+                      onChange={(event) => setQuestionDraft((current) => ({ ...current, participantSlug: event.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-") }))}
+                      placeholder="opcional"
+                    />
+                  </label>
+                  <label className="wide-field">
+                    Descripción
+                    <input
+                      value={questionDraft.description}
+                      onChange={(event) => setQuestionDraft((current) => ({ ...current, description: event.target.value }))}
+                    />
+                  </label>
+                  <label>
+                    Máximo de caracteres
+                    <input
+                      min="10"
+                      max="500"
+                      type="number"
+                      value={questionDraft.maxAnswerLength}
+                      onChange={(event) => setQuestionDraft((current) => ({ ...current, maxAnswerLength: event.target.value }))}
+                    />
+                  </label>
+                  <label>
+                    Máximo respuestas por participante
+                    <input
+                      min="1"
+                      type="number"
+                      value={questionDraft.maxResponsesPerParticipant}
+                      onChange={(event) => setQuestionDraft((current) => ({ ...current, maxResponsesPerParticipant: event.target.value }))}
+                      disabled={!questionDraft.allowMultipleResponses}
+                    />
+                  </label>
+                  <label className="check-field">
+                    <input
+                      checked={questionDraft.allowMultipleResponses}
+                      onChange={(event) => setQuestionDraft((current) => ({ ...current, allowMultipleResponses: event.target.checked }))}
+                      type="checkbox"
+                    />
+                    Permitir mas de una respuesta
+                  </label>
+                </div>
+                <div className="actions">
+                  <button className="button secondary" type="submit">Crear pregunta</button>
+                </div>
+              </form>
+
+              <div className="question-list">
+                {eventQuestions.map((question) => {
+                  const participantUrl = `${window.location.origin}/q/${question.participant_slug}`;
+                  const presenterUrl = `${window.location.origin}/q/p/${question.presenter_slug}`;
+                  return (
+                    <div className="question-card" key={question.id}>
+                      <div>
+                        <strong>{question.question_text}</strong>
+                        <span>{question.response_count} respuestas · {question.unique_participant_count} participantes · {question.status}</span>
+                        <a href={participantUrl}>{participantUrl}</a>
+                        <a href={presenterUrl}>{presenterUrl}</a>
+                      </div>
+                      <div className="row-actions">
+                        <button className="button secondary table-action" type="button" onClick={() => void changeQuestionStatus(question, "open")}>Abrir</button>
+                        <button className="button secondary table-action" type="button" onClick={() => void changeQuestionStatus(question, "closed")}>Cerrar</button>
+                        <button className="button secondary table-action" type="button" onClick={() => void changeQuestionStatus(question, "archived")}>Archivar</button>
+                      </div>
+                    </div>
+                  );
+                })}
+                {eventQuestions.length === 0 ? <p className="blocked-message">No hay preguntas interactivas para este evento.</p> : null}
+              </div>
             </div>
           ) : null}
 
@@ -3153,6 +3366,243 @@ function PublicMessage({ title, message }: { title: string; message: string }) {
         <p className="eyebrow">Asistencia</p>
         <h1>{title}</h1>
         <p className="blocked-message">{message}</p>
+      </section>
+    </main>
+  );
+}
+
+function participantName(participant: PublicParticipant | null) {
+  if (!participant) return "";
+  return [participant.first_name, participant.paternal_last_name, participant.maternal_last_name].filter(Boolean).join(" ");
+}
+
+function QuestionParticipantView({ slug }: { slug: string }) {
+  const [question, setQuestion] = React.useState<EventQuestion | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [documentType, setDocumentType] = React.useState("DNI/CEDULA");
+  const [documentNumber, setDocumentNumber] = React.useState("");
+  const [participant, setParticipant] = React.useState<PublicParticipant | null>(null);
+  const [attendanceUrl, setAttendanceUrl] = React.useState("");
+  const [answer, setAnswer] = React.useState("");
+  const [message, setMessage] = React.useState("");
+  const [submitting, setSubmitting] = React.useState(false);
+
+  React.useEffect(() => {
+    async function loadQuestion() {
+      setLoading(true);
+      const response = await fetch(`/api/public/questions/${slug}`);
+      const payload = (await response.json().catch(() => null)) as { ok?: boolean; question?: EventQuestion; message?: string } | null;
+      setLoading(false);
+      if (!response.ok || !payload?.ok || !payload.question) {
+        setMessage(payload?.message ?? "Pregunta no disponible.");
+        return;
+      }
+      setQuestion(payload.question);
+    }
+
+    void loadQuestion();
+  }, [slug]);
+
+  async function identify(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setMessage("");
+    setAttendanceUrl("");
+    setParticipant(null);
+
+    const response = await fetch(`/api/public/questions/${slug}/identify`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ documentType, documentNumber })
+    });
+    const payload = (await response.json().catch(() => null)) as {
+      ok?: boolean;
+      canParticipate?: boolean;
+      participant?: PublicParticipant | null;
+      attendanceUrl?: string;
+      message?: string;
+    } | null;
+
+    if (!response.ok || !payload?.ok) {
+      setMessage(payload?.message ?? "No se pudo validar el documento.");
+      return;
+    }
+
+    if (!payload.canParticipate) {
+      setAttendanceUrl(payload.attendanceUrl ?? "");
+      setMessage("No encontramos una asistencia registrada para este evento. Primero registre su asistencia.");
+      return;
+    }
+
+    setParticipant(payload.participant ?? null);
+  }
+
+  async function submitAnswer(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!question || !participant) return;
+
+    setSubmitting(true);
+    setMessage("");
+    const response = await fetch(`/api/public/questions/${slug}/responses`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ documentType, documentNumber, answer })
+    });
+    const payload = (await response.json().catch(() => null)) as { ok?: boolean; message?: string } | null;
+    setSubmitting(false);
+
+    if (!response.ok || !payload?.ok) {
+      setMessage(payload?.message ?? "No se pudo registrar la respuesta.");
+      return;
+    }
+
+    setAnswer("");
+    setMessage(payload.message ?? "Respuesta registrada correctamente.");
+  }
+
+  if (loading) return <PublicMessage title="Cargando pregunta" message="Estamos preparando la interacción." />;
+  if (!question) return <PublicMessage title="Pregunta no disponible" message={message || "No se pudo cargar la pregunta."} />;
+
+  const isOpen = question.status === "open";
+
+  return (
+    <main className="public-page question-page">
+      <section className="public-form compact question-participant-card">
+        <p className="eyebrow">Pregunta interactiva</p>
+        <h1>{question.event_title}</h1>
+        <div className="question-box">
+          <span>Nube de palabras</span>
+          <strong>{question.question_text}</strong>
+          {question.description ? <p>{question.description}</p> : null}
+        </div>
+
+        {!isOpen ? (
+        <p className="blocked-message">Esta pregunta no está abierta para recibir respuestas.</p>
+        ) : null}
+
+        {isOpen && !participant ? (
+          <form className="document-form" onSubmit={identify}>
+            <label>
+              Tipo de documento
+              <select value={documentType} onChange={(event) => setDocumentType(event.target.value)} required>
+                <option value="DNI/CEDULA">DNI/CEDULA</option>
+                <option value="PASAPORTE">PASAPORTE</option>
+                <option value="CARNET EXTRANJERIA">CARNET EXTRANJERIA</option>
+                <option value="OTRO">OTRO</option>
+              </select>
+            </label>
+            <label>
+              Número de documento
+              <input value={documentNumber} onChange={(event) => setDocumentNumber(event.target.value)} required />
+            </label>
+            <button className="button" type="submit">Continuar</button>
+          </form>
+        ) : null}
+
+        {isOpen && participant ? (
+          <form className="document-form" onSubmit={submitAnswer}>
+            <div className="confirm-panel">
+              <h2>Hola, {participantName(participant)}</h2>
+              <p>Escriba su respuesta para verla reflejada en la nube.</p>
+            </div>
+            <label>
+              Respuesta
+              <textarea
+                maxLength={question.max_answer_length}
+                value={answer}
+                onChange={(event) => setAnswer(event.target.value)}
+                placeholder="Escriba una palabra o frase corta"
+                required
+              />
+              <span className="field-hint">{answer.length} / {question.max_answer_length}</span>
+            </label>
+            <div className="form-navigation">
+              <button className="button secondary" type="button" onClick={() => setParticipant(null)} disabled={submitting}>
+                Cambiar documento
+              </button>
+              <button className="button" type="submit" disabled={submitting}>
+                {submitting ? "Enviando..." : "Enviar respuesta"}
+              </button>
+            </div>
+          </form>
+        ) : null}
+
+        {message ? <p className={attendanceUrl ? "blocked-message" : "form-success"}>{message}</p> : null}
+        {attendanceUrl ? <a className="button secondary" href={attendanceUrl}>Registrar asistencia</a> : null}
+      </section>
+    </main>
+  );
+}
+
+function QuestionPresenterView({ slug }: { slug: string }) {
+  const [question, setQuestion] = React.useState<EventQuestion | null>(null);
+  const [summary, setSummary] = React.useState<QuestionSummaryItem[]>([]);
+  const [message, setMessage] = React.useState("");
+
+  React.useEffect(() => {
+    let active = true;
+
+    async function loadSummary() {
+      const response = await fetch(`/api/public/question-presenter/${slug}/summary`);
+      const payload = (await response.json().catch(() => null)) as {
+        ok?: boolean;
+        question?: EventQuestion;
+        summary?: QuestionSummaryItem[];
+        message?: string;
+      } | null;
+
+      if (!active) return;
+      if (!response.ok || !payload?.ok || !payload.question) {
+        setMessage(payload?.message ?? "Pregunta no disponible.");
+        return;
+      }
+
+      setQuestion(payload.question);
+      setSummary(payload.summary ?? []);
+      setMessage("");
+    }
+
+    void loadSummary();
+    const interval = window.setInterval(loadSummary, 3000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [slug]);
+
+  if (!question) return <PublicMessage title="Vista de presentación" message={message || "Cargando respuestas."} />;
+
+  const maxCount = summary.reduce((max, item) => Math.max(max, item.count), 1);
+  const palette = ["#2563eb", "#ef476f", "#06a77d", "#f59e0b", "#7c3aed", "#0891b2"];
+
+  return (
+    <main className="presenter-page">
+      <section className="presenter-stage">
+        <p className="eyebrow">{question.event_title}</p>
+        <h1>{question.question_text}</h1>
+        {question.description ? <p className="presenter-description">{question.description}</p> : null}
+        <div className="presenter-meta">
+          <span>{question.response_count} respuestas</span>
+          <span>{question.unique_participant_count} participantes</span>
+          <span>{question.status === "open" ? "Abierta" : "Cerrada"}</span>
+        </div>
+        {summary.length > 0 ? (
+          <div className="word-cloud" aria-label="Nube de respuestas">
+            {summary.map((item, index) => {
+              const size = 22 + Math.round((item.count / maxCount) * 56);
+              return (
+                <span
+                  key={item.normalized_answer}
+                  style={{ color: palette[index % palette.length], fontSize: `${size}px` }}
+                  title={`${item.count} respuestas`}
+                >
+                  {item.answer}
+                </span>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="empty-cloud">Esperando respuestas...</p>
+        )}
       </section>
     </main>
   );

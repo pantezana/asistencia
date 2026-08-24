@@ -158,6 +158,33 @@ export type CatalogItem = {
   status: string;
 };
 
+export type EventQuestion = {
+  id: string;
+  event_id: string;
+  session_id: string | null;
+  question_text: string;
+  description: string | null;
+  interaction_type: string;
+  status: string;
+  allow_multiple_responses: number;
+  allow_response_update: number;
+  max_responses_per_participant: number | null;
+  max_answer_length: number;
+  participant_slug: string;
+  presenter_slug: string;
+  created_by_user_id: string;
+  response_count: number;
+  unique_participant_count: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type EventQuestionSummaryItem = {
+  answer: string;
+  normalized_answer: string;
+  count: number;
+};
+
 export type Participant = {
   id: string;
   document_type: string;

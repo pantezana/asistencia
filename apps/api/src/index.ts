@@ -12,6 +12,7 @@ import {
   cloneForm,
   createCatalogItem,
   createCatalogWithControl,
+  createEventQuestion,
   createEventWithSchedule,
   createParticipant,
   findParticipantByDocument,
@@ -23,6 +24,9 @@ import {
   getOpenSessionForEvent,
   getPublicFormContextBySlug,
   getPublicFormStructure,
+  getPublicQuestionByParticipantSlug,
+  getPublicQuestionByPresenterSlug,
+  getQuestionSummary,
   getUserForLogin,
   hasAttendance,
   listAdminEvents,
@@ -32,6 +36,7 @@ import {
   listDepartments,
   listDistrictsByProvince,
   listEventModules,
+  listEventQuestions,
   listEventSessions,
   listFormControlDefinitions,
   listFormSectionDefinitions,
@@ -40,7 +45,9 @@ import {
   isShortLinkAvailable,
   normalizePublicSlug,
   openEventSession,
+  participantHasEventAttendance,
   registerAttendance,
+  registerQuestionResponse,
   removeTemplateField,
   removeTemplateSection,
   updateCatalogItemStatus,
@@ -48,6 +55,8 @@ import {
   updateCatalogStatus,
   updateCatalogWithControl,
   updateEventDetails,
+  updateEventQuestion,
+  updateEventQuestionStatus,
   updateEventSessionDetails,
   updateFormDetails,
   updateFormTemplateDetails,
@@ -430,6 +439,65 @@ app.get("/api/public/location/districts", async (c) => {
   return c.json({ ok: true, districts: districts.results });
 });
 
+app.get("/api/public/questions/:slug", async (c) => {
+  const question = await getPublicQuestionByParticipantSlug(c.env.DB, c.req.param("slug"));
+  if (!question) return c.json({ ok: false, message: "Pregunta no disponible." }, 404);
+
+  return c.json({ ok: true, question });
+});
+
+app.post("/api/public/questions/:slug/identify", async (c) => {
+  const question = await getPublicQuestionByParticipantSlug(c.env.DB, c.req.param("slug"));
+  if (!question) return c.json({ ok: false, message: "Pregunta no disponible." }, 404);
+
+  const body = await c.req.json<{ documentType?: string; documentNumber?: string }>().catch(() => null);
+  const documentType = body?.documentType?.trim();
+  const documentNumber = body?.documentNumber?.trim();
+  if (!documentType || !documentNumber) return c.json({ ok: false, message: "Ingrese tipo y numero de documento." }, 400);
+
+  const participant = await findParticipantByDocument(c.env.DB, documentType, documentNumber);
+  const canParticipate = participant ? await participantHasEventAttendance(c.env.DB, question.event_id, participant.id) : false;
+
+  return c.json({
+    ok: true,
+    canParticipate,
+    participant: canParticipate ? participant : null,
+    attendanceUrl: `/f/${question.event_slug}`
+  });
+});
+
+app.post("/api/public/questions/:slug/responses", async (c) => {
+  const question = await getPublicQuestionByParticipantSlug(c.env.DB, c.req.param("slug"));
+  if (!question) return c.json({ ok: false, message: "Pregunta no disponible." }, 404);
+
+  const body = await c.req.json<{ documentType?: string; documentNumber?: string; answer?: string }>().catch(() => null);
+  const documentType = body?.documentType?.trim();
+  const documentNumber = body?.documentNumber?.trim();
+  if (!documentType || !documentNumber) return c.json({ ok: false, message: "Identifique su documento." }, 400);
+
+  const participant = await findParticipantByDocument(c.env.DB, documentType, documentNumber);
+  if (!participant || !(await participantHasEventAttendance(c.env.DB, question.event_id, participant.id))) {
+    return c.json({ ok: false, message: "Para responder primero debe registrar asistencia en el evento.", attendanceUrl: `/f/${question.event_slug}` }, 403);
+  }
+
+  const result = await registerQuestionResponse(c.env.DB, question, participant, body?.answer ?? "");
+  return c.json(result, result.ok ? 201 : 400);
+});
+
+app.get("/api/public/question-presenter/:slug", async (c) => {
+  const question = await getPublicQuestionByPresenterSlug(c.env.DB, c.req.param("slug"));
+  if (!question) return c.json({ ok: false, message: "Pregunta no disponible." }, 404);
+  const summary = await getQuestionSummary(c.env.DB, question.id);
+  return c.json({ ok: true, question, summary: summary.results });
+});
+
+app.get("/api/public/question-presenter/:slug/summary", async (c) => {
+  const question = await getPublicQuestionByPresenterSlug(c.env.DB, c.req.param("slug"));
+  if (!question) return c.json({ ok: false, message: "Pregunta no disponible." }, 404);
+  const summary = await getQuestionSummary(c.env.DB, question.id);
+  return c.json({ ok: true, question, summary: summary.results });
+});
+
 app.use("/api/admin/*", requireAuth());
 
 app.get("/api/admin/me", (c) => {
@@ -645,6 +713,82 @@ app.get("/api/admin/events/:eventId/sessions", async (c) => {
     ok: true,
     sessions: sessions.results
   });
+});
+
+app.get("/api/admin/events/:eventId/questions", async (c) => {
+  const eventId = c.req.param("eventId");
+  const canManage = await userCanManageEvent(c.env.DB, eventId, c.get("user"));
+  if (!canManage) return c.json({ ok: false, message: "Evento no encontrado o no autorizado." }, 404);
+
+  const questions = await listEventQuestions(c.env.DB, eventId);
+  return c.json({ ok: true, questions: questions.results });
+});
+
+app.post("/api/admin/events/:eventId/questions", async (c) => {
+  const eventId = c.req.param("eventId");
+  const canManage = await userCanManageEvent(c.env.DB, eventId, c.get("user"));
+  if (!canManage) return c.json({ ok: false, message: "Evento no encontrado o no autorizado." }, 404);
+
+  const body = await c.req.json<{
+    questionText?: string;
+    description?: string;
+    sessionId?: string | null;
+    allowMultipleResponses?: boolean;
+    maxResponsesPerParticipant?: number | null;
+    maxAnswerLength?: number;
+    participantSlug?: string;
+  }>().catch(() => null);
+
+  const result = await createEventQuestion(c.env.DB, eventId, c.get("user"), {
+    questionText: body?.questionText ?? "",
+    description: body?.description,
+    sessionId: body?.sessionId || null,
+    allowMultipleResponses: body?.allowMultipleResponses,
+    maxResponsesPerParticipant: body?.maxResponsesPerParticipant ?? null,
+    maxAnswerLength: body?.maxAnswerLength,
+    participantSlug: body?.participantSlug
+  });
+
+  return c.json(result, result.ok ? 201 : 400);
+});
+
+app.put("/api/admin/events/:eventId/questions/:questionId", async (c) => {
+  const eventId = c.req.param("eventId");
+  const canManage = await userCanManageEvent(c.env.DB, eventId, c.get("user"));
+  if (!canManage) return c.json({ ok: false, message: "Evento no encontrado o no autorizado." }, 404);
+
+  const body = await c.req.json<{
+    questionText?: string;
+    description?: string;
+    sessionId?: string | null;
+    status?: string;
+    allowMultipleResponses?: boolean;
+    maxResponsesPerParticipant?: number | null;
+    maxAnswerLength?: number;
+  }>().catch(() => null);
+
+  const result = await updateEventQuestion(c.env.DB, eventId, c.req.param("questionId"), {
+    questionText: body?.questionText ?? "",
+    description: body?.description,
+    sessionId: body?.sessionId || null,
+    status: body?.status,
+    allowMultipleResponses: body?.allowMultipleResponses,
+    maxResponsesPerParticipant: body?.maxResponsesPerParticipant ?? null,
+    maxAnswerLength: body?.maxAnswerLength
+  });
+
+  return c.json(result, result.ok ? 200 : 400);
+});
+
+app.post("/api/admin/events/:eventId/questions/:questionId/status", async (c) => {
+  const eventId = c.req.param("eventId");
+  const canManage = await userCanManageEvent(c.env.DB, eventId, c.get("user"));
+  if (!canManage) return c.json({ ok: false, message: "Evento no encontrado o no autorizado." }, 404);
+
+  const body = await c.req.json<{ status?: string }>().catch(() => null);
+  const ok = await updateEventQuestionStatus(c.env.DB, eventId, c.req.param("questionId"), body?.status ?? "draft");
+  if (!ok) return c.json({ ok: false, message: "Pregunta no encontrada." }, 404);
+  return c.json({ ok: true });
 });
 
 app.get("/api/admin/events/:eventId/attendance.xlsx", async (c) => {
