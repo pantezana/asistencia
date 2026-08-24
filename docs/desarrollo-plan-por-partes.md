@@ -90,3 +90,19 @@ Objetivo:
 Documento base:
 
 - `docs/especificacion-editor-modelos-formulario.md`
+
+## Parte 9. Preguntas interactivas y nube de palabras
+
+Objetivo:
+
+- Crear preguntas interactivas por evento.
+- Generar enlace de participante para responder.
+- Generar enlace de presentador para visualizar resultados.
+- Validar participantes contra asistencias registradas del evento.
+- Registrar respuestas individuales.
+- Mostrar nube de respuestas con frecuencias dinamicas.
+- Preparar base para futuras dinamicas con respuestas guardadas.
+
+Documento base:
+
+- `docs/especificacion-interacciones-preguntas-nube-palabras.md`
