@@ -1121,10 +1121,13 @@ select {
 }
 
 .personal-answers {
-  display: grid;
+  align-items: stretch;
+  display: flex;
+  flex-wrap: wrap;
   gap: 10px;
+  justify-content: center;
   margin: 0 auto;
-  max-width: 760px;
+  max-width: 980px;
   width: 100%;
 }
 
@@ -1136,6 +1139,7 @@ select {
   font-size: 18px;
   font-weight: 800;
   line-height: 1.45;
+  max-width: min(320px, 100%);
   overflow-wrap: anywhere;
   padding: 12px 14px;
   text-align: center;
