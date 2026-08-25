@@ -159,6 +159,13 @@ type CatalogItem = {
   status: string;
 };
 
+const fallbackDocumentTypeOptions: CatalogItem[] = [
+  { id: "DNI", name: "DNI", description: null, status: "active" },
+  { id: "CE", name: "CE", description: null, status: "active" },
+  { id: "PAS", name: "PAS", description: null, status: "active" },
+  { id: "OTRO", name: "OTRO", description: null, status: "active" }
+];
+
 type EventSessionDraft = {
   moduleTitle: string;
   title: string;
@@ -2870,7 +2877,7 @@ function QrShareBlock({
 function PublicAttendanceForm({ slug }: { slug: string }) {
   const [data, setData] = React.useState<PublicFormResponse | null>(null);
   const [error, setError] = React.useState<string | null>(null);
-  const [documentType, setDocumentType] = React.useState("DNI/CEDULA");
+  const [documentType, setDocumentType] = React.useState("DNI");
   const [documentNumber, setDocumentNumber] = React.useState("");
   const [fields, setFields] = React.useState<Record<string, string>>({});
   const [participant, setParticipant] = React.useState<PublicParticipant | null>(null);
@@ -2899,6 +2906,14 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
       .then(setData)
       .catch((err: Error) => setError(err.message));
   }, [slug]);
+
+  const documentTypeOptions = data?.catalogs?.tipodocumento?.filter((item) => item.status === "active") ?? fallbackDocumentTypeOptions;
+
+  React.useEffect(() => {
+    if (documentTypeOptions.length > 0 && !documentTypeOptions.some((item) => item.name === documentType)) {
+      setDocumentType(documentTypeOptions[0].name);
+    }
+  }, [documentType, documentTypeOptions]);
 
   React.useEffect(() => {
     fetch("/api/public/location/departments")
@@ -3297,10 +3312,9 @@ function PublicAttendanceForm({ slug }: { slug: string }) {
           <label>
             Tipo de documento
             <select value={documentType} onChange={(event) => setDocumentType(event.target.value)}>
-              <option>DNI/CEDULA</option>
-              <option>CARNET EXTRANJERIA</option>
-              <option>PASAPORTE</option>
-              <option>OTRO</option>
+              {documentTypeOptions.map((item) => (
+                <option key={item.id} value={item.name}>{item.name}</option>
+              ))}
             </select>
           </label>
           <label>
@@ -3602,7 +3616,8 @@ function QuestionParticipantView({ slug }: { slug: string }) {
   const [question, setQuestion] = React.useState<EventQuestion | null>(null);
   const [participantSummary, setParticipantSummary] = React.useState<QuestionSummaryItem[]>([]);
   const [loading, setLoading] = React.useState(true);
-  const [documentType, setDocumentType] = React.useState("DNI/CEDULA");
+  const [documentType, setDocumentType] = React.useState("DNI");
+  const [documentTypeOptions, setDocumentTypeOptions] = React.useState<CatalogItem[]>(fallbackDocumentTypeOptions);
   const [documentNumber, setDocumentNumber] = React.useState("");
   const [participant, setParticipant] = React.useState<PublicParticipant | null>(null);
   const [attendanceUrl, setAttendanceUrl] = React.useState("");
@@ -3628,6 +3643,17 @@ function QuestionParticipantView({ slug }: { slug: string }) {
 
     void loadQuestion();
   }, [slug]);
+
+  React.useEffect(() => {
+    fetch("/api/public/catalogs/tipodocumento/items")
+      .then((response) => (response.ok ? response.json() as Promise<{ items: CatalogItem[] }> : Promise.reject()))
+      .then((payload) => {
+        const items = payload.items.length > 0 ? payload.items : fallbackDocumentTypeOptions;
+        setDocumentTypeOptions(items);
+        setDocumentType((current) => items.some((item) => item.name === current) ? current : items[0].name);
+      })
+      .catch(() => setDocumentTypeOptions(fallbackDocumentTypeOptions));
+  }, []);
 
   React.useEffect(() => {
     let active = true;
@@ -3807,10 +3833,9 @@ function QuestionParticipantView({ slug }: { slug: string }) {
               <label>
                 Tipo de documento
                 <select value={documentType} onChange={(event) => setDocumentType(event.target.value)} required>
-                  <option value="DNI/CEDULA">DNI/CEDULA</option>
-                  <option value="PASAPORTE">PASAPORTE</option>
-                  <option value="CARNET EXTRANJERIA">CARNET EXTRANJERIA</option>
-                  <option value="OTRO">OTRO</option>
+                  {documentTypeOptions.map((item) => (
+                    <option key={item.id} value={item.name}>{item.name}</option>
+                  ))}
                 </select>
               </label>
               <label>

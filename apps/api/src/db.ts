@@ -1666,14 +1666,25 @@ export async function getPublicFormStructure(db: D1Database, formId: string) {
 }
 
 export async function findParticipantByDocument(db: D1Database, documentType: string, documentNumber: string) {
+  const legacyDocumentAliases: Record<string, string[]> = {
+    DNI: ["DNI/CEDULA"],
+    "DNI/CEDULA": ["DNI"],
+    CE: ["CARNET EXTRANJERIA"],
+    "CARNET EXTRANJERIA": ["CE"],
+    PAS: ["PASAPORTE"],
+    PASAPORTE: ["PAS"]
+  };
+  const documentTypes = [documentType, ...(legacyDocumentAliases[documentType] ?? [])];
+  const placeholders = documentTypes.map(() => "?").join(", ");
+
   return db
     .prepare(
       `SELECT id, document_type, document_number, first_name, paternal_last_name, maternal_last_name, email, phone
        FROM participants
-       WHERE document_type = ? AND document_number = ?
+       WHERE document_type IN (${placeholders}) AND document_number = ?
        LIMIT 1`
     )
-    .bind(documentType, documentNumber)
+    .bind(...documentTypes, documentNumber)
     .first<Participant>();
 }
 

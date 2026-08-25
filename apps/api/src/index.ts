@@ -445,6 +445,11 @@ app.get("/api/public/location/districts", async (c) => {
   return c.json({ ok: true, districts: districts.results });
 });
 
+app.get("/api/public/catalogs/:catalogKey/items", async (c) => {
+  const items = await listCatalogItems(c.env.DB, c.req.param("catalogKey"));
+  return c.json({ ok: true, items: items.results.filter((item) => item.status === "active") });
+});
+
 app.get("/api/public/questions/:slug", async (c) => {
   const question = await getPublicQuestionByParticipantSlug(c.env.DB, c.req.param("slug"));
   if (!question) return c.json({ ok: false, message: "Pregunta no disponible." }, 404);
