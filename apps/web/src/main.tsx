@@ -3538,6 +3538,7 @@ function QuestionParticipantView({ slug }: { slug: string }) {
   const [participant, setParticipant] = React.useState<PublicParticipant | null>(null);
   const [attendanceUrl, setAttendanceUrl] = React.useState("");
   const [answer, setAnswer] = React.useState("");
+  const [personalAnswers, setPersonalAnswers] = React.useState<string[]>([]);
   const [message, setMessage] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
 
@@ -3562,6 +3563,7 @@ function QuestionParticipantView({ slug }: { slug: string }) {
     setMessage("");
     setAttendanceUrl("");
     setParticipant(null);
+    setPersonalAnswers([]);
 
     const response = await fetch(`/api/public/questions/${slug}/identify`, {
       method: "POST",
@@ -3596,6 +3598,7 @@ function QuestionParticipantView({ slug }: { slug: string }) {
 
     setSubmitting(true);
     setMessage("");
+    const submittedAnswer = answer.trim();
     const response = await fetch(`/api/public/questions/${slug}/responses`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -3610,6 +3613,7 @@ function QuestionParticipantView({ slug }: { slug: string }) {
     }
 
     setAnswer("");
+    setPersonalAnswers((current) => [...current, submittedAnswer]);
     setMessage(payload.message ?? "Respuesta registrada correctamente.");
   }
 
@@ -3668,7 +3672,17 @@ function QuestionParticipantView({ slug }: { slug: string }) {
               <span className="field-hint">{answer.length} / {question.max_answer_length}</span>
             </label>
             <div className="form-navigation">
-              <button className="button secondary" type="button" onClick={() => setParticipant(null)} disabled={submitting}>
+              <button
+                className="button secondary"
+                type="button"
+                onClick={() => {
+                  setParticipant(null);
+                  setPersonalAnswers([]);
+                  setMessage("");
+                  setAnswer("");
+                }}
+                disabled={submitting}
+              >
                 Cambiar documento
               </button>
               <button className="button" type="submit" disabled={submitting}>
@@ -3679,6 +3693,15 @@ function QuestionParticipantView({ slug }: { slug: string }) {
         ) : null}
 
         {message ? <p className={attendanceUrl ? "blocked-message" : "form-success"}>{message}</p> : null}
+        {!attendanceUrl && personalAnswers.length > 0 ? (
+          <div className="personal-answers" aria-live="polite">
+            {personalAnswers.map((item, index) => (
+              <div className="personal-answer" key={`${index}-${item}`}>
+                {item}
+              </div>
+            ))}
+          </div>
+        ) : null}
         {attendanceUrl ? <a className="button secondary" href={attendanceUrl}>Registrar asistencia</a> : null}
       </section>
     </main>

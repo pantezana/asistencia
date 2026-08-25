@@ -1120,6 +1120,28 @@ select {
   color: #17202a;
 }
 
+.personal-answers {
+  display: grid;
+  gap: 10px;
+  margin: 0 auto;
+  max-width: 760px;
+  width: 100%;
+}
+
+.personal-answer {
+  background: #f8fafc;
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  color: #17202a;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  padding: 12px 14px;
+  text-align: center;
+  white-space: pre-wrap;
+}
+
 textarea {
   border: 1px solid #cbd5e1;
   border-radius: 8px;
