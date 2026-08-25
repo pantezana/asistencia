@@ -1146,6 +1146,22 @@ select {
   white-space: pre-wrap;
 }
 
+.participant-cloud-panel {
+  margin: 18px auto 0;
+  max-width: 1120px;
+  width: 100%;
+}
+
+.participant-word-cloud {
+  margin-top: 0;
+  min-height: 280px;
+}
+
+.participant-empty-cloud {
+  margin-top: 24px;
+  min-height: 160px;
+}
+
 textarea {
   border: 1px solid #cbd5e1;
   border-radius: 8px;

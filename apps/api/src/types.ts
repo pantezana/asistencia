@@ -170,6 +170,7 @@ export type EventQuestion = {
   allow_response_update: number;
   max_responses_per_participant: number | null;
   max_answer_length: number;
+  show_participant_cloud: number;
   participant_slug: string;
   presenter_slug: string;
   created_by_user_id: string;

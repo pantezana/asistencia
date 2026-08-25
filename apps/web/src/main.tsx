@@ -205,6 +205,7 @@ type EventQuestion = {
   allow_multiple_responses: number;
   max_responses_per_participant: number | null;
   max_answer_length: number;
+  show_participant_cloud: number;
   participant_slug: string;
   presenter_slug: string;
   response_count: number;
@@ -1210,6 +1211,25 @@ function AdminShell() {
     setActionMessage("Estado de pregunta actualizado.");
   }
 
+  async function toggleParticipantCloud(question: EventQuestion, show: boolean) {
+    if (!selectedEventId) return;
+    const response = await fetch(`/api/admin/events/${selectedEventId}/questions/${question.id}/participant-cloud`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ show })
+    });
+    const payload = (await response.json()) as { ok: boolean; message?: string };
+
+    if (!response.ok || !payload.ok) {
+      setActionMessage(payload.message ?? "No se pudo actualizar la visibilidad de la nube.");
+      return;
+    }
+
+    await loadEventQuestions(selectedEventId);
+    setActionMessage(show ? "Nube visible para participantes." : "Nube oculta para participantes.");
+  }
+
   function startQuestionEdit(question: EventQuestion) {
     setEditingQuestionId(question.id);
     setQuestionEditDraft({
@@ -1799,11 +1819,17 @@ function AdminShell() {
                           <div>
                             <strong>{question.question_text}</strong>
                             <span>{question.response_count} respuestas · {question.unique_participant_count} participantes · {question.status}</span>
+                            <span>{question.show_participant_cloud ? "Nube visible para participantes" : "Nube oculta para participantes"}</span>
                             <a href={participantUrl}>{participantUrl}</a>
                             <a href={presenterUrl}>{presenterUrl}</a>
                           </div>
                           <div className="row-actions">
                             <button className="button secondary table-action" type="button" onClick={() => startQuestionEdit(question)}>Editar</button>
+                            {question.show_participant_cloud ? (
+                              <button className="button secondary table-action" type="button" onClick={() => void toggleParticipantCloud(question, false)}>Dejar de ver nube participante</button>
+                            ) : (
+                              <button className="button secondary table-action" type="button" onClick={() => void toggleParticipantCloud(question, true)}>Ver nube participante</button>
+                            )}
                             <button className="button secondary table-action" type="button" onClick={() => void changeQuestionStatus(question, "open")}>Abrir</button>
                             <button className="button secondary table-action" type="button" onClick={() => void changeQuestionStatus(question, "closed")}>Cerrar</button>
                             <button className="button secondary table-action" type="button" onClick={() => void changeQuestionStatus(question, "archived")}>Archivar</button>
@@ -3532,6 +3558,7 @@ function participantName(participant: PublicParticipant | null) {
 
 function QuestionParticipantView({ slug }: { slug: string }) {
   const [question, setQuestion] = React.useState<EventQuestion | null>(null);
+  const [participantSummary, setParticipantSummary] = React.useState<QuestionSummaryItem[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [documentType, setDocumentType] = React.useState("DNI/CEDULA");
   const [documentNumber, setDocumentNumber] = React.useState("");
@@ -3556,6 +3583,30 @@ function QuestionParticipantView({ slug }: { slug: string }) {
     }
 
     void loadQuestion();
+  }, [slug]);
+
+  React.useEffect(() => {
+    let active = true;
+
+    async function loadParticipantCloud() {
+      const response = await fetch(`/api/public/questions/${slug}/summary`);
+      const payload = (await response.json().catch(() => null)) as {
+        ok?: boolean;
+        question?: EventQuestion;
+        summary?: QuestionSummaryItem[];
+      } | null;
+
+      if (!active || !response.ok || !payload?.ok || !payload.question) return;
+      setQuestion(payload.question);
+      setParticipantSummary(payload.summary ?? []);
+    }
+
+    void loadParticipantCloud();
+    const interval = window.setInterval(loadParticipantCloud, 3000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
   }, [slug]);
 
   async function identify(event: React.FormEvent<HTMLFormElement>) {
@@ -3627,6 +3678,8 @@ function QuestionParticipantView({ slug }: { slug: string }) {
   if (!question) return <PublicMessage title="Pregunta no disponible" message={message || "No se pudo cargar la pregunta."} />;
 
   const isOpen = question.status === "open";
+  const participantCloudMaxCount = participantSummary.reduce((max, item) => Math.max(max, item.count), 1);
+  const participantCloudPalette = ["#2563eb", "#ef476f", "#06a77d", "#f59e0b", "#7c3aed", "#0891b2"];
 
   return (
     <main className="question-participant-page">
@@ -3706,6 +3759,28 @@ function QuestionParticipantView({ slug }: { slug: string }) {
                 {item}
               </div>
             ))}
+          </div>
+        ) : null}
+        {!attendanceUrl && participant && question.show_participant_cloud ? (
+          <div className="participant-cloud-panel" aria-live="polite">
+            {participantSummary.length > 0 ? (
+              <div className="word-cloud participant-word-cloud" aria-label="Nube de respuestas de participantes">
+                {participantSummary.map((item, index) => {
+                  const size = 20 + Math.round((item.count / participantCloudMaxCount) * 42);
+                  return (
+                    <span
+                      key={item.normalized_answer}
+                      style={{ color: participantCloudPalette[index % participantCloudPalette.length], fontSize: `${size}px` }}
+                      title={`${item.count} respuestas`}
+                    >
+                      {item.answer}
+                    </span>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="empty-cloud participant-empty-cloud">Esperando respuestas para construir la nube...</p>
+            )}
           </div>
         ) : null}
         {attendanceUrl ? <a className="button secondary" href={attendanceUrl}>Registrar asistencia</a> : null}

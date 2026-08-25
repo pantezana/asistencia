@@ -437,6 +437,14 @@ export async function updateEventQuestionStatus(db: D1Database, eventId: string,
   return result.meta.changes > 0;
 }
 
+export async function updateEventQuestionParticipantCloud(db: D1Database, eventId: string, questionId: string, show: boolean) {
+  const result = await db
+    .prepare("UPDATE event_questions SET show_participant_cloud = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND event_id = ?")
+    .bind(show ? 1 : 0, questionId, eventId)
+    .run();
+  return result.meta.changes > 0;
+}
+
 export async function listEventModules(db: D1Database, eventId: string) {
   return db
     .prepare(

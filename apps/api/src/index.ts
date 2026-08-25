@@ -57,6 +57,7 @@ import {
   updateCatalogWithControl,
   updateEventDetails,
   updateEventQuestion,
+  updateEventQuestionParticipantCloud,
   updateEventQuestionStatus,
   updateEventSessionDetails,
   updateFormDetails,
@@ -471,6 +472,13 @@ app.post("/api/public/questions/:slug/identify", async (c) => {
   });
 });
 
+app.get("/api/public/questions/:slug/summary", async (c) => {
+  const question = await getPublicQuestionByParticipantSlug(c.env.DB, c.req.param("slug"));
+  if (!question) return c.json({ ok: false, message: "Pregunta no disponible." }, 404);
+  const summary = question.show_participant_cloud ? await getQuestionSummary(c.env.DB, question.id) : null;
+  return c.json({ ok: true, question, summary: summary?.results ?? [] });
+});
+
 app.post("/api/public/questions/:slug/responses", async (c) => {
   const question = await getPublicQuestionByParticipantSlug(c.env.DB, c.req.param("slug"));
   if (!question) return c.json({ ok: false, message: "Pregunta no disponible." }, 404);
@@ -794,6 +802,17 @@ app.post("/api/admin/events/:eventId/questions/:questionId/status", async (c) =>
 
   const body = await c.req.json<{ status?: string }>().catch(() => null);
   const ok = await updateEventQuestionStatus(c.env.DB, eventId, c.req.param("questionId"), body?.status ?? "draft");
+  if (!ok) return c.json({ ok: false, message: "Pregunta no encontrada." }, 404);
+  return c.json({ ok: true });
+});
+
+app.post("/api/admin/events/:eventId/questions/:questionId/participant-cloud", async (c) => {
+  const eventId = c.req.param("eventId");
+  const canManage = await userCanManageEvent(c.env.DB, eventId, c.get("user"));
+  if (!canManage) return c.json({ ok: false, message: "Evento no encontrado o no autorizado." }, 404);
+
+  const body = await c.req.json<{ show?: boolean }>().catch(() => null);
+  const ok = await updateEventQuestionParticipantCloud(c.env.DB, eventId, c.req.param("questionId"), Boolean(body?.show));
   if (!ok) return c.json({ ok: false, message: "Pregunta no encontrada." }, 404);
   return c.json({ ok: true });
 });
