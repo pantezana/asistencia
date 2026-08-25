@@ -1131,6 +1131,21 @@ select {
   width: 100%;
 }
 
+.personal-answer-panel {
+  display: grid;
+  gap: 10px;
+  margin: 0 auto;
+  max-width: 980px;
+  text-align: center;
+  width: 100%;
+}
+
+.personal-answer-panel p {
+  color: #52627a;
+  font-weight: 800;
+  margin: 0;
+}
+
 .personal-answer {
   background: #f8fafc;
   border: 1px solid #dbe3ef;

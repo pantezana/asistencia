@@ -3778,6 +3778,9 @@ function QuestionParticipantView({ slug }: { slug: string }) {
   const isOpen = question.status === "open";
   const participantCloudMaxCount = participantSummary.reduce((max, item) => Math.max(max, item.count), 1);
   const participantCloudPalette = ["#2563eb", "#ef476f", "#06a77d", "#f59e0b", "#7c3aed", "#0891b2"];
+  const personalAnswerLimit = question.allow_multiple_responses
+    ? question.max_responses_per_participant?.toString() ?? "sin límite"
+    : "1";
 
   return (
     <main className="question-participant-page">
@@ -3852,13 +3855,18 @@ function QuestionParticipantView({ slug }: { slug: string }) {
         ) : null}
 
         {message ? <p className={attendanceUrl ? "blocked-message" : "form-success"}>{message}</p> : null}
-        {!attendanceUrl && personalAnswers.length > 0 ? (
-          <div className="personal-answers" aria-live="polite">
-            {personalAnswers.map((item, index) => (
-              <div className="personal-answer" key={`${index}-${item}`}>
-                {item}
+        {!attendanceUrl && participant ? (
+          <div className="personal-answer-panel" aria-live="polite">
+            <p>Respuestas individuales {personalAnswers.length} / {personalAnswerLimit}</p>
+            {personalAnswers.length > 0 ? (
+              <div className="personal-answers">
+                {personalAnswers.map((item, index) => (
+                  <div className="personal-answer" key={`${index}-${item}`}>
+                    {item}
+                  </div>
+                ))}
               </div>
-            ))}
+            ) : null}
           </div>
         ) : null}
         {!attendanceUrl && participant && question.show_participant_cloud ? (
