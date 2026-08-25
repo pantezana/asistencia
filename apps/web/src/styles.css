@@ -1162,6 +1162,78 @@ select {
   min-height: 160px;
 }
 
+.cloud-selectable {
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-weight: 800;
+  line-height: 1;
+  padding: 4px 6px;
+}
+
+.cloud-selectable:hover,
+.cloud-selectable.selected {
+  background: #f1f5f9;
+  border-radius: 8px;
+}
+
+.selection-panel {
+  display: grid;
+  gap: 10px;
+  margin: 12px auto 0;
+  max-width: 980px;
+  text-align: center;
+  width: 100%;
+}
+
+.selection-panel p,
+.selection-empty,
+.selection-message {
+  color: #52627a;
+  font-weight: 800;
+  margin: 0;
+}
+
+.selected-concepts {
+  align-items: stretch;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+}
+
+.selected-concept {
+  align-items: center;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  color: #1d4ed8;
+  display: inline-flex;
+  font-size: 18px;
+  font-weight: 800;
+  gap: 10px;
+  line-height: 1.35;
+  max-width: min(340px, 100%);
+  overflow-wrap: anywhere;
+  padding: 10px 12px;
+}
+
+.selected-concept button {
+  align-items: center;
+  background: #dbeafe;
+  border: 0;
+  border-radius: 999px;
+  color: #1e40af;
+  cursor: pointer;
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-weight: 900;
+  height: 24px;
+  justify-content: center;
+  line-height: 1;
+  width: 24px;
+}
+
 textarea {
   border: 1px solid #cbd5e1;
   border-radius: 8px;

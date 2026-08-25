@@ -205,6 +205,7 @@ type EventQuestion = {
   allow_multiple_responses: number;
   max_responses_per_participant: number | null;
   max_answer_length: number;
+  max_selectable_concepts: number;
   show_participant_cloud: number;
   participant_slug: string;
   presenter_slug: string;
@@ -218,6 +219,13 @@ type QuestionSummaryItem = {
   answer: string;
   normalized_answer: string;
   count: number;
+};
+
+type QuestionSelectionItem = {
+  id: string;
+  normalized_answer: string;
+  display_answer: string;
+  selection_order: number;
 };
 
 function cleanText(value: string | null | undefined) {
@@ -533,6 +541,7 @@ function AdminShell() {
     allowMultipleResponses: false,
     maxResponsesPerParticipant: "",
     maxAnswerLength: "80",
+    maxSelectableConcepts: "5",
     participantSlug: ""
   });
   const [editingQuestionId, setEditingQuestionId] = React.useState<string | null>(null);
@@ -543,6 +552,7 @@ function AdminShell() {
     allowMultipleResponses: false,
     maxResponsesPerParticipant: "",
     maxAnswerLength: "80",
+    maxSelectableConcepts: "5",
     participantSlug: ""
   });
 
@@ -1169,6 +1179,7 @@ function AdminShell() {
         allowMultipleResponses: questionDraft.allowMultipleResponses,
         maxResponsesPerParticipant: questionDraft.maxResponsesPerParticipant ? Number(questionDraft.maxResponsesPerParticipant) : null,
         maxAnswerLength: Number(questionDraft.maxAnswerLength) || 80,
+        maxSelectableConcepts: Number(questionDraft.maxSelectableConcepts) || 5,
         participantSlug: questionDraft.participantSlug
       })
     });
@@ -1186,6 +1197,7 @@ function AdminShell() {
       allowMultipleResponses: false,
       maxResponsesPerParticipant: "",
       maxAnswerLength: "80",
+      maxSelectableConcepts: "5",
       participantSlug: ""
     });
     await loadEventQuestions(selectedEventId);
@@ -1239,6 +1251,7 @@ function AdminShell() {
       allowMultipleResponses: Boolean(question.allow_multiple_responses),
       maxResponsesPerParticipant: question.max_responses_per_participant?.toString() ?? "",
       maxAnswerLength: question.max_answer_length.toString(),
+      maxSelectableConcepts: question.max_selectable_concepts.toString(),
       participantSlug: question.participant_slug
     });
     setActionMessage(null);
@@ -1253,6 +1266,7 @@ function AdminShell() {
       allowMultipleResponses: false,
       maxResponsesPerParticipant: "",
       maxAnswerLength: "80",
+      maxSelectableConcepts: "5",
       participantSlug: ""
     });
   }
@@ -1274,6 +1288,7 @@ function AdminShell() {
           ? Number(questionEditDraft.maxResponsesPerParticipant)
           : null,
         maxAnswerLength: Number(questionEditDraft.maxAnswerLength) || 80,
+        maxSelectableConcepts: Number(questionEditDraft.maxSelectableConcepts) || 5,
         participantSlug: questionEditDraft.participantSlug
       })
     });
@@ -1783,6 +1798,16 @@ function AdminShell() {
                     />
                   </label>
                   <label>
+                    Número de seleccionables
+                    <input
+                      min="1"
+                      type="number"
+                      value={questionDraft.maxSelectableConcepts}
+                      onChange={(event) => setQuestionDraft((current) => ({ ...current, maxSelectableConcepts: event.target.value }))}
+                      required
+                    />
+                  </label>
+                  <label>
                     Máximo respuestas por participante
                     <input
                       min="1"
@@ -1882,6 +1907,16 @@ function AdminShell() {
                                 type="number"
                                 value={questionEditDraft.maxAnswerLength}
                                 onChange={(event) => setQuestionEditDraft((current) => ({ ...current, maxAnswerLength: event.target.value }))}
+                              />
+                            </label>
+                            <label>
+                              Número de seleccionables
+                              <input
+                                min="1"
+                                type="number"
+                                value={questionEditDraft.maxSelectableConcepts}
+                                onChange={(event) => setQuestionEditDraft((current) => ({ ...current, maxSelectableConcepts: event.target.value }))}
+                                required
                               />
                             </label>
                             <label>
@@ -3566,7 +3601,9 @@ function QuestionParticipantView({ slug }: { slug: string }) {
   const [attendanceUrl, setAttendanceUrl] = React.useState("");
   const [answer, setAnswer] = React.useState("");
   const [personalAnswers, setPersonalAnswers] = React.useState<string[]>([]);
+  const [personalSelections, setPersonalSelections] = React.useState<QuestionSelectionItem[]>([]);
   const [message, setMessage] = React.useState("");
+  const [selectionMessage, setSelectionMessage] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
 
   React.useEffect(() => {
@@ -3612,9 +3649,11 @@ function QuestionParticipantView({ slug }: { slug: string }) {
   async function identify(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage("");
+    setSelectionMessage("");
     setAttendanceUrl("");
     setParticipant(null);
     setPersonalAnswers([]);
+    setPersonalSelections([]);
 
     const response = await fetch(`/api/public/questions/${slug}/identify`, {
       method: "POST",
@@ -3626,6 +3665,7 @@ function QuestionParticipantView({ slug }: { slug: string }) {
       canParticipate?: boolean;
       participant?: PublicParticipant | null;
       responses?: Array<{ answer_text: string }>;
+      selections?: QuestionSelectionItem[];
       attendanceUrl?: string;
       message?: string;
     } | null;
@@ -3643,6 +3683,7 @@ function QuestionParticipantView({ slug }: { slug: string }) {
 
     setParticipant(payload.participant ?? null);
     setPersonalAnswers((payload.responses ?? []).map((item) => item.answer_text));
+    setPersonalSelections(payload.selections ?? []);
   }
 
   async function submitAnswer(event: React.FormEvent<HTMLFormElement>) {
@@ -3672,6 +3713,63 @@ function QuestionParticipantView({ slug }: { slug: string }) {
     setAnswer("");
     setPersonalAnswers((current) => [...current, payload.response?.answer_text ?? submittedAnswer]);
     setMessage(payload.message ?? "Respuesta registrada correctamente.");
+  }
+
+  async function selectCloudConcept(item: QuestionSummaryItem) {
+    if (!question || !participant) return;
+    setSelectionMessage("");
+
+    if (personalSelections.some((selection) => selection.normalized_answer === item.normalized_answer)) {
+      setSelectionMessage("Este concepto ya fue seleccionado.");
+      return;
+    }
+
+    if (personalSelections.length >= question.max_selectable_concepts) {
+      setSelectionMessage("Ya seleccionaste el máximo de conceptos permitidos.");
+      return;
+    }
+
+    const response = await fetch(`/api/public/questions/${slug}/selections`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        documentType,
+        documentNumber,
+        normalizedAnswer: item.normalized_answer,
+        displayAnswer: item.answer
+      })
+    });
+    const payload = (await response.json().catch(() => null)) as {
+      ok?: boolean;
+      message?: string;
+      selection?: QuestionSelectionItem;
+    } | null;
+
+    if (!response.ok || !payload?.ok || !payload.selection) {
+      setSelectionMessage(payload?.message ?? "No se pudo seleccionar el concepto.");
+      return;
+    }
+
+    setPersonalSelections((current) => [...current, payload.selection as QuestionSelectionItem]);
+  }
+
+  async function removeCloudSelection(selection: QuestionSelectionItem) {
+    if (!question || !participant) return;
+    setSelectionMessage("");
+
+    const response = await fetch(`/api/public/questions/${slug}/selections/${selection.id}`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ documentType, documentNumber })
+    });
+    const payload = (await response.json().catch(() => null)) as { ok?: boolean; message?: string } | null;
+
+    if (!response.ok || !payload?.ok) {
+      setSelectionMessage(payload?.message ?? "No se pudo quitar el concepto.");
+      return;
+    }
+
+    setPersonalSelections((current) => current.filter((item) => item.id !== selection.id));
   }
 
   if (loading) return <PublicMessage title="Cargando pregunta" message="Estamos preparando la interacción." />;
@@ -3737,7 +3835,9 @@ function QuestionParticipantView({ slug }: { slug: string }) {
                 onClick={() => {
                   setParticipant(null);
                   setPersonalAnswers([]);
+                  setPersonalSelections([]);
                   setMessage("");
+                  setSelectionMessage("");
                   setAnswer("");
                 }}
                 disabled={submitting}
@@ -3767,20 +3867,46 @@ function QuestionParticipantView({ slug }: { slug: string }) {
               <div className="word-cloud participant-word-cloud" aria-label="Nube de respuestas de participantes">
                 {participantSummary.map((item, index) => {
                   const size = 20 + Math.round((item.count / participantCloudMaxCount) * 42);
+                  const selected = personalSelections.some((selection) => selection.normalized_answer === item.normalized_answer);
                   return (
-                    <span
+                    <button
+                      className={`cloud-selectable${selected ? " selected" : ""}`}
                       key={item.normalized_answer}
+                      onClick={() => void selectCloudConcept(item)}
                       style={{ color: participantCloudPalette[index % participantCloudPalette.length], fontSize: `${size}px` }}
                       title={`${item.count} respuestas`}
+                      type="button"
                     >
                       {item.answer}
-                    </span>
+                    </button>
                   );
                 })}
               </div>
             ) : (
               <p className="empty-cloud participant-empty-cloud">Esperando respuestas para construir la nube...</p>
             )}
+            <div className="selection-panel">
+              <p>Conceptos seleccionados {personalSelections.length} / {question.max_selectable_concepts}</p>
+              {personalSelections.length > 0 ? (
+                <div className="selected-concepts">
+                  {personalSelections.map((selection) => (
+                    <div className="selected-concept" key={selection.id}>
+                      <span>{selection.display_answer}</span>
+                      <button
+                        aria-label={`Quitar ${selection.display_answer}`}
+                        onClick={() => void removeCloudSelection(selection)}
+                        type="button"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <span className="selection-empty">Seleccione conceptos desde la nube.</span>
+              )}
+              {selectionMessage ? <span className="selection-message">{selectionMessage}</span> : null}
+            </div>
           </div>
         ) : null}
         {attendanceUrl ? <a className="button secondary" href={attendanceUrl}>Registrar asistencia</a> : null}

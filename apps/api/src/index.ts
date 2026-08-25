@@ -38,6 +38,7 @@ import {
   listEventModules,
   listEventQuestions,
   listQuestionResponsesByParticipant,
+  listQuestionSelectionsByParticipant,
   listEventSessions,
   listFormControlDefinitions,
   listFormSectionDefinitions,
@@ -47,8 +48,10 @@ import {
   normalizePublicSlug,
   openEventSession,
   participantHasEventAttendance,
+  addQuestionSelection,
   registerAttendance,
   registerQuestionResponse,
+  removeQuestionSelection,
   removeTemplateField,
   removeTemplateSection,
   updateCatalogItemStatus,
@@ -462,12 +465,16 @@ app.post("/api/public/questions/:slug/identify", async (c) => {
   const responses = canParticipate && participant
     ? await listQuestionResponsesByParticipant(c.env.DB, question.id, participant.id)
     : null;
+  const selections = canParticipate && participant
+    ? await listQuestionSelectionsByParticipant(c.env.DB, question.id, participant.id)
+    : null;
 
   return c.json({
     ok: true,
     canParticipate,
     participant: canParticipate ? participant : null,
     responses: responses?.results ?? [],
+    selections: selections?.results ?? [],
     attendanceUrl: `/f/${question.event_slug}`
   });
 });
@@ -477,6 +484,51 @@ app.get("/api/public/questions/:slug/summary", async (c) => {
   if (!question) return c.json({ ok: false, message: "Pregunta no disponible." }, 404);
   const summary = question.show_participant_cloud ? await getQuestionSummary(c.env.DB, question.id) : null;
   return c.json({ ok: true, question, summary: summary?.results ?? [] });
+});
+
+app.post("/api/public/questions/:slug/selections", async (c) => {
+  const question = await getPublicQuestionByParticipantSlug(c.env.DB, c.req.param("slug"));
+  if (!question) return c.json({ ok: false, message: "Pregunta no disponible." }, 404);
+
+  const body = await c.req.json<{
+    documentType?: string;
+    documentNumber?: string;
+    normalizedAnswer?: string;
+    displayAnswer?: string;
+  }>().catch(() => null);
+  const documentType = body?.documentType?.trim();
+  const documentNumber = body?.documentNumber?.trim();
+  if (!documentType || !documentNumber) return c.json({ ok: false, message: "Identifique su documento." }, 400);
+
+  const participant = await findParticipantByDocument(c.env.DB, documentType, documentNumber);
+  if (!participant || !(await participantHasEventAttendance(c.env.DB, question.event_id, participant.id))) {
+    return c.json({ ok: false, message: "Para seleccionar conceptos primero debe registrar asistencia en el evento.", attendanceUrl: `/f/${question.event_slug}` }, 403);
+  }
+
+  const result = await addQuestionSelection(c.env.DB, question, participant, {
+    normalizedAnswer: body?.normalizedAnswer,
+    displayAnswer: body?.displayAnswer
+  });
+  return c.json(result, result.ok ? 201 : 400);
+});
+
+app.delete("/api/public/questions/:slug/selections/:selectionId", async (c) => {
+  const question = await getPublicQuestionByParticipantSlug(c.env.DB, c.req.param("slug"));
+  if (!question) return c.json({ ok: false, message: "Pregunta no disponible." }, 404);
+
+  const body = await c.req.json<{ documentType?: string; documentNumber?: string }>().catch(() => null);
+  const documentType = body?.documentType?.trim();
+  const documentNumber = body?.documentNumber?.trim();
+  if (!documentType || !documentNumber) return c.json({ ok: false, message: "Identifique su documento." }, 400);
+
+  const participant = await findParticipantByDocument(c.env.DB, documentType, documentNumber);
+  if (!participant || !(await participantHasEventAttendance(c.env.DB, question.event_id, participant.id))) {
+    return c.json({ ok: false, message: "Para quitar conceptos primero debe registrar asistencia en el evento.", attendanceUrl: `/f/${question.event_slug}` }, 403);
+  }
+
+  const ok = await removeQuestionSelection(c.env.DB, question, participant, c.req.param("selectionId"));
+  if (!ok) return c.json({ ok: false, message: "Seleccion no encontrada." }, 404);
+  return c.json({ ok: true });
 });
 
 app.post("/api/public/questions/:slug/responses", async (c) => {
@@ -749,6 +801,7 @@ app.post("/api/admin/events/:eventId/questions", async (c) => {
     allowMultipleResponses?: boolean;
     maxResponsesPerParticipant?: number | null;
     maxAnswerLength?: number;
+    maxSelectableConcepts?: number;
     participantSlug?: string;
   }>().catch(() => null);
 
@@ -759,6 +812,7 @@ app.post("/api/admin/events/:eventId/questions", async (c) => {
     allowMultipleResponses: body?.allowMultipleResponses,
     maxResponsesPerParticipant: body?.maxResponsesPerParticipant ?? null,
     maxAnswerLength: body?.maxAnswerLength,
+    maxSelectableConcepts: body?.maxSelectableConcepts,
     participantSlug: body?.participantSlug
   });
 
@@ -778,6 +832,7 @@ app.put("/api/admin/events/:eventId/questions/:questionId", async (c) => {
     allowMultipleResponses?: boolean;
     maxResponsesPerParticipant?: number | null;
     maxAnswerLength?: number;
+    maxSelectableConcepts?: number;
     participantSlug?: string;
   }>().catch(() => null);
 
@@ -789,6 +844,7 @@ app.put("/api/admin/events/:eventId/questions/:questionId", async (c) => {
     allowMultipleResponses: body?.allowMultipleResponses,
     maxResponsesPerParticipant: body?.maxResponsesPerParticipant ?? null,
     maxAnswerLength: body?.maxAnswerLength,
+    maxSelectableConcepts: body?.maxSelectableConcepts,
     participantSlug: body?.participantSlug
   });
 

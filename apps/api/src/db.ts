@@ -7,6 +7,7 @@ import type {
   EventSummary,
   EventQuestion,
   EventQuestionResponseItem,
+  EventQuestionSelectionItem,
   EventQuestionSummaryItem,
   FormControlDefinition,
   FormField,
@@ -283,6 +284,7 @@ export async function createEventQuestion(db: D1Database, eventId: string, user:
   allowMultipleResponses?: boolean;
   maxResponsesPerParticipant?: number | null;
   maxAnswerLength?: number;
+  maxSelectableConcepts?: number;
   participantSlug?: string;
 }) {
   const questionText = input.questionText.trim();
@@ -307,15 +309,16 @@ export async function createEventQuestion(db: D1Database, eventId: string, user:
   const participantSlug = await uniqueQuestionSlug(db, baseSlug, "participant_slug");
   const presenterSlug = await uniqueQuestionSlug(db, `${participantSlug}-presentador-${crypto.randomUUID().slice(0, 8)}`, "presenter_slug");
   const maxAnswerLength = Math.min(Math.max(input.maxAnswerLength || 80, 10), 500);
+  const maxSelectableConcepts = Math.max(Math.floor(input.maxSelectableConcepts || 5), 1);
 
   await db
     .prepare(
       `INSERT INTO event_questions (
         id, event_id, session_id, question_text, description, interaction_type, status,
         allow_multiple_responses, allow_response_update, max_responses_per_participant,
-        max_answer_length, participant_slug, presenter_slug, created_by_user_id
+        max_answer_length, max_selectable_concepts, participant_slug, presenter_slug, created_by_user_id
        )
-       VALUES (?, ?, ?, ?, ?, 'word_cloud', 'draft', ?, 0, ?, ?, ?, ?, ?)`
+       VALUES (?, ?, ?, ?, ?, 'word_cloud', 'draft', ?, 0, ?, ?, ?, ?, ?, ?)`
     )
     .bind(
       questionId,
@@ -326,6 +329,7 @@ export async function createEventQuestion(db: D1Database, eventId: string, user:
       input.allowMultipleResponses ? 1 : 0,
       input.maxResponsesPerParticipant ?? null,
       maxAnswerLength,
+      maxSelectableConcepts,
       participantSlug,
       presenterSlug,
       user.id
@@ -359,6 +363,7 @@ export async function updateEventQuestion(db: D1Database, eventId: string, quest
   allowMultipleResponses?: boolean;
   maxResponsesPerParticipant?: number | null;
   maxAnswerLength?: number;
+  maxSelectableConcepts?: number;
   participantSlug?: string;
 }) {
   const current = await db
@@ -404,12 +409,14 @@ export async function updateEventQuestion(db: D1Database, eventId: string, quest
 
   const status = input.status && ["draft", "open", "closed", "archived"].includes(input.status) ? input.status : current.status;
   const maxAnswerLength = Math.min(Math.max(input.maxAnswerLength || 80, 10), 500);
+  const maxSelectableConcepts = Math.max(Math.floor(input.maxSelectableConcepts || 5), 1);
 
   await db
     .prepare(
       `UPDATE event_questions
        SET session_id = ?, question_text = ?, description = ?, status = ?, allow_multiple_responses = ?,
-           max_responses_per_participant = ?, max_answer_length = ?, participant_slug = ?, updated_at = CURRENT_TIMESTAMP
+           max_responses_per_participant = ?, max_answer_length = ?, max_selectable_concepts = ?,
+           participant_slug = ?, updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`
     )
     .bind(
@@ -420,6 +427,7 @@ export async function updateEventQuestion(db: D1Database, eventId: string, quest
       input.allowMultipleResponses ? 1 : 0,
       input.maxResponsesPerParticipant ?? null,
       maxAnswerLength,
+      maxSelectableConcepts,
       participantSlug,
       questionId
     )
@@ -1728,6 +1736,118 @@ export async function listQuestionResponsesByParticipant(db: D1Database, questio
     )
     .bind(questionId, participantId)
     .all<EventQuestionResponseItem>();
+}
+
+export async function listQuestionSelectionsByParticipant(db: D1Database, questionId: string, participantId: string) {
+  return db
+    .prepare(
+      `SELECT id, normalized_answer, display_answer, selection_order, created_at
+       FROM event_question_selections
+       WHERE question_id = ? AND participant_id = ? AND status = 'active'
+       ORDER BY selection_order ASC, created_at ASC`
+    )
+    .bind(questionId, participantId)
+    .all<EventQuestionSelectionItem>();
+}
+
+export async function addQuestionSelection(db: D1Database, question: EventQuestion, participant: Participant, input: {
+  normalizedAnswer?: string;
+  displayAnswer?: string;
+}) {
+  if (!question.show_participant_cloud) return { ok: false, message: "La nube no esta disponible para participantes." };
+
+  const normalizedAnswer = normalizeAnswer(input.normalizedAnswer || input.displayAnswer || "");
+  if (!normalizedAnswer) return { ok: false, message: "Seleccione un concepto valido." };
+
+  const cloudItem = await db
+    .prepare(
+      `SELECT normalized_answer, MIN(answer_text) AS answer, COUNT(*) AS count
+       FROM event_question_responses
+       WHERE question_id = ? AND status = 'active'
+       GROUP BY normalized_answer
+       HAVING normalized_answer = ?
+       LIMIT 1`
+    )
+    .bind(question.id, normalizedAnswer)
+    .first<{ normalized_answer: string; answer: string; count: number }>();
+  if (!cloudItem) return { ok: false, message: "El concepto seleccionado ya no esta disponible en la nube." };
+
+  const existing = await db
+    .prepare(
+      `SELECT id
+       FROM event_question_selections
+       WHERE question_id = ? AND participant_id = ? AND normalized_answer = ? AND status = 'active'`
+    )
+    .bind(question.id, participant.id, normalizedAnswer)
+    .first<{ id: string }>();
+  if (existing) return { ok: false, message: "Este concepto ya fue seleccionado." };
+
+  const currentCount = await db
+    .prepare(
+      `SELECT COUNT(*) AS count
+       FROM event_question_selections
+       WHERE question_id = ? AND participant_id = ? AND status = 'active'`
+    )
+    .bind(question.id, participant.id)
+    .first<{ count: number }>();
+  if (Number(currentCount?.count ?? 0) >= question.max_selectable_concepts) {
+    return { ok: false, message: "Ya seleccionaste el maximo de conceptos permitidos." };
+  }
+
+  const orderRow = await db
+    .prepare(
+      `SELECT COALESCE(MAX(selection_order), 0) + 1 AS next_order
+       FROM event_question_selections
+       WHERE question_id = ? AND participant_id = ?`
+    )
+    .bind(question.id, participant.id)
+    .first<{ next_order: number }>();
+  const selectionId = `qsel_${crypto.randomUUID().slice(0, 12)}`;
+  const selectionOrder = Number(orderRow?.next_order ?? 1);
+  const displayAnswer = input.displayAnswer?.trim() || cloudItem.answer;
+
+  await db
+    .prepare(
+      `INSERT INTO event_question_selections (
+        id, question_id, event_id, participant_id, document_type, document_number,
+        normalized_answer, display_answer, selection_order, status
+       )
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')`
+    )
+    .bind(
+      selectionId,
+      question.id,
+      question.event_id,
+      participant.id,
+      participant.document_type,
+      participant.document_number,
+      normalizedAnswer,
+      displayAnswer,
+      selectionOrder
+    )
+    .run();
+
+  return {
+    ok: true,
+    selection: {
+      id: selectionId,
+      normalized_answer: normalizedAnswer,
+      display_answer: displayAnswer,
+      selection_order: selectionOrder
+    }
+  };
+}
+
+export async function removeQuestionSelection(db: D1Database, question: EventQuestion, participant: Participant, selectionId: string) {
+  const result = await db
+    .prepare(
+      `UPDATE event_question_selections
+       SET status = 'removed', updated_at = CURRENT_TIMESTAMP
+       WHERE id = ? AND question_id = ? AND participant_id = ? AND status = 'active'`
+    )
+    .bind(selectionId, question.id, participant.id)
+    .run();
+  return result.meta.changes > 0;
 }
 
 export async function registerQuestionResponse(db: D1Database, question: EventQuestion, participant: Participant, answerText: string) {

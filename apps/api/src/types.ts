@@ -170,6 +170,7 @@ export type EventQuestion = {
   allow_response_update: number;
   max_responses_per_participant: number | null;
   max_answer_length: number;
+  max_selectable_concepts: number;
   show_participant_cloud: number;
   participant_slug: string;
   presenter_slug: string;
@@ -189,6 +190,14 @@ export type EventQuestionSummaryItem = {
 export type EventQuestionResponseItem = {
   id: string;
   answer_text: string;
+  created_at: string;
+};
+
+export type EventQuestionSelectionItem = {
+  id: string;
+  normalized_answer: string;
+  display_answer: string;
+  selection_order: number;
   created_at: string;
 };
 
