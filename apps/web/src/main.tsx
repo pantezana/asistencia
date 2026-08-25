@@ -3924,7 +3924,12 @@ function QuestionParticipantView({ slug }: { slug: string }) {
             </div>
           </div>
         ) : null}
-        {attendanceUrl ? <a className="button secondary" href={attendanceUrl}>Registrar asistencia</a> : null}
+        {attendanceUrl ? (
+          <a className="button attendance-cta" href={attendanceUrl}>
+            <span aria-hidden="true">+</span>
+            Registrar asistencia
+          </a>
+        ) : null}
       </section>
     </main>
   );
