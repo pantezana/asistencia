@@ -3574,6 +3574,7 @@ function QuestionParticipantView({ slug }: { slug: string }) {
       ok?: boolean;
       canParticipate?: boolean;
       participant?: PublicParticipant | null;
+      responses?: Array<{ answer_text: string }>;
       attendanceUrl?: string;
       message?: string;
     } | null;
@@ -3590,6 +3591,7 @@ function QuestionParticipantView({ slug }: { slug: string }) {
     }
 
     setParticipant(payload.participant ?? null);
+    setPersonalAnswers((payload.responses ?? []).map((item) => item.answer_text));
   }
 
   async function submitAnswer(event: React.FormEvent<HTMLFormElement>) {
@@ -3604,7 +3606,11 @@ function QuestionParticipantView({ slug }: { slug: string }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ documentType, documentNumber, answer })
     });
-    const payload = (await response.json().catch(() => null)) as { ok?: boolean; message?: string } | null;
+    const payload = (await response.json().catch(() => null)) as {
+      ok?: boolean;
+      message?: string;
+      response?: { answer_text: string };
+    } | null;
     setSubmitting(false);
 
     if (!response.ok || !payload?.ok) {
@@ -3613,7 +3619,7 @@ function QuestionParticipantView({ slug }: { slug: string }) {
     }
 
     setAnswer("");
-    setPersonalAnswers((current) => [...current, submittedAnswer]);
+    setPersonalAnswers((current) => [...current, payload.response?.answer_text ?? submittedAnswer]);
     setMessage(payload.message ?? "Respuesta registrada correctamente.");
   }
 

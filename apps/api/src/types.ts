@@ -185,6 +185,12 @@ export type EventQuestionSummaryItem = {
   count: number;
 };
 
+export type EventQuestionResponseItem = {
+  id: string;
+  answer_text: string;
+  created_at: string;
+};
+
 export type Participant = {
   id: string;
   document_type: string;

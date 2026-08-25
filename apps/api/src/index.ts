@@ -37,6 +37,7 @@ import {
   listDistrictsByProvince,
   listEventModules,
   listEventQuestions,
+  listQuestionResponsesByParticipant,
   listEventSessions,
   listFormControlDefinitions,
   listFormSectionDefinitions,
@@ -457,11 +458,15 @@ app.post("/api/public/questions/:slug/identify", async (c) => {
 
   const participant = await findParticipantByDocument(c.env.DB, documentType, documentNumber);
   const canParticipate = participant ? await participantHasEventAttendance(c.env.DB, question.event_id, participant.id) : false;
+  const responses = canParticipate && participant
+    ? await listQuestionResponsesByParticipant(c.env.DB, question.id, participant.id)
+    : null;
 
   return c.json({
     ok: true,
     canParticipate,
     participant: canParticipate ? participant : null,
+    responses: responses?.results ?? [],
     attendanceUrl: `/f/${question.event_slug}`
   });
 });

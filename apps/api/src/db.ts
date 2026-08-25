@@ -6,6 +6,7 @@ import type {
   DbUserWithPassword,
   EventSummary,
   EventQuestion,
+  EventQuestionResponseItem,
   EventQuestionSummaryItem,
   FormControlDefinition,
   FormField,
@@ -1709,6 +1710,18 @@ export async function countQuestionResponsesByParticipant(db: D1Database, questi
   return Number(row?.count ?? 0);
 }
 
+export async function listQuestionResponsesByParticipant(db: D1Database, questionId: string, participantId: string) {
+  return db
+    .prepare(
+      `SELECT id, answer_text, created_at
+       FROM event_question_responses
+       WHERE question_id = ? AND participant_id = ? AND status = 'active'
+       ORDER BY created_at ASC`
+    )
+    .bind(questionId, participantId)
+    .all<EventQuestionResponseItem>();
+}
+
 export async function registerQuestionResponse(db: D1Database, question: EventQuestion, participant: Participant, answerText: string) {
   if (question.status !== "open") return { ok: false, message: "La pregunta no esta abierta para recibir respuestas." };
 
@@ -1726,6 +1739,7 @@ export async function registerQuestionResponse(db: D1Database, question: EventQu
     return { ok: false, message: "Alcanzaste el maximo de respuestas permitidas para esta pregunta." };
   }
 
+  const responseId = `qresp_${crypto.randomUUID().slice(0, 12)}`;
   await db
     .prepare(
       `INSERT INTO event_question_responses (
@@ -1734,7 +1748,7 @@ export async function registerQuestionResponse(db: D1Database, question: EventQu
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active')`
     )
     .bind(
-      `qresp_${crypto.randomUUID().slice(0, 12)}`,
+      responseId,
       question.id,
       question.event_id,
       participant.id,
@@ -1745,7 +1759,7 @@ export async function registerQuestionResponse(db: D1Database, question: EventQu
     )
     .run();
 
-  return { ok: true };
+  return { ok: true, response: { id: responseId, answer_text: cleanAnswer } };
 }
 
 export async function getQuestionSummary(db: D1Database, questionId: string) {
