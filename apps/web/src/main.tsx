@@ -3619,41 +3619,40 @@ function QuestionParticipantView({ slug }: { slug: string }) {
   const isOpen = question.status === "open";
 
   return (
-    <main className="public-page question-page">
-      <section className="public-form compact question-participant-card">
-        <p className="eyebrow">Pregunta interactiva</p>
-        <h1>{question.event_title}</h1>
-        <div className="question-box">
-          <span>Nube de palabras</span>
-          <strong>{question.question_text}</strong>
-          {question.description ? <p>{question.description}</p> : null}
-        </div>
+    <main className="question-participant-page">
+      <section className="question-participant-stage">
+        <p className="eyebrow">{question.event_title}</p>
+        <h1>{question.question_text}</h1>
+        {question.description ? <p className="presenter-description">{question.description}</p> : null}
 
         {!isOpen ? (
-        <p className="blocked-message">Esta pregunta no está abierta para recibir respuestas.</p>
+          <p className="blocked-message">Esta pregunta no está abierta para recibir respuestas.</p>
         ) : null}
 
         {isOpen && !participant ? (
-          <form className="document-form" onSubmit={identify}>
-            <label>
-              Tipo de documento
-              <select value={documentType} onChange={(event) => setDocumentType(event.target.value)} required>
-                <option value="DNI/CEDULA">DNI/CEDULA</option>
-                <option value="PASAPORTE">PASAPORTE</option>
-                <option value="CARNET EXTRANJERIA">CARNET EXTRANJERIA</option>
-                <option value="OTRO">OTRO</option>
-              </select>
-            </label>
-            <label>
-              Número de documento
-              <input value={documentNumber} onChange={(event) => setDocumentNumber(event.target.value)} required />
-            </label>
-            <button className="button" type="submit">Continuar</button>
-          </form>
+          <div className="question-identify-panel">
+            <p>Para participar debe haber registrado su asistencia. Identifíquese.</p>
+            <form className="question-identify-form" onSubmit={identify}>
+              <label>
+                Tipo de documento
+                <select value={documentType} onChange={(event) => setDocumentType(event.target.value)} required>
+                  <option value="DNI/CEDULA">DNI/CEDULA</option>
+                  <option value="PASAPORTE">PASAPORTE</option>
+                  <option value="CARNET EXTRANJERIA">CARNET EXTRANJERIA</option>
+                  <option value="OTRO">OTRO</option>
+                </select>
+              </label>
+              <label>
+                Número de documento
+                <input value={documentNumber} onChange={(event) => setDocumentNumber(event.target.value)} required />
+              </label>
+              <button className="button" type="submit">Continuar</button>
+            </form>
+          </div>
         ) : null}
 
         {isOpen && participant ? (
-          <form className="document-form" onSubmit={submitAnswer}>
+          <form className="question-answer-form" onSubmit={submitAnswer}>
             <div className="confirm-panel">
               <h2>Hola, {participantName(participant)}</h2>
               <p>Escriba su respuesta para verla reflejada en la nube.</p>
