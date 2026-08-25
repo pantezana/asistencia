@@ -116,6 +116,40 @@ Ejemplo:
 
 Para la primera version se recomienda agrupar por texto completo normalizado, no partir frases automaticamente en palabras. Si el evento quiere una nube de una sola palabra, la UI debe recomendar respuestas cortas.
 
+### 4.4 Editabilidad de preguntas
+
+La pregunta interactiva debe poder editarse desde la gestion del evento, pero no todos sus campos tienen la misma regla de modificacion.
+
+La regla profesional recomendada es diferenciar entre:
+
+- Campos de configuracion operativa: pueden cambiarse en cualquier momento porque no alteran la identidad publica ni el significado historico de las respuestas.
+- Campos de identidad de pregunta: solo pueden cambiarse mientras la pregunta no tenga respuestas registradas.
+
+Campos editables en cualquier momento:
+
+- Sesion asociada.
+- Descripcion.
+- Maximo de caracteres por respuesta.
+- Permitir mas de una respuesta.
+- Maximo de respuestas por participante.
+
+Campos editables solo si la pregunta no tiene respuestas registradas:
+
+- Texto de la pregunta.
+- Enlace corto de participante.
+
+Justificacion:
+
+- El texto de la pregunta define el contexto semantico de las respuestas. Si se cambia despues de recibir respuestas, la nube y los reportes pueden quedar historicamente inconsistentes.
+- El enlace corto de participante puede estar distribuido por QR, WhatsApp, correo o presentacion. Si se cambia despues de recibir respuestas, se puede romper la trazabilidad de la dinamica ya ejecutada.
+- La descripcion, sesion y reglas operativas pueden ajustarse durante la actividad sin invalidar las respuestas ya guardadas.
+
+La validacion debe basarse en el conteo de respuestas activas de la pregunta. Si `response_count > 0`, el sistema debe bloquear cambios en texto de pregunta y enlace corto.
+
+La interfaz debe mostrar esos campos como solo lectura o deshabilitados cuando ya existen respuestas, junto con una indicacion breve:
+
+`Este campo no puede modificarse porque la pregunta ya tiene respuestas registradas.`
+
 ## 5. Estados de la pregunta
 
 Estados sugeridos:
@@ -344,6 +378,22 @@ Campos del formulario administrativo:
 - Slug participante.
 - Slug presentador.
 
+Reglas de edicion en el formulario administrativo:
+
+- El boton `Editar` debe abrir los mismos campos configurables de la pregunta.
+- Si la pregunta no tiene respuestas, todos los campos definidos para edicion pueden modificarse.
+- Si la pregunta ya tiene una o mas respuestas activas:
+  - `Texto de la pregunta` debe mostrarse deshabilitado o como solo lectura.
+  - `Slug participante` o `enlace corto de pregunta` debe mostrarse deshabilitado o como solo lectura.
+  - Los demas campos deben quedar editables.
+- El sistema debe mostrar el conteo de respuestas cerca de la pregunta para que el usuario entienda por que algunos campos estan bloqueados.
+- La validacion debe aplicarse tambien en API/backend, no solo en frontend.
+- Si el usuario intenta modificar por API un campo bloqueado, la respuesta debe ser `400` con un mensaje claro.
+
+Mensaje recomendado:
+
+`No se puede modificar la pregunta ni el enlace corto porque ya existen respuestas registradas.`
+
 ## 13. Permisos
 
 ### Administrador
@@ -531,6 +581,10 @@ Como se guardan respuestas individuales, luego se podran crear:
 - Si respuesta vacia: bloquear envio.
 - Si supera maximo de caracteres: bloquear envio.
 - Si hay respuestas repetidas con diferencias de mayusculas o tildes: agrupar por normalizacion.
+- Si se edita una pregunta sin respuestas: permitir modificar texto, enlace corto y configuracion operativa.
+- Si se edita una pregunta con respuestas: bloquear cambios en texto de pregunta y enlace corto, pero permitir cambios operativos.
+- Si se cambia el maximo de caracteres a un valor menor que respuestas ya registradas: no se modifican respuestas existentes; la nueva longitud aplica solo a respuestas futuras.
+- Si se desactiva la opcion de multiples respuestas cuando ya existen varias respuestas de un participante: no se eliminan respuestas existentes; la nueva regla aplica a nuevos envios.
 
 ## 22. Recomendacion de implementacion por partes
 
@@ -540,6 +594,7 @@ Como se guardan respuestas individuales, luego se podran crear:
 - CRUD de preguntas por evento.
 - Estados de pregunta.
 - Slugs de participante y presentador.
+- Edicion parcial de preguntas con bloqueo de campos de identidad cuando existan respuestas.
 
 ### Parte B. Flujo publico del participante
 

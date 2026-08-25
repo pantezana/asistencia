@@ -102,6 +102,13 @@ Objetivo:
 - Registrar respuestas individuales.
 - Mostrar nube de respuestas con frecuencias dinamicas.
 - Preparar base para futuras dinamicas con respuestas guardadas.
+- Permitir editar preguntas interactivas con bloqueo de campos de identidad cuando ya existan respuestas.
+
+Regla de edicion:
+
+- Siempre editables: sesion asociada, descripcion, maximo de caracteres, permitir mas de una respuesta y maximo de respuestas por participante.
+- Editables solo sin respuestas registradas: texto de la pregunta y enlace corto de participante.
+- La regla debe validarse en frontend y backend.
 
 Documento base:
 
