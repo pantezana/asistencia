@@ -3653,10 +3653,9 @@ function QuestionParticipantView({ slug }: { slug: string }) {
 
         {isOpen && participant ? (
           <form className="question-answer-form" onSubmit={submitAnswer}>
-            <div className="confirm-panel">
-              <h2>Hola, {participantName(participant)}</h2>
-              <p>Escriba su respuesta para verla reflejada en la nube.</p>
-            </div>
+            <p className="question-greeting">
+              <strong>Hola, {participantName(participant)}</strong>. Escriba su respuesta para verla reflejada en la nube.
+            </p>
             <label>
               Respuesta
               <textarea
