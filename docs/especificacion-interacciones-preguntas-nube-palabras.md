@@ -29,6 +29,7 @@ Esta funcionalidad debe reutilizar la base existente de eventos, participantes y
 - Editar preguntas.
 - Activar, cerrar o archivar preguntas.
 - Configurar si una pregunta permite una o varias respuestas por participante.
+- Configurar el numero maximo de conceptos seleccionables por participante sobre la nube total.
 - Generar enlace publico para participante.
 - Generar enlace de visualizacion para administrador/presentador.
 - Validar participante por numero de documento.
@@ -38,6 +39,8 @@ Esta funcionalidad debe reutilizar la base existente de eventos, participantes y
 - Calcular respuestas repetidas y frecuencias.
 - Mostrar nube de respuestas en vista de presentador.
 - Actualizar la nube de manera dinamica mientras llegan respuestas.
+- Permitir que el participante seleccione conceptos desde la nube visible en su enlace publico, cuando el administrador habilite esa dinamica.
+- Guardar las selecciones personales de conceptos por participante y pregunta.
 
 ### No incluido en la primera version
 
@@ -66,6 +69,7 @@ Campos funcionales sugeridos:
 - Estado.
 - Permite multiples respuestas por participante.
 - Maximo de caracteres por respuesta.
+- Numero de conceptos seleccionables por participante.
 - Modo de normalizacion de respuestas.
 - Enlace corto de participante.
 - Enlace de presentador.
@@ -149,6 +153,84 @@ La validacion debe basarse en el conteo de respuestas activas de la pregunta. Si
 La interfaz debe mostrar esos campos como solo lectura o deshabilitados cuando ya existen respuestas, junto con una indicacion breve:
 
 `Este campo no puede modificarse porque la pregunta ya tiene respuestas registradas.`
+
+### 4.5 Seleccion personal de conceptos desde la nube
+
+Ademas de registrar respuestas, una pregunta interactiva puede habilitar una segunda dinamica: que cada participante seleccione conceptos desde la nube total de respuestas.
+
+Objetivo funcional:
+
+- Permitir que el facilitador diga, por ejemplo: "Ahora, de toda la nube generada por el grupo, elige los 5 conceptos que mejor responden la pregunta".
+- La seleccion no esta limitada a los conceptos escritos por el propio participante. Puede seleccionar conceptos generados por cualquier participante, porque la seleccion se hace sobre la nube total.
+- Cada seleccion es personal, por participante y por pregunta.
+- Las selecciones deben guardarse para reportes y dinamicas posteriores.
+
+Campo de configuracion:
+
+`max_selectable_concepts`
+
+Nombre visible en el formulario administrativo:
+
+`Numero de seleccionables`
+
+Reglas del campo:
+
+- Debe existir tanto al crear como al editar una pregunta interactiva.
+- Solo acepta numeros enteros.
+- Debe ser mayor o igual que 1 cuando se quiera usar la dinamica de seleccion.
+- Valor recomendado por defecto: `5`.
+- Puede editarse en cualquier momento porque es una regla operativa.
+- Si se reduce por debajo de selecciones ya registradas, no se deben eliminar selecciones existentes automaticamente. La nueva regla debe impedir agregar mas selecciones hasta que el participante quite selecciones y quede dentro del limite vigente.
+
+Relacion con `Ver nube participante`:
+
+- La nube y la seccion de seleccionables forman un solo bloque visual y funcional.
+- Si `Ver nube participante` esta activo, el enlace del participante muestra:
+  - nube total interactiva;
+  - seccion de conceptos seleccionados personales.
+- Si `Dejar de ver nube participante` esta activo, el enlace del participante oculta ambos elementos:
+  - nube;
+  - seleccionables personales.
+- La aparicion y ocultamiento debe ser dinamica, sin que el participante recargue la pagina.
+
+Comportamiento de seleccion:
+
+- Cada elemento de la nube debe ser clicable.
+- Al hacer clic en un concepto de la nube:
+  - si aun no esta seleccionado por ese participante, se agrega a la seccion inferior de seleccionables;
+  - si ya esta seleccionado, no debe duplicarse.
+- Cada concepto seleccionado debe mostrarse como una caja centrada, con estilo similar a las respuestas personales registradas, pero con color diferenciado.
+- Cada caja seleccionada debe incluir una accion de quitar, representada por una `X`.
+- Al hacer clic en la `X`, el concepto se desselecciona y se actualiza la persistencia.
+- La seccion de seleccionables debe organizarse en fila, centrada y con ajuste automatico de linea solo si no hay espacio horizontal.
+
+Regla de limite:
+
+- El participante puede seleccionar hasta `max_selectable_concepts`.
+- Si intenta seleccionar un concepto adicional superando el limite, el sistema debe bloquear la accion y mostrar un mensaje breve.
+- Mensaje sugerido:
+
+`Ya seleccionaste el maximo de conceptos permitidos.`
+
+Persistencia:
+
+- Las selecciones deben guardarse en base de datos por:
+  - pregunta;
+  - evento;
+  - participante;
+  - concepto normalizado;
+  - texto visible del concepto seleccionado;
+  - orden de seleccion;
+  - fecha y hora.
+- Si el participante sale del enlace y vuelve a identificarse, deben cargarse sus selecciones previas.
+- Si la nube esta visible para participantes, las selecciones previas deben mostrarse inmediatamente al cargar la seccion de respuestas.
+
+Validacion:
+
+- Solo puede seleccionar un concepto quien ya este identificado y tenga asistencia registrada en el evento.
+- Solo se pueden seleccionar conceptos existentes en la nube total de la pregunta.
+- La validacion del limite debe aplicarse en frontend y backend.
+- La eliminacion tambien debe validarse por pregunta y participante, para impedir modificar selecciones de otro participante.
 
 ## 5. Estados de la pregunta
 
@@ -317,6 +399,32 @@ Usar paleta variada y sobria.
 
 No depender solo del color para transmitir frecuencia; el tamaño debe ser la principal señal.
 
+### 10.4 Nube interactiva para participante
+
+Cuando el administrador activa `Ver nube participante`, el enlace del participante debe mostrar una nube clicable.
+
+La nube del participante debe:
+
+- Usar el mismo resumen agregado que la nube del presentador.
+- Actualizarse con polling mientras llegan nuevas respuestas.
+- Mantener buen tamano y legibilidad.
+- Permitir clic o toque sobre cada concepto.
+- Resaltar visualmente que los conceptos son seleccionables, sin ensuciar la vista.
+
+Debajo de la nube debe mostrarse la seccion:
+
+`Conceptos seleccionados`
+
+Esta seccion debe:
+
+- Mostrar solo selecciones del participante identificado.
+- Usar cajas horizontales, centradas y con ajuste responsivo.
+- Tener color diferenciado respecto a las respuestas personales registradas.
+- Incluir una `X` para quitar cada concepto.
+- Cargarse automaticamente si el participante ya habia seleccionado conceptos antes.
+
+Nube y seleccionables forman un solo elemento grafico. El control administrativo `Ver nube participante` / `Dejar de ver nube participante` debe mostrar u ocultar ambos.
+
 ## 11. Actualizacion en tiempo real
 
 Opciones tecnicas compatibles con Cloudflare Workers:
@@ -374,6 +482,7 @@ Campos del formulario administrativo:
 - Permitir multiples respuestas: si/no.
 - Maximo de respuestas por participante.
 - Maximo de caracteres por respuesta.
+- Numero de seleccionables.
 - Estado.
 - Slug participante.
 - Slug presentador.
@@ -389,10 +498,19 @@ Reglas de edicion en el formulario administrativo:
 - El sistema debe mostrar el conteo de respuestas cerca de la pregunta para que el usuario entienda por que algunos campos estan bloqueados.
 - La validacion debe aplicarse tambien en API/backend, no solo en frontend.
 - Si el usuario intenta modificar por API un campo bloqueado, la respuesta debe ser `400` con un mensaje claro.
+- El campo `Numero de seleccionables` debe estar disponible en registro y edicion de pregunta.
+- `Numero de seleccionables` es editable en cualquier momento y solo debe aceptar numeros enteros.
 
 Mensaje recomendado:
 
 `No se puede modificar la pregunta ni el enlace corto porque ya existen respuestas registradas.`
+
+Controles administrativos adicionales:
+
+- `Ver nube participante`: muestra en el enlace del participante el bloque completo de nube total mas seleccionables personales.
+- `Dejar de ver nube participante`: oculta el bloque completo de nube total mas seleccionables personales.
+
+Cuando el bloque esta visible, la nube debe ser interactiva para el participante. Cuando esta oculto, no debe verse ni la nube ni las selecciones personales.
 
 ## 13. Permisos
 
@@ -431,12 +549,41 @@ allow_multiple_responses
 allow_response_update
 max_responses_per_participant nullable
 max_answer_length
+max_selectable_concepts
+show_participant_cloud
 participant_slug unique
 presenter_slug unique
 created_by_user_id
 created_at
 updated_at
 ```
+
+### `event_question_selections`
+
+Tabla para guardar los conceptos priorizados o seleccionados por cada participante desde la nube total.
+
+```text
+id
+question_id
+event_id
+participant_id
+document_type
+document_number
+normalized_answer
+display_answer
+selection_order
+status
+created_at
+updated_at
+```
+
+Reglas de datos:
+
+- `question_id`, `participant_id`, `normalized_answer` no deben duplicarse en estado `active`.
+- `selection_order` representa el orden en que el participante fue seleccionando conceptos.
+- `status` permite manejar `active` y `removed` sin perder auditoria basica.
+- `display_answer` debe guardar la forma visible del concepto al momento de seleccionarlo.
+- `normalized_answer` debe corresponder al mismo valor usado por la nube para agrupar respuestas.
 
 ### `event_question_responses`
 
@@ -488,6 +635,7 @@ POST   /api/admin/questions/:questionId/close
 POST   /api/admin/questions/:questionId/archive
 GET    /api/admin/questions/:questionId/responses
 GET    /api/admin/questions/:questionId/summary
+POST   /api/admin/events/:eventId/questions/:questionId/participant-cloud
 ```
 
 ### Publicas participante
@@ -496,7 +644,17 @@ GET    /api/admin/questions/:questionId/summary
 GET  /api/public/questions/:participantSlug
 POST /api/public/questions/:participantSlug/identify
 POST /api/public/questions/:participantSlug/responses
+GET  /api/public/questions/:participantSlug/summary
+GET  /api/public/questions/:participantSlug/selections
+POST /api/public/questions/:participantSlug/selections
+DELETE /api/public/questions/:participantSlug/selections/:selectionId
 ```
+
+Observacion:
+
+- En endpoints publicos de seleccion, el participante debe identificarse mediante documento o mediante un token temporal de identificacion si se incorpora en una version posterior.
+- Para mantener coherencia con el flujo actual, la primera implementacion puede enviar `documentType` y `documentNumber` en cada accion de seleccion/desseleccion y validar nuevamente asistencia.
+- El backend debe validar que el concepto seleccionado exista en el resumen agrupado de la pregunta.
 
 ### Publicas presentador
 
@@ -522,6 +680,10 @@ GET /api/public/question-presenter/:presenterSlug/summary
 10. Sistema valida longitud, estado de pregunta y regla de multiples respuestas.
 11. Sistema guarda respuesta individual.
 12. Sistema confirma envio.
+13. Si `show_participant_cloud = true`, sistema muestra debajo de las respuestas personales el bloque de nube total mas seleccionables personales.
+14. Participante puede hacer clic en conceptos de la nube para agregarlos a sus seleccionables.
+15. Participante puede quitar conceptos seleccionados con la accion `X`.
+16. El sistema guarda y recarga selecciones personales.
 
 ## 17. Flujo del presentador
 
@@ -543,6 +705,9 @@ La pantalla participante debe:
 - Boton principal visible.
 - Mensajes breves.
 - No tener menus administrativos.
+- Si la nube participante esta visible, mostrar la nube con buen tamano y legibilidad.
+- Mostrar las selecciones personales debajo de la nube, centradas y en fila.
+- Permitir seleccionar y quitar conceptos con controles tactiles comodos.
 
 Debe ser comoda en celular durante un evento presencial.
 
@@ -567,6 +732,9 @@ Como se guardan respuestas individuales, luego se podran crear:
 - Comparacion de respuestas por sesion.
 - Analisis de participacion.
 - Dinamicas posteriores con palabras registradas.
+- Priorizacion individual de conceptos seleccionados desde la nube total.
+- Ranking de conceptos mas seleccionados por los participantes.
+- Comparacion entre conceptos mas mencionados y conceptos mas priorizados.
 - Moderacion posterior.
 - Indicadores de frecuencia.
 
@@ -585,6 +753,15 @@ Como se guardan respuestas individuales, luego se podran crear:
 - Si se edita una pregunta con respuestas: bloquear cambios en texto de pregunta y enlace corto, pero permitir cambios operativos.
 - Si se cambia el maximo de caracteres a un valor menor que respuestas ya registradas: no se modifican respuestas existentes; la nueva longitud aplica solo a respuestas futuras.
 - Si se desactiva la opcion de multiples respuestas cuando ya existen varias respuestas de un participante: no se eliminan respuestas existentes; la nueva regla aplica a nuevos envios.
+- Si `Numero de seleccionables` esta vacio o no es numero: bloquear guardado de pregunta.
+- Si `Numero de seleccionables` es menor que 1: bloquear guardado o normalizar al valor minimo permitido, recomendado bloquear.
+- Si el participante intenta seleccionar mas conceptos que el maximo configurado: bloquear seleccion y mostrar mensaje.
+- Si el participante selecciona un concepto ya seleccionado: no duplicar.
+- Si el participante quita un concepto, debe desaparecer de sus seleccionables pero no de la nube total.
+- Si se oculta la nube participante desde administracion mientras un participante la esta viendo: debe ocultarse tambien la seccion de seleccionables en el siguiente ciclo de actualizacion.
+- Si se vuelve a mostrar la nube participante: deben recargarse las selecciones personales previas del participante.
+- Si se reduce `Numero de seleccionables` por debajo de selecciones ya registradas: no eliminar datos existentes; impedir nuevas selecciones hasta que el participante quede por debajo del limite.
+- Si un concepto desaparece del resumen por cambios futuros de estado de respuestas, las selecciones historicas pueden conservarse, pero no debe permitirse seleccionarlo de nuevo si ya no existe en la nube activa.
 
 ## 22. Recomendacion de implementacion por partes
 
@@ -595,6 +772,9 @@ Como se guardan respuestas individuales, luego se podran crear:
 - Estados de pregunta.
 - Slugs de participante y presentador.
 - Edicion parcial de preguntas con bloqueo de campos de identidad cuando existan respuestas.
+- Campo `Numero de seleccionables`.
+- Tabla de selecciones personales por participante.
+- APIs para seleccionar y desseleccionar conceptos.
 
 ### Parte B. Flujo publico del participante
 
@@ -602,6 +782,9 @@ Como se guardan respuestas individuales, luego se podran crear:
 - Validacion de asistencia en evento.
 - Redireccion al formulario de asistencia.
 - Registro de respuesta.
+- Carga de respuestas previas del participante.
+- Carga de selecciones previas del participante.
+- Seleccion y desseleccion de conceptos desde la nube.
 
 ### Parte C. Vista presentador
 
@@ -614,6 +797,8 @@ Como se guardan respuestas individuales, luego se podran crear:
 - Panel dentro del evento.
 - Botones copiar/abrir enlaces.
 - Conteo de respuestas.
+- Control para ver u ocultar nube participante.
+- Configuracion de numero de seleccionables.
 
 ### Parte E. Mejoras posteriores
 

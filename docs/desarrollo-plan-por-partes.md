@@ -103,12 +103,25 @@ Objetivo:
 - Mostrar nube de respuestas con frecuencias dinamicas.
 - Preparar base para futuras dinamicas con respuestas guardadas.
 - Permitir editar preguntas interactivas con bloqueo de campos de identidad cuando ya existan respuestas.
+- Permitir configurar `Numero de seleccionables` por pregunta.
+- Permitir que el participante seleccione conceptos desde la nube total cuando la nube participante este visible.
+- Guardar selecciones personales por participante y pregunta.
 
 Regla de edicion:
 
 - Siempre editables: sesion asociada, descripcion, maximo de caracteres, permitir mas de una respuesta y maximo de respuestas por participante.
+- Tambien editable siempre: numero de seleccionables.
 - Editables solo sin respuestas registradas: texto de la pregunta y enlace corto de participante.
 - La regla debe validarse en frontend y backend.
+
+Subfase de seleccion de conceptos:
+
+- Agregar campo numerico `Numero de seleccionables` en creacion y edicion de preguntas.
+- Crear persistencia de conceptos seleccionados por participante.
+- Hacer clicables los conceptos de la nube en el enlace participante.
+- Mostrar seleccionables personales debajo de la nube en cajas horizontales con accion `X`.
+- Respetar el limite configurado y cargar selecciones previas al reidentificarse.
+- El control `Ver nube participante` debe mostrar/ocultar nube y seleccionables como un solo bloque.
 
 Documento base:
 
