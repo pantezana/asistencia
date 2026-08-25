@@ -765,6 +765,7 @@ app.put("/api/admin/events/:eventId/questions/:questionId", async (c) => {
     allowMultipleResponses?: boolean;
     maxResponsesPerParticipant?: number | null;
     maxAnswerLength?: number;
+    participantSlug?: string;
   }>().catch(() => null);
 
   const result = await updateEventQuestion(c.env.DB, eventId, c.req.param("questionId"), {
@@ -774,7 +775,8 @@ app.put("/api/admin/events/:eventId/questions/:questionId", async (c) => {
     status: body?.status,
     allowMultipleResponses: body?.allowMultipleResponses,
     maxResponsesPerParticipant: body?.maxResponsesPerParticipant ?? null,
-    maxAnswerLength: body?.maxAnswerLength
+    maxAnswerLength: body?.maxAnswerLength,
+    participantSlug: body?.participantSlug
   });
 
   return c.json(result, result.ok ? 200 : 400);

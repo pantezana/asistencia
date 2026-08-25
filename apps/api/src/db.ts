@@ -358,15 +358,40 @@ export async function updateEventQuestion(db: D1Database, eventId: string, quest
   allowMultipleResponses?: boolean;
   maxResponsesPerParticipant?: number | null;
   maxAnswerLength?: number;
+  participantSlug?: string;
 }) {
   const current = await db
-    .prepare("SELECT id, event_id, status FROM event_questions WHERE id = ? AND event_id = ?")
+    .prepare(
+      `SELECT q.id, q.event_id, q.status, q.question_text, q.participant_slug, COUNT(r.id) AS response_count
+       FROM event_questions q
+       LEFT JOIN event_question_responses r ON r.question_id = q.id AND r.status = 'active'
+       WHERE q.id = ? AND q.event_id = ?
+       GROUP BY q.id`
+    )
     .bind(questionId, eventId)
-    .first<{ id: string; event_id: string; status: string }>();
+    .first<{ id: string; event_id: string; status: string; question_text: string; participant_slug: string; response_count: number }>();
   if (!current) return { ok: false, message: "Pregunta no encontrada." };
 
   const questionText = input.questionText.trim();
   if (!questionText) return { ok: false, message: "Ingrese la pregunta." };
+  const responseCount = Number(current.response_count || 0);
+  const participantSlug = normalizePublicSlug(input.participantSlug || current.participant_slug);
+  if (!participantSlug) return { ok: false, message: "Ingrese un enlace corto valido." };
+
+  if (responseCount > 0 && (questionText !== current.question_text || participantSlug !== current.participant_slug)) {
+    return {
+      ok: false,
+      message: "No se puede modificar la pregunta ni el enlace corto porque ya existen respuestas registradas."
+    };
+  }
+
+  if (participantSlug !== current.participant_slug) {
+    const duplicated = await db
+      .prepare("SELECT id FROM event_questions WHERE participant_slug = ? AND id <> ?")
+      .bind(participantSlug, questionId)
+      .first<{ id: string }>();
+    if (duplicated) return { ok: false, message: "El enlace corto de pregunta ya existe." };
+  }
 
   if (input.sessionId) {
     const session = await db
@@ -383,7 +408,7 @@ export async function updateEventQuestion(db: D1Database, eventId: string, quest
     .prepare(
       `UPDATE event_questions
        SET session_id = ?, question_text = ?, description = ?, status = ?, allow_multiple_responses = ?,
-           max_responses_per_participant = ?, max_answer_length = ?, updated_at = CURRENT_TIMESTAMP
+           max_responses_per_participant = ?, max_answer_length = ?, participant_slug = ?, updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`
     )
     .bind(
@@ -394,6 +419,7 @@ export async function updateEventQuestion(db: D1Database, eventId: string, quest
       input.allowMultipleResponses ? 1 : 0,
       input.maxResponsesPerParticipant ?? null,
       maxAnswerLength,
+      participantSlug,
       questionId
     )
     .run();

@@ -988,6 +988,25 @@ select {
   overflow-wrap: anywhere;
 }
 
+.question-card.editing {
+  display: block;
+}
+
+.question-edit-form {
+  display: grid;
+  gap: 12px;
+  width: 100%;
+}
+
+.question-edit-note {
+  align-items: center;
+  color: #52627a;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  font-size: 14px;
+}
+
 .question-box {
   background: #eef6f1;
   border: 1px solid #cfe8d5;

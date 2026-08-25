@@ -534,6 +534,16 @@ function AdminShell() {
     maxAnswerLength: "80",
     participantSlug: ""
   });
+  const [editingQuestionId, setEditingQuestionId] = React.useState<string | null>(null);
+  const [questionEditDraft, setQuestionEditDraft] = React.useState({
+    questionText: "",
+    description: "",
+    sessionId: "",
+    allowMultipleResponses: false,
+    maxResponsesPerParticipant: "",
+    maxAnswerLength: "80",
+    participantSlug: ""
+  });
 
   React.useEffect(() => {
     fetch("/api/auth/me", { credentials: "include" })
@@ -554,6 +564,7 @@ function AdminShell() {
 
   React.useEffect(() => {
     if (selectedEventId) {
+      setEditingQuestionId(null);
       void loadSessions(selectedEventId);
       void loadEventQuestions(selectedEventId);
     }
@@ -1199,6 +1210,65 @@ function AdminShell() {
     setActionMessage("Estado de pregunta actualizado.");
   }
 
+  function startQuestionEdit(question: EventQuestion) {
+    setEditingQuestionId(question.id);
+    setQuestionEditDraft({
+      questionText: question.question_text,
+      description: question.description ?? "",
+      sessionId: question.session_id ?? "",
+      allowMultipleResponses: Boolean(question.allow_multiple_responses),
+      maxResponsesPerParticipant: question.max_responses_per_participant?.toString() ?? "",
+      maxAnswerLength: question.max_answer_length.toString(),
+      participantSlug: question.participant_slug
+    });
+    setActionMessage(null);
+  }
+
+  function cancelQuestionEdit() {
+    setEditingQuestionId(null);
+    setQuestionEditDraft({
+      questionText: "",
+      description: "",
+      sessionId: "",
+      allowMultipleResponses: false,
+      maxResponsesPerParticipant: "",
+      maxAnswerLength: "80",
+      participantSlug: ""
+    });
+  }
+
+  async function saveQuestionEdit(question: EventQuestion, event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedEventId) return;
+
+    const response = await fetch(`/api/admin/events/${selectedEventId}/questions/${question.id}`, {
+      method: "PUT",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        questionText: questionEditDraft.questionText,
+        description: questionEditDraft.description,
+        sessionId: questionEditDraft.sessionId || null,
+        allowMultipleResponses: questionEditDraft.allowMultipleResponses,
+        maxResponsesPerParticipant: questionEditDraft.allowMultipleResponses && questionEditDraft.maxResponsesPerParticipant
+          ? Number(questionEditDraft.maxResponsesPerParticipant)
+          : null,
+        maxAnswerLength: Number(questionEditDraft.maxAnswerLength) || 80,
+        participantSlug: questionEditDraft.participantSlug
+      })
+    });
+    const payload = (await response.json()) as { ok: boolean; message?: string };
+
+    if (!response.ok || !payload.ok) {
+      setActionMessage(payload.message ?? "No se pudo actualizar la pregunta.");
+      return;
+    }
+
+    await loadEventQuestions(selectedEventId);
+    cancelQuestionEdit();
+    setActionMessage("Pregunta actualizada correctamente.");
+  }
+
   function updateSessionDraft(index: number, field: keyof EventSessionDraft, value: string) {
     setSessionDrafts((current) => current.map((session, itemIndex) =>
       itemIndex === index ? { ...session, [field]: value } : session
@@ -1720,19 +1790,103 @@ function AdminShell() {
                 {eventQuestions.map((question) => {
                   const participantUrl = `${window.location.origin}/q/${question.participant_slug}`;
                   const presenterUrl = `${window.location.origin}/q/p/${question.presenter_slug}`;
+                  const isEditingQuestion = editingQuestionId === question.id;
+                  const hasResponses = question.response_count > 0;
                   return (
-                    <div className="question-card" key={question.id}>
-                      <div>
-                        <strong>{question.question_text}</strong>
-                        <span>{question.response_count} respuestas · {question.unique_participant_count} participantes · {question.status}</span>
-                        <a href={participantUrl}>{participantUrl}</a>
-                        <a href={presenterUrl}>{presenterUrl}</a>
-                      </div>
-                      <div className="row-actions">
-                        <button className="button secondary table-action" type="button" onClick={() => void changeQuestionStatus(question, "open")}>Abrir</button>
-                        <button className="button secondary table-action" type="button" onClick={() => void changeQuestionStatus(question, "closed")}>Cerrar</button>
-                        <button className="button secondary table-action" type="button" onClick={() => void changeQuestionStatus(question, "archived")}>Archivar</button>
-                      </div>
+                    <div className={`question-card${isEditingQuestion ? " editing" : ""}`} key={question.id}>
+                      {!isEditingQuestion ? (
+                        <>
+                          <div>
+                            <strong>{question.question_text}</strong>
+                            <span>{question.response_count} respuestas · {question.unique_participant_count} participantes · {question.status}</span>
+                            <a href={participantUrl}>{participantUrl}</a>
+                            <a href={presenterUrl}>{presenterUrl}</a>
+                          </div>
+                          <div className="row-actions">
+                            <button className="button secondary table-action" type="button" onClick={() => startQuestionEdit(question)}>Editar</button>
+                            <button className="button secondary table-action" type="button" onClick={() => void changeQuestionStatus(question, "open")}>Abrir</button>
+                            <button className="button secondary table-action" type="button" onClick={() => void changeQuestionStatus(question, "closed")}>Cerrar</button>
+                            <button className="button secondary table-action" type="button" onClick={() => void changeQuestionStatus(question, "archived")}>Archivar</button>
+                          </div>
+                        </>
+                      ) : (
+                        <form className="question-edit-form" onSubmit={(event) => void saveQuestionEdit(question, event)}>
+                          <div className="builder-grid">
+                            <label>
+                              Pregunta
+                              <input
+                                value={questionEditDraft.questionText}
+                                onChange={(event) => setQuestionEditDraft((current) => ({ ...current, questionText: event.target.value }))}
+                                disabled={hasResponses}
+                                required
+                              />
+                              {hasResponses ? <span className="field-hint">No puede modificarse porque ya existen respuestas registradas.</span> : null}
+                            </label>
+                            <label>
+                              Sesión asociada
+                              <select value={questionEditDraft.sessionId} onChange={(event) => setQuestionEditDraft((current) => ({ ...current, sessionId: event.target.value }))}>
+                                <option value="">Todo el evento</option>
+                                {sessions.map((session) => (
+                                  <option key={session.id} value={session.id}>{session.title}</option>
+                                ))}
+                              </select>
+                            </label>
+                            <label>
+                              Enlace corto de pregunta
+                              <input
+                                value={questionEditDraft.participantSlug}
+                                onChange={(event) => setQuestionEditDraft((current) => ({ ...current, participantSlug: event.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-") }))}
+                                disabled={hasResponses}
+                                required
+                              />
+                              {hasResponses ? <span className="field-hint">No puede modificarse porque ya existen respuestas registradas.</span> : null}
+                            </label>
+                            <label className="wide-field">
+                              Descripción
+                              <input
+                                value={questionEditDraft.description}
+                                onChange={(event) => setQuestionEditDraft((current) => ({ ...current, description: event.target.value }))}
+                              />
+                            </label>
+                            <label>
+                              Máximo de caracteres
+                              <input
+                                min="10"
+                                max="500"
+                                type="number"
+                                value={questionEditDraft.maxAnswerLength}
+                                onChange={(event) => setQuestionEditDraft((current) => ({ ...current, maxAnswerLength: event.target.value }))}
+                              />
+                            </label>
+                            <label>
+                              Máximo respuestas por participante
+                              <input
+                                min="1"
+                                type="number"
+                                value={questionEditDraft.maxResponsesPerParticipant}
+                                onChange={(event) => setQuestionEditDraft((current) => ({ ...current, maxResponsesPerParticipant: event.target.value }))}
+                                disabled={!questionEditDraft.allowMultipleResponses}
+                              />
+                            </label>
+                            <label className="check-field">
+                              <input
+                                checked={questionEditDraft.allowMultipleResponses}
+                                onChange={(event) => setQuestionEditDraft((current) => ({ ...current, allowMultipleResponses: event.target.checked }))}
+                                type="checkbox"
+                              />
+                              Permitir más de una respuesta
+                            </label>
+                          </div>
+                          <div className="question-edit-note">
+                            <span>{question.response_count} respuestas registradas</span>
+                            {hasResponses ? <span>Pregunta y enlace corto bloqueados por trazabilidad.</span> : <span>Pregunta y enlace corto aún pueden modificarse.</span>}
+                          </div>
+                          <div className="actions">
+                            <button className="button" type="submit">Guardar pregunta</button>
+                            <button className="button secondary" type="button" onClick={cancelQuestionEdit}>Cancelar</button>
+                          </div>
+                        </form>
+                      )}
                     </div>
                   );
                 })}
