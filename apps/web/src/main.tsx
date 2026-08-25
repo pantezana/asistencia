@@ -3734,11 +3734,6 @@ function QuestionPresenterView({ slug }: { slug: string }) {
         <p className="eyebrow">{question.event_title}</p>
         <h1>{question.question_text}</h1>
         {question.description ? <p className="presenter-description">{question.description}</p> : null}
-        <div className="presenter-meta">
-          <span>{question.response_count} respuestas</span>
-          <span>{question.unique_participant_count} participantes</span>
-          <span>{question.status === "open" ? "Abierta" : "Cerrada"}</span>
-        </div>
         {summary.length > 0 ? (
           <div className="word-cloud" aria-label="Nube de respuestas">
             {summary.map((item, index) => {
