@@ -7,6 +7,7 @@ import type {
   EventSummary,
   EventQuestion,
   EventQuestionResponseItem,
+  EventQuestionSelectionGroup,
   EventQuestionSelectionItem,
   EventQuestionSummaryItem,
   FormControlDefinition,
@@ -1848,6 +1849,33 @@ export async function removeQuestionSelection(db: D1Database, question: EventQue
     .bind(selectionId, question.id, participant.id)
     .run();
   return result.meta.changes > 0;
+}
+
+export async function getQuestionSelectionGroups(db: D1Database, questionId: string) {
+  return db
+    .prepare(
+      `SELECT
+        participant_id,
+        participant_name,
+        GROUP_CONCAT(display_answer, '||') AS selections,
+        COUNT(*) AS selection_count
+       FROM (
+        SELECT
+          s.participant_id,
+          TRIM(p.first_name || ' ' || COALESCE(p.paternal_last_name, '')) AS participant_name,
+          s.display_answer,
+          s.selection_order,
+          s.created_at
+        FROM event_question_selections s
+        INNER JOIN participants p ON p.id = s.participant_id
+        WHERE s.question_id = ? AND s.status = 'active'
+        ORDER BY s.participant_id, s.selection_order ASC, s.created_at ASC
+       )
+       GROUP BY participant_id, participant_name
+       ORDER BY participant_name ASC`
+    )
+    .bind(questionId)
+    .all<EventQuestionSelectionGroup>();
 }
 
 export async function registerQuestionResponse(db: D1Database, question: EventQuestion, participant: Participant, answerText: string) {

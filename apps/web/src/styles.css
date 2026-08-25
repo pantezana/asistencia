@@ -1300,9 +1300,114 @@ textarea {
   min-height: 52vh;
 }
 
+.word-cloud.compact-cloud {
+  min-height: 34vh;
+}
+
 .word-cloud span {
   font-weight: 800;
   line-height: 1;
+}
+
+.presenter-selection-board {
+  display: grid;
+  gap: 12px;
+  margin: 14px auto 0;
+  max-width: 1280px;
+  width: 100%;
+}
+
+.presenter-selection-heading {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+}
+
+.presenter-selection-heading h2 {
+  font-size: 20px;
+  line-height: 1.2;
+  margin: 0;
+}
+
+.presenter-selection-heading span {
+  color: #52627a;
+  font-weight: 800;
+}
+
+.presenter-selection-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+}
+
+.presenter-selection-card {
+  background: #f8fafc;
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  min-height: 105px;
+  padding: 10px;
+  text-align: left;
+}
+
+.presenter-selection-card strong {
+  font-size: 14px;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.presenter-selection-card div {
+  align-content: start;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.presenter-selection-card span {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+  padding: 4px 7px;
+}
+
+.presenter-pagination {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+.presenter-pagination button {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  color: #0f172a;
+  cursor: pointer;
+  font-weight: 800;
+  padding: 8px 12px;
+}
+
+.presenter-pagination button:disabled {
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
+.presenter-pagination span,
+.presenter-selection-empty {
+  color: #52627a;
+  font-weight: 800;
+}
+
+.presenter-selection-empty {
+  margin: 10px 0 0;
 }
 
 .empty-cloud {
@@ -1310,6 +1415,12 @@ textarea {
   font-size: 28px;
   font-weight: 800;
   margin-top: 80px;
+}
+
+@media (max-width: 1200px) {
+  .presenter-selection-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 800px) {
@@ -1344,6 +1455,10 @@ textarea {
 
   .question-card {
     display: grid;
+  }
+
+  .presenter-selection-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .wide-field {
@@ -1500,5 +1615,13 @@ textarea {
 
   .field-note {
     overflow-wrap: anywhere;
+  }
+
+  .presenter-selection-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .presenter-selection-card {
+    min-height: auto;
   }
 }

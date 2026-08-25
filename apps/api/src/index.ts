@@ -26,6 +26,7 @@ import {
   getPublicFormStructure,
   getPublicQuestionByParticipantSlug,
   getPublicQuestionByPresenterSlug,
+  getQuestionSelectionGroups,
   getQuestionSummary,
   getUserForLogin,
   hasAttendance,
@@ -553,14 +554,16 @@ app.get("/api/public/question-presenter/:slug", async (c) => {
   const question = await getPublicQuestionByPresenterSlug(c.env.DB, c.req.param("slug"));
   if (!question) return c.json({ ok: false, message: "Pregunta no disponible." }, 404);
   const summary = await getQuestionSummary(c.env.DB, question.id);
-  return c.json({ ok: true, question, summary: summary.results });
+  const selectionGroups = question.show_participant_cloud ? await getQuestionSelectionGroups(c.env.DB, question.id) : null;
+  return c.json({ ok: true, question, summary: summary.results, selectionGroups: selectionGroups?.results ?? [] });
 });
 
 app.get("/api/public/question-presenter/:slug/summary", async (c) => {
   const question = await getPublicQuestionByPresenterSlug(c.env.DB, c.req.param("slug"));
   if (!question) return c.json({ ok: false, message: "Pregunta no disponible." }, 404);
   const summary = await getQuestionSummary(c.env.DB, question.id);
-  return c.json({ ok: true, question, summary: summary.results });
+  const selectionGroups = question.show_participant_cloud ? await getQuestionSelectionGroups(c.env.DB, question.id) : null;
+  return c.json({ ok: true, question, summary: summary.results, selectionGroups: selectionGroups?.results ?? [] });
 });
 
 app.use("/api/admin/*", requireAuth());

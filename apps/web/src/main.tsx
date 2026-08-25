@@ -228,6 +228,13 @@ type QuestionSelectionItem = {
   selection_order: number;
 };
 
+type QuestionSelectionGroup = {
+  participant_id: string;
+  participant_name: string;
+  selections: string;
+  selection_count: number;
+};
+
 function cleanText(value: string | null | undefined) {
   return (value ?? "")
     .replaceAll("Ã¡", "á")
@@ -3926,6 +3933,8 @@ function QuestionParticipantView({ slug }: { slug: string }) {
 function QuestionPresenterView({ slug }: { slug: string }) {
   const [question, setQuestion] = React.useState<EventQuestion | null>(null);
   const [summary, setSummary] = React.useState<QuestionSummaryItem[]>([]);
+  const [selectionGroups, setSelectionGroups] = React.useState<QuestionSelectionGroup[]>([]);
+  const [selectionPage, setSelectionPage] = React.useState(0);
   const [message, setMessage] = React.useState("");
 
   React.useEffect(() => {
@@ -3937,6 +3946,7 @@ function QuestionPresenterView({ slug }: { slug: string }) {
         ok?: boolean;
         question?: EventQuestion;
         summary?: QuestionSummaryItem[];
+        selectionGroups?: QuestionSelectionGroup[];
         message?: string;
       } | null;
 
@@ -3948,6 +3958,7 @@ function QuestionPresenterView({ slug }: { slug: string }) {
 
       setQuestion(payload.question);
       setSummary(payload.summary ?? []);
+      setSelectionGroups(payload.selectionGroups ?? []);
       setMessage("");
     }
 
@@ -3963,6 +3974,13 @@ function QuestionPresenterView({ slug }: { slug: string }) {
 
   const maxCount = summary.reduce((max, item) => Math.max(max, item.count), 1);
   const palette = ["#2563eb", "#ef476f", "#06a77d", "#f59e0b", "#7c3aed", "#0891b2"];
+  const selectionPageSize = 32;
+  const totalSelectionPages = Math.max(1, Math.ceil(selectionGroups.length / selectionPageSize));
+  const currentSelectionPage = Math.min(selectionPage, totalSelectionPages - 1);
+  const visibleSelectionGroups = selectionGroups.slice(
+    currentSelectionPage * selectionPageSize,
+    currentSelectionPage * selectionPageSize + selectionPageSize
+  );
 
   return (
     <main className="presenter-page">
@@ -3971,7 +3989,10 @@ function QuestionPresenterView({ slug }: { slug: string }) {
         <h1>{question.question_text}</h1>
         {question.description ? <p className="presenter-description">{question.description}</p> : null}
         {summary.length > 0 ? (
-          <div className="word-cloud" aria-label="Nube de respuestas">
+          <div
+            className={`word-cloud${question.show_participant_cloud ? " compact-cloud" : ""}`}
+            aria-label="Nube de respuestas"
+          >
             {summary.map((item, index) => {
               const size = 22 + Math.round((item.count / maxCount) * 56);
               return (
@@ -3988,6 +4009,56 @@ function QuestionPresenterView({ slug }: { slug: string }) {
         ) : (
           <p className="empty-cloud">Esperando respuestas...</p>
         )}
+        {question.show_participant_cloud ? (
+          <section className="presenter-selection-board" aria-live="polite">
+            <div className="presenter-selection-heading">
+              <h2>Conceptos seleccionados</h2>
+              <span>{selectionGroups.length} participantes</span>
+            </div>
+            {selectionGroups.length > 0 ? (
+              <>
+                <div className="presenter-selection-grid">
+                  {visibleSelectionGroups.map((group) => (
+                    <article className="presenter-selection-card" key={group.participant_id}>
+                      <strong>{group.participant_name}</strong>
+                      <div>
+                        {group.selections
+                          .split("||")
+                          .filter(Boolean)
+                          .map((selection, index) => (
+                            <span key={`${group.participant_id}-${index}-${selection}`}>{selection}</span>
+                          ))}
+                      </div>
+                    </article>
+                  ))}
+                </div>
+                {totalSelectionPages > 1 ? (
+                  <div className="presenter-pagination">
+                    <button
+                      type="button"
+                      disabled={currentSelectionPage === 0}
+                      onClick={() => setSelectionPage((current) => Math.max(0, current - 1))}
+                    >
+                      Anterior
+                    </button>
+                    <span>
+                      {currentSelectionPage + 1} / {totalSelectionPages}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={currentSelectionPage >= totalSelectionPages - 1}
+                      onClick={() => setSelectionPage((current) => Math.min(totalSelectionPages - 1, current + 1))}
+                    >
+                      Siguiente
+                    </button>
+                  </div>
+                ) : null}
+              </>
+            ) : (
+              <p className="presenter-selection-empty">Esperando selecciones de participantes...</p>
+            )}
+          </section>
+        ) : null}
       </section>
     </main>
   );

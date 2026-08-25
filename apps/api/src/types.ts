@@ -201,6 +201,13 @@ export type EventQuestionSelectionItem = {
   created_at: string;
 };
 
+export type EventQuestionSelectionGroup = {
+  participant_id: string;
+  participant_name: string;
+  selections: string;
+  selection_count: number;
+};
+
 export type Participant = {
   id: string;
   document_type: string;
