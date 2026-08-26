@@ -4630,6 +4630,12 @@ function BoardParticipantView({ slug }: { slug: string }) {
   const [form, setForm] = React.useState({ firstName: "", lastName: "", countryId: "", noteHtml: "" });
   const [message, setMessage] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
+  const [showBoard, setShowBoard] = React.useState(false);
+  const [notes, setNotes] = React.useState<EventBoardNote[]>([]);
+  const [page, setPage] = React.useState(1);
+  const [totalPages, setTotalPages] = React.useState(1);
+  const [total, setTotal] = React.useState(0);
+  const [expanded, setExpanded] = React.useState<Record<string, boolean>>({});
 
   React.useEffect(() => {
     fetch(`/api/public/boards/${slug}`)
@@ -4641,6 +4647,41 @@ function BoardParticipantView({ slug }: { slug: string }) {
       .then((payload) => setCountries(payload.items))
       .catch(() => setCountries([]));
   }, [slug]);
+
+  const loadPublicNotes = React.useCallback(async () => {
+    const response = await fetch(`/api/public/boards/${slug}/notes?page=${page}&pageSize=48`);
+    const payload = (await response.json().catch(() => null)) as {
+      ok?: boolean;
+      board?: EventBoard;
+      notes?: EventBoardNote[];
+      totalPages?: number;
+      total?: number;
+      message?: string;
+    } | null;
+    if (!response.ok || !payload?.ok || !payload.board) {
+      setMessage(payload?.message ?? "No se pudo cargar la pizarra.");
+      return;
+    }
+    setBoard(payload.board);
+    setNotes(payload.notes ?? []);
+    setTotalPages(payload.totalPages ?? 1);
+    setTotal(payload.total ?? 0);
+  }, [page, slug]);
+
+  React.useEffect(() => {
+    if (!showBoard) return;
+    let active = true;
+    const loadIfActive = async () => {
+      if (!active) return;
+      await loadPublicNotes();
+    };
+    void loadIfActive();
+    const interval = window.setInterval(loadIfActive, 3000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [loadPublicNotes, showBoard]);
 
   if (!board) return <PublicMessage title="Pizarra interactiva" message={message || "Cargando pizarra."} />;
 
@@ -4673,6 +4714,57 @@ function BoardParticipantView({ slug }: { slug: string }) {
     }
     setForm((current) => ({ ...current, noteHtml: "" }));
     setMessage("Nota registrada correctamente.");
+  }
+
+  if (showBoard) {
+    return (
+      <main className="board-presenter-page">
+        <section className="board-presenter-stage participant-board-stage">
+          <p className="eyebrow">{board.event_title}</p>
+          <h1>{board.title}</h1>
+          <div className="board-toolbar">
+            <strong>{total} notas</strong>
+            <span className={`status ${board.status === "open" ? "open" : "closed"}`}>{board.status}</span>
+          </div>
+          {notes.length > 0 ? (
+            <div className="postit-grid">
+              {notes.map((note, index) => {
+                const isExpanded = Boolean(expanded[note.id]);
+                return (
+                  <article className={`postit-card tone-${index % 5}`} key={note.id}>
+                    <div className="postit-head">
+                      <FlagMark countryName={note.country_name} iso2={note.country_iso2} />
+                      <strong>{note.first_name.split(" ")[0]} {note.last_name.split(" ")[0]}</strong>
+                    </div>
+                    <div
+                      className={isExpanded ? "postit-body expanded" : "postit-body"}
+                      dangerouslySetInnerHTML={{ __html: isExpanded ? note.note_html : cleanText(note.note_excerpt) }}
+                    />
+                    {note.note_text.length > 50 ? (
+                      <button className="text-button" type="button" onClick={() => setExpanded((current) => ({ ...current, [note.id]: !isExpanded }))}>
+                        {isExpanded ? "Ver menos" : "..."}
+                      </button>
+                    ) : null}
+                  </article>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="empty-cloud">Esperando notas...</p>
+          )}
+          {totalPages > 1 ? (
+            <div className="presenter-pagination">
+              <button type="button" disabled={page === 1} onClick={() => setPage((current) => Math.max(1, current - 1))}>Anterior</button>
+              <span>{page} / {totalPages}</span>
+              <button type="button" disabled={page >= totalPages} onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>Siguiente</button>
+            </div>
+          ) : null}
+          <div className="actions centered-actions">
+            <button className="secondary-button" type="button" onClick={() => setShowBoard(false)}>Regresar al registro de notas</button>
+          </div>
+        </section>
+      </main>
+    );
   }
 
   return (
@@ -4728,6 +4820,11 @@ function BoardParticipantView({ slug }: { slug: string }) {
             </div>
           </form>
         ) : null}
+        <div className="actions centered-actions board-view-action">
+          <button className="button board-view-button" type="button" onClick={() => { setPage(1); setShowBoard(true); }}>
+            Ver Pizarra con todas las respuestas
+          </button>
+        </div>
         {message ? <p className={message.includes("correctamente") ? "form-success" : "form-error"}>{message}</p> : null}
       </section>
     </main>

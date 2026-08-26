@@ -613,6 +613,17 @@ app.post("/api/public/boards/:slug/notes", async (c) => {
   return c.json(result, result.ok ? 201 : 400);
 });
 
+app.get("/api/public/boards/:slug/notes", async (c) => {
+  const board = await getPublicBoardByParticipantSlug(c.env.DB, c.req.param("slug"));
+  if (!board || board.status === "archived" || board.status === "draft") {
+    return c.json({ ok: false, message: "Pizarra no disponible." }, 404);
+  }
+  const page = Number(c.req.query("page") ?? "1");
+  const pageSize = Number(c.req.query("pageSize") ?? "48");
+  const notes = await listBoardNotes(c.env.DB, board.id, page, pageSize);
+  return c.json({ ok: true, board, ...notes });
+});
+
 app.get("/api/public/board-presenter/:slug", async (c) => {
   const board = await getPublicBoardByPresenterSlug(c.env.DB, c.req.param("slug"));
   if (!board || board.status === "archived") return c.json({ ok: false, message: "Pizarra no disponible." }, 404);

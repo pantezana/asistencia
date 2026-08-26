@@ -1529,6 +1529,36 @@ textarea {
   text-align: left;
 }
 
+.board-view-action {
+  margin-top: 6px;
+}
+
+.board-view-button {
+  font-size: 18px;
+  min-height: 52px;
+  padding: 0 28px;
+}
+
+.participant-board-stage {
+  gap: 20px;
+}
+
+.secondary-button {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  color: #0f172a;
+  cursor: pointer;
+  font-weight: 800;
+  min-height: 44px;
+  padding: 0 18px;
+}
+
+.secondary-button:hover {
+  border-color: #2563eb;
+  color: #2563eb;
+}
+
 .rich-label {
   display: grid;
   font-weight: 800;
