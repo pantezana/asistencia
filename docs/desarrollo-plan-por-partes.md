@@ -126,3 +126,34 @@ Subfase de seleccion de conceptos:
 Documento base:
 
 - `docs/especificacion-interacciones-preguntas-nube-palabras.md`
+
+## Parte 10. Pizarras interactivas de eventos
+
+Objetivo:
+
+- Crear pizarras interactivas por evento.
+- Permitir que una pizarra se asocie a todo el evento o a una sesion.
+- Configurar titulo, instrucciones, enlace corto, maximo de caracteres y reglas de multiples notas.
+- Generar enlace publico para participantes.
+- Generar enlace de administrador/presentador.
+- Permitir participacion publica sin validacion documental ni asistencia previa.
+- Registrar nombre, apellido, pais y nota enriquecida.
+- Reutilizar el catalogo/control de pais ya existente.
+- Mostrar instrucciones como tarjetas enriquecidas.
+- Mostrar las notas en vista de presentador como tarjetas tipo post-it.
+- Mostrar bandera del pais, nombre abreviado, extracto de nota y accion para ver mas/ver menos.
+- Soportar muchas notas mediante paginacion.
+- Abrir, cerrar y archivar pizarras.
+
+Reglas relevantes:
+
+- La pizarra `open` acepta notas.
+- La pizarra `closed` ya no acepta notas, pero conserva visible la pizarra del presentador.
+- La pizarra `archived` sale de la operacion publica habitual.
+- El enlace corto solo debe editarse libremente mientras no existan notas registradas.
+- Las instrucciones y notas deben aceptar texto enriquecido, pero siempre sanitizado.
+- Para la primera version se recomienda mostrar banderas con emoji usando codigo ISO alpha-2, no mapas.
+
+Documento base:
+
+- `docs/especificacion-pizarras-interactivas.md`
