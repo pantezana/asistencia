@@ -324,6 +324,18 @@ function countryFlag(countryName: string, iso2?: string | null) {
   return [...code].map((letter) => String.fromCodePoint(127397 + letter.charCodeAt(0))).join("");
 }
 
+function countryCode(countryName: string, iso2?: string | null) {
+  return (iso2 || countryIsoMap[cleanText(countryName).toLowerCase()] || "").toUpperCase();
+}
+
+function FlagMark({ countryName, iso2 }: { countryName: string; iso2?: string | null }) {
+  const code = countryCode(countryName, iso2);
+  if (code === "PE") {
+    return <span className="flag-mark flag-pe" aria-label="Bandera de Perú" title="Perú" />;
+  }
+  return <span className="flag-mark flag-emoji" aria-label={`Bandera de ${countryName}`}>{countryFlag(countryName, iso2)}</span>;
+}
+
 const countryIsoMap: Record<string, string> = {
   argentina: "AR",
   bolivia: "BO",
@@ -4689,9 +4701,15 @@ function BoardParticipantView({ slug }: { slug: string }) {
                 <select value={form.countryId} onChange={(event) => setForm((current) => ({ ...current, countryId: event.target.value }))} required>
                   <option value="">Seleccione</option>
                   {countries.map((country) => (
-                    <option key={country.id} value={country.id}>{countryFlag(country.name)} {country.name}</option>
+                    <option key={country.id} value={country.id}>{country.name}</option>
                   ))}
                 </select>
+                {selectedCountry ? (
+                  <span className="country-preview">
+                    <FlagMark countryName={selectedCountry.name} />
+                    {selectedCountry.name}
+                  </span>
+                ) : null}
               </label>
             </div>
             <label className="rich-label">
@@ -4778,7 +4796,7 @@ function BoardPresenterView({ slug }: { slug: string }) {
               return (
                 <article className={`postit-card tone-${index % 5}`} key={note.id}>
                   <div className="postit-head">
-                    <span>{countryFlag(note.country_name, note.country_iso2)}</span>
+                    <FlagMark countryName={note.country_name} iso2={note.country_iso2} />
                     <strong>{note.first_name.split(" ")[0]} {note.last_name.split(" ")[0]}</strong>
                   </div>
                   <div

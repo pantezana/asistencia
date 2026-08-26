@@ -1579,6 +1579,40 @@ textarea {
   font-size: 24px;
 }
 
+.flag-mark {
+  align-items: center;
+  border-radius: 4px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  height: 18px;
+  justify-content: center;
+  overflow: hidden;
+  width: 26px;
+}
+
+.flag-emoji {
+  font-size: 22px;
+  height: 24px;
+  line-height: 1;
+  width: 28px;
+}
+
+.flag-pe {
+  background: linear-gradient(90deg, #d91023 0 33.33%, #ffffff 33.33% 66.66%, #d91023 66.66% 100%);
+  border: 1px solid rgba(15, 23, 42, 0.22);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
+}
+
+.country-preview {
+  align-items: center;
+  color: #52627a;
+  display: inline-flex;
+  font-size: 14px;
+  font-weight: 800;
+  gap: 8px;
+  margin-top: 6px;
+}
+
 .postit-body {
   color: #334155;
   font-weight: 700;
