@@ -1560,7 +1560,35 @@ textarea {
   gap: 10px;
   min-height: 155px;
   padding: 14px;
+  position: relative;
   text-align: left;
+}
+
+.postit-delete {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.76);
+  border: 1px solid rgba(148, 163, 184, 0.42);
+  border-radius: 999px;
+  color: #be123c;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 16px;
+  font-weight: 900;
+  height: 24px;
+  justify-content: center;
+  line-height: 1;
+  padding: 0;
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+  width: 24px;
+}
+
+.postit-delete:hover {
+  background: #fff1f2;
+  border-color: #fb7185;
+  transform: scale(1.05);
 }
 
 .postit-card.tone-0 { background: #fef3c7; }

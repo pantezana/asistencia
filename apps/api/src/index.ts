@@ -50,6 +50,7 @@ import {
   listFormSectionDefinitions,
   listFormTemplates,
   listProvincesByDepartment,
+  moderateBoardNote,
   isShortLinkAvailable,
   normalizePublicSlug,
   openEventSession,
@@ -628,6 +629,11 @@ app.get("/api/public/board-presenter/:slug/notes", async (c) => {
   const pageSize = Number(c.req.query("pageSize") ?? "48");
   const notes = await listBoardNotes(c.env.DB, board.id, page, pageSize);
   return c.json({ ok: true, board, ...notes });
+});
+
+app.delete("/api/public/board-presenter/:slug/notes/:noteId", async (c) => {
+  const result = await moderateBoardNote(c.env.DB, c.req.param("slug"), c.req.param("noteId"));
+  return c.json(result, result.ok ? 200 : 404);
 });
 
 app.use("/api/admin/*", requireAuth());

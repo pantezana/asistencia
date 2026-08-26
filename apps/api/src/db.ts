@@ -2074,6 +2074,23 @@ export async function listBoardNotes(db: D1Database, boardId: string, page = 1, 
   };
 }
 
+export async function moderateBoardNote(db: D1Database, presenterSlug: string, noteId: string) {
+  const board = await getPublicBoardByPresenterSlug(db, presenterSlug);
+  if (!board || board.status === "archived") return { ok: false, message: "Pizarra no disponible." };
+
+  const result = await db
+    .prepare(
+      `UPDATE event_board_notes
+       SET status = 'moderated'
+       WHERE id = ? AND board_id = ? AND status = 'active'`
+    )
+    .bind(noteId, board.id)
+    .run();
+
+  if (!result.meta.changes) return { ok: false, message: "La nota no existe o ya fue retirada." };
+  return { ok: true };
+}
+
 function noteFingerprint(firstName: string, lastName: string, countryName: string, userAgent?: string) {
   return normalizeAnswer(`${firstName} ${lastName} ${countryName} ${userAgent ?? ""}`);
 }

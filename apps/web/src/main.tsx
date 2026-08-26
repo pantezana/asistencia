@@ -4743,36 +4743,58 @@ function BoardPresenterView({ slug }: { slug: string }) {
   const [expanded, setExpanded] = React.useState<Record<string, boolean>>({});
   const [message, setMessage] = React.useState("");
 
+  const loadNotes = React.useCallback(async () => {
+    const response = await fetch(`/api/public/board-presenter/${slug}/notes?page=${page}&pageSize=48`);
+    const payload = (await response.json().catch(() => null)) as {
+      ok?: boolean;
+      board?: EventBoard;
+      notes?: EventBoardNote[];
+      totalPages?: number;
+      total?: number;
+      message?: string;
+    } | null;
+    if (!response.ok || !payload?.ok || !payload.board) {
+      setMessage(payload?.message ?? "Pizarra no disponible.");
+      return;
+    }
+    setBoard(payload.board);
+    setNotes(payload.notes ?? []);
+    setTotalPages(payload.totalPages ?? 1);
+    setTotal(payload.total ?? 0);
+    setMessage("");
+  }, [page, slug]);
+
   React.useEffect(() => {
     let active = true;
-    async function loadNotes() {
-      const response = await fetch(`/api/public/board-presenter/${slug}/notes?page=${page}&pageSize=48`);
-      const payload = (await response.json().catch(() => null)) as {
-        ok?: boolean;
-        board?: EventBoard;
-        notes?: EventBoardNote[];
-        totalPages?: number;
-        total?: number;
-        message?: string;
-      } | null;
+    const loadIfActive = async () => {
       if (!active) return;
-      if (!response.ok || !payload?.ok || !payload.board) {
-        setMessage(payload?.message ?? "Pizarra no disponible.");
-        return;
-      }
-      setBoard(payload.board);
-      setNotes(payload.notes ?? []);
-      setTotalPages(payload.totalPages ?? 1);
-      setTotal(payload.total ?? 0);
-      setMessage("");
-    }
-    void loadNotes();
-    const interval = window.setInterval(loadNotes, 3000);
+      await loadNotes();
+    };
+    void loadIfActive();
+    const interval = window.setInterval(loadIfActive, 3000);
     return () => {
       active = false;
       window.clearInterval(interval);
     };
-  }, [slug, page]);
+  }, [loadNotes]);
+
+  async function moderateNote(note: EventBoardNote) {
+    const participant = `${note.first_name} ${note.last_name}`.trim();
+    const ok = window.confirm(`¿Está seguro de eliminar la nota de ${participant}?`);
+    if (!ok) return;
+    const response = await fetch(`/api/public/board-presenter/${slug}/notes/${note.id}`, { method: "DELETE" });
+    const payload = (await response.json().catch(() => null)) as { ok?: boolean; message?: string } | null;
+    if (!response.ok || !payload?.ok) {
+      setMessage(payload?.message ?? "No se pudo eliminar la nota.");
+      return;
+    }
+    setExpanded((current) => {
+      const next = { ...current };
+      delete next[note.id];
+      return next;
+    });
+    await loadNotes();
+  }
 
   if (!board) return <PublicMessage title="Vista de pizarra" message={message || "Cargando notas."} />;
 
@@ -4799,6 +4821,15 @@ function BoardPresenterView({ slug }: { slug: string }) {
               const isExpanded = Boolean(expanded[note.id]);
               return (
                 <article className={`postit-card tone-${index % 5}`} key={note.id}>
+                  <button
+                    aria-label="Eliminar nota"
+                    className="postit-delete"
+                    onClick={() => void moderateNote(note)}
+                    title="Eliminar nota"
+                    type="button"
+                  >
+                    ×
+                  </button>
                   <div className="postit-head">
                     <FlagMark countryName={note.country_name} iso2={note.country_iso2} />
                     <strong>{note.first_name.split(" ")[0]} {note.last_name.split(" ")[0]}</strong>
