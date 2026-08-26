@@ -330,8 +330,9 @@ function countryCode(countryName: string, iso2?: string | null) {
 
 function FlagMark({ countryName, iso2 }: { countryName: string; iso2?: string | null }) {
   const code = countryCode(countryName, iso2);
-  if (code === "PE") {
-    return <span className="flag-mark flag-pe" aria-label="Bandera de Perú" title="Perú" />;
+  const cssFlagCodes = new Set(["BO", "BR", "CL", "CO", "EC", "GY", "HN", "PE", "SR", "US", "VE"]);
+  if (cssFlagCodes.has(code)) {
+    return <span className={`flag-mark flag-css flag-${code.toLowerCase()}`} aria-label={`Bandera de ${countryName}`} title={countryName} />;
   }
   return <span className="flag-mark flag-emoji" aria-label={`Bandera de ${countryName}`}>{countryFlag(countryName, iso2)}</span>;
 }
@@ -351,6 +352,7 @@ const countryIsoMap: Record<string, string> = {
   "estados unidos": "US",
   "estados unidos de america": "US",
   guatemala: "GT",
+  guyana: "GY",
   honduras: "HN",
   mexico: "MX",
   nicaragua: "NI",
@@ -361,6 +363,8 @@ const countryIsoMap: Record<string, string> = {
   "puerto rico": "PR",
   "republica dominicana": "DO",
   "república dominicana": "DO",
+  surinam: "SR",
+  suriname: "SR",
   uruguay: "UY",
   venezuela: "VE",
   alemania: "DE",
