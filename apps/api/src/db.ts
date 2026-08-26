@@ -4,6 +4,9 @@ import type {
   Catalog,
   CatalogItem,
   DbUserWithPassword,
+  EventBoard,
+  EventBoardInstruction,
+  EventBoardNote,
   EventSummary,
   EventQuestion,
   EventQuestionResponseItem,
@@ -91,6 +94,70 @@ async function uniqueQuestionSlug(db: D1Database, base: string, column: "partici
     counter += 1;
   }
   return finalSlug;
+}
+
+async function uniqueBoardSlug(db: D1Database, base: string, column: "participant_slug" | "presenter_slug", currentId?: string) {
+  let slug = normalizePublicSlug(base);
+  if (!slug) slug = crypto.randomUUID().slice(0, 10);
+  let finalSlug = slug;
+  let counter = 2;
+  while (
+    await db
+      .prepare(`SELECT id FROM event_boards WHERE ${column} = ?${currentId ? " AND id <> ?" : ""}`)
+      .bind(...(currentId ? [finalSlug, currentId] : [finalSlug]))
+      .first()
+  ) {
+    finalSlug = `${slug}-${counter}`;
+    counter += 1;
+  }
+  return finalSlug;
+}
+
+function textFromHtml(html: string) {
+  return html
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+export function sanitizeRichHtml(value: string) {
+  const allowedTags = new Set(["p", "br", "strong", "b", "em", "i", "u", "ul", "ol", "li", "a", "span"]);
+  return value
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<iframe[\s\S]*?<\/iframe>/gi, "")
+    .replace(/\son\w+="[^"]*"/gi, "")
+    .replace(/\son\w+='[^']*'/gi, "")
+    .replace(/\sstyle="[^"]*"/gi, "")
+    .replace(/\sstyle='[^']*'/gi, "")
+    .replace(/<\/?([a-z0-9]+)([^>]*)>/gi, (match, tagName, attrs) => {
+      const tag = String(tagName).toLowerCase();
+      if (!allowedTags.has(tag)) return "";
+      if (tag === "a" && !match.startsWith("</")) {
+        const href = String(attrs).match(/\shref=["']([^"']+)["']/i)?.[1] ?? "";
+        if (/^https?:\/\//i.test(href)) return `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">`;
+        return "<a>";
+      }
+      return match.startsWith("</") ? `</${tag}>` : `<${tag}>`;
+    })
+    .trim();
 }
 
 function canSeeAllEvents(user: SessionUser) {
@@ -450,6 +517,211 @@ export async function updateEventQuestionParticipantCloud(db: D1Database, eventI
   const result = await db
     .prepare("UPDATE event_questions SET show_participant_cloud = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND event_id = ?")
     .bind(show ? 1 : 0, questionId, eventId)
+    .run();
+  return result.meta.changes > 0;
+}
+
+export async function listEventBoards(db: D1Database, eventId: string) {
+  return db
+    .prepare(
+      `SELECT b.*, COUNT(n.id) AS note_count
+       FROM event_boards b
+       LEFT JOIN event_board_notes n ON n.board_id = b.id AND n.status = 'active'
+       WHERE b.event_id = ?
+       GROUP BY b.id
+       ORDER BY b.created_at DESC`
+    )
+    .bind(eventId)
+    .all<EventBoard>();
+}
+
+export async function listBoardInstructions(db: D1Database, boardId: string) {
+  return db
+    .prepare(
+      `SELECT id, board_id, language_label, content_html, content_text, sort_order, status
+       FROM event_board_instructions
+       WHERE board_id = ? AND status = 'active'
+       ORDER BY sort_order ASC`
+    )
+    .bind(boardId)
+    .all<EventBoardInstruction>();
+}
+
+export async function getEventBoardById(db: D1Database, boardId: string) {
+  const board = await db
+    .prepare(
+      `SELECT b.*, COUNT(n.id) AS note_count
+       FROM event_boards b
+       LEFT JOIN event_board_notes n ON n.board_id = b.id AND n.status = 'active'
+       WHERE b.id = ?
+       GROUP BY b.id`
+    )
+    .bind(boardId)
+    .first<EventBoard>();
+  if (!board) return null;
+  const instructions = await listBoardInstructions(db, board.id);
+  return { ...board, instructions: instructions.results };
+}
+
+type BoardInstructionInput = {
+  languageLabel?: string | null;
+  contentHtml?: string;
+  sortOrder?: number;
+};
+
+function normalizeBoardInstructions(instructions: BoardInstructionInput[] | undefined) {
+  return (instructions ?? [])
+    .map((instruction, index) => {
+      const contentHtml = sanitizeRichHtml(instruction.contentHtml ?? "");
+      const contentText = textFromHtml(contentHtml);
+      return {
+        languageLabel: instruction.languageLabel?.trim() || null,
+        contentHtml,
+        contentText,
+        sortOrder: Math.max(Math.floor(instruction.sortOrder || index + 1), 1)
+      };
+    })
+    .filter((instruction) => instruction.contentText);
+}
+
+export async function createEventBoard(db: D1Database, eventId: string, user: SessionUser, input: {
+  title: string;
+  sessionId?: string | null;
+  participantSlug?: string;
+  maxNoteLength?: number;
+  allowMultipleNotes?: boolean;
+  maxNotesPerParticipant?: number | null;
+  instructions?: BoardInstructionInput[];
+}) {
+  const title = input.title.trim();
+  if (!title) return { ok: false, message: "Ingrese el titulo de la pizarra." };
+
+  const event = await db.prepare("SELECT id, short_link_slug FROM events WHERE id = ?").bind(eventId).first<{ id: string; short_link_slug: string }>();
+  if (!event) return { ok: false, message: "Evento no encontrado." };
+
+  if (input.sessionId) {
+    const session = await db.prepare("SELECT id FROM event_sessions WHERE id = ? AND event_id = ?").bind(input.sessionId, eventId).first<{ id: string }>();
+    if (!session) return { ok: false, message: "Seleccione una sesion valida." };
+  }
+
+  const instructions = normalizeBoardInstructions(input.instructions);
+  if (instructions.length === 0) return { ok: false, message: "Ingrese al menos una instruccion." };
+
+  const boardId = `board_${crypto.randomUUID().slice(0, 12)}`;
+  const baseSlug = input.participantSlug || `${event.short_link_slug}-pizarra-${crypto.randomUUID().slice(0, 6)}`;
+  const participantSlug = await uniqueBoardSlug(db, baseSlug, "participant_slug");
+  const presenterSlug = await uniqueBoardSlug(db, `${participantSlug}-presentador-${crypto.randomUUID().slice(0, 8)}`, "presenter_slug");
+  const maxNoteLength = Math.min(Math.max(input.maxNoteLength || 800, 20), 5000);
+  const maxNotesPerParticipant = input.allowMultipleNotes ? Math.max(Math.floor(input.maxNotesPerParticipant || 1), 1) : 1;
+
+  await db
+    .prepare(
+      `INSERT INTO event_boards (
+        id, event_id, session_id, title, status, participant_slug, presenter_slug, max_note_length,
+        allow_multiple_notes, max_notes_per_participant, created_by_user_id
+       )
+       VALUES (?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?)`
+    )
+    .bind(
+      boardId,
+      eventId,
+      input.sessionId || null,
+      title,
+      participantSlug,
+      presenterSlug,
+      maxNoteLength,
+      input.allowMultipleNotes ? 1 : 0,
+      maxNotesPerParticipant,
+      user.id
+    )
+    .run();
+
+  for (const instruction of instructions) {
+    await db
+      .prepare(
+        `INSERT INTO event_board_instructions (id, board_id, language_label, content_html, content_text, sort_order)
+         VALUES (?, ?, ?, ?, ?, ?)`
+      )
+      .bind(`board_instruction_${crypto.randomUUID().slice(0, 12)}`, boardId, instruction.languageLabel, instruction.contentHtml, instruction.contentText, instruction.sortOrder)
+      .run();
+  }
+
+  return { ok: true, board: await getEventBoardById(db, boardId) };
+}
+
+export async function updateEventBoard(db: D1Database, eventId: string, boardId: string, input: {
+  title: string;
+  sessionId?: string | null;
+  participantSlug?: string;
+  maxNoteLength?: number;
+  allowMultipleNotes?: boolean;
+  maxNotesPerParticipant?: number | null;
+  instructions?: BoardInstructionInput[];
+}) {
+  const current = await db
+    .prepare(
+      `SELECT b.*, COUNT(n.id) AS note_count
+       FROM event_boards b
+       LEFT JOIN event_board_notes n ON n.board_id = b.id AND n.status = 'active'
+       WHERE b.id = ? AND b.event_id = ?
+       GROUP BY b.id`
+    )
+    .bind(boardId, eventId)
+    .first<EventBoard>();
+  if (!current) return { ok: false, message: "Pizarra no encontrada." };
+
+  const title = input.title.trim();
+  if (!title) return { ok: false, message: "Ingrese el titulo de la pizarra." };
+  if (input.sessionId) {
+    const session = await db.prepare("SELECT id FROM event_sessions WHERE id = ? AND event_id = ?").bind(input.sessionId, eventId).first<{ id: string }>();
+    if (!session) return { ok: false, message: "Seleccione una sesion valida." };
+  }
+
+  const noteCount = Number(current.note_count || 0);
+  const participantSlug = normalizePublicSlug(input.participantSlug || current.participant_slug);
+  if (!participantSlug) return { ok: false, message: "Ingrese un enlace corto valido." };
+  if (noteCount > 0 && participantSlug !== current.participant_slug) {
+    return { ok: false, message: "No se puede modificar el enlace corto porque ya existen notas registradas." };
+  }
+  if (participantSlug !== current.participant_slug) {
+    const duplicated = await db.prepare("SELECT id FROM event_boards WHERE participant_slug = ? AND id <> ?").bind(participantSlug, boardId).first<{ id: string }>();
+    if (duplicated) return { ok: false, message: "El enlace corto de pizarra ya existe." };
+  }
+
+  const instructions = normalizeBoardInstructions(input.instructions);
+  if (instructions.length === 0) return { ok: false, message: "Ingrese al menos una instruccion." };
+  const maxNoteLength = Math.min(Math.max(input.maxNoteLength || 800, 20), 5000);
+  const maxNotesPerParticipant = input.allowMultipleNotes ? Math.max(Math.floor(input.maxNotesPerParticipant || 1), 1) : 1;
+
+  await db
+    .prepare(
+      `UPDATE event_boards
+       SET session_id = ?, title = ?, participant_slug = ?, max_note_length = ?,
+           allow_multiple_notes = ?, max_notes_per_participant = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ? AND event_id = ?`
+    )
+    .bind(input.sessionId || null, title, participantSlug, maxNoteLength, input.allowMultipleNotes ? 1 : 0, maxNotesPerParticipant, boardId, eventId)
+    .run();
+
+  await db.prepare("UPDATE event_board_instructions SET status = 'inactive', updated_at = CURRENT_TIMESTAMP WHERE board_id = ?").bind(boardId).run();
+  for (const instruction of instructions) {
+    await db
+      .prepare(
+        `INSERT INTO event_board_instructions (id, board_id, language_label, content_html, content_text, sort_order)
+         VALUES (?, ?, ?, ?, ?, ?)`
+      )
+      .bind(`board_instruction_${crypto.randomUUID().slice(0, 12)}`, boardId, instruction.languageLabel, instruction.contentHtml, instruction.contentText, instruction.sortOrder)
+      .run();
+  }
+
+  return { ok: true, board: await getEventBoardById(db, boardId) };
+}
+
+export async function updateEventBoardStatus(db: D1Database, eventId: string, boardId: string, status: string) {
+  const nextStatus = ["draft", "open", "closed", "archived"].includes(status) ? status : "draft";
+  const result = await db
+    .prepare("UPDATE event_boards SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND event_id = ?")
+    .bind(nextStatus, boardId, eventId)
     .run();
   return result.meta.changes > 0;
 }
@@ -1728,6 +2000,126 @@ export async function getPublicQuestionByPresenterSlug(db: D1Database, slug: str
     )
     .bind(slug)
     .first<EventQuestion & { event_title: string; event_slug: string }>();
+}
+
+export async function getPublicBoardByParticipantSlug(db: D1Database, slug: string) {
+  const board = await db
+    .prepare(
+      `SELECT b.*, e.title AS event_title, e.short_link_slug AS event_slug, COUNT(n.id) AS note_count
+       FROM event_boards b
+       INNER JOIN events e ON e.id = b.event_id
+       LEFT JOIN event_board_notes n ON n.board_id = b.id AND n.status = 'active'
+       WHERE b.participant_slug = ?
+       GROUP BY b.id`
+    )
+    .bind(slug)
+    .first<EventBoard & { event_title: string; event_slug: string }>();
+  if (!board) return null;
+  const instructions = await listBoardInstructions(db, board.id);
+  return { ...board, instructions: instructions.results };
+}
+
+export async function getPublicBoardByPresenterSlug(db: D1Database, slug: string) {
+  const board = await db
+    .prepare(
+      `SELECT b.*, e.title AS event_title, e.short_link_slug AS event_slug, COUNT(n.id) AS note_count
+       FROM event_boards b
+       INNER JOIN events e ON e.id = b.event_id
+       LEFT JOIN event_board_notes n ON n.board_id = b.id AND n.status = 'active'
+       WHERE b.presenter_slug = ?
+       GROUP BY b.id`
+    )
+    .bind(slug)
+    .first<EventBoard & { event_title: string; event_slug: string }>();
+  if (!board) return null;
+  const instructions = await listBoardInstructions(db, board.id);
+  return { ...board, instructions: instructions.results };
+}
+
+export async function listBoardNotes(db: D1Database, boardId: string, page = 1, pageSize = 48) {
+  const limit = Math.min(Math.max(Math.floor(pageSize), 1), 96);
+  const currentPage = Math.max(Math.floor(page), 1);
+  const offset = (currentPage - 1) * limit;
+  const [notes, total] = await Promise.all([
+    db
+      .prepare(
+        `SELECT id, board_id, event_id, session_id, first_name, last_name, country_id, country_name, country_iso2,
+                note_html, note_text, note_excerpt, status, created_at
+         FROM event_board_notes
+         WHERE board_id = ? AND status = 'active'
+         ORDER BY created_at DESC
+         LIMIT ? OFFSET ?`
+      )
+      .bind(boardId, limit, offset)
+      .all<EventBoardNote>(),
+    db
+      .prepare("SELECT COUNT(*) AS total FROM event_board_notes WHERE board_id = ? AND status = 'active'")
+      .bind(boardId)
+      .first<{ total: number }>()
+  ]);
+
+  return {
+    notes: notes.results,
+    page: currentPage,
+    pageSize: limit,
+    total: Number(total?.total ?? 0),
+    totalPages: Math.max(1, Math.ceil(Number(total?.total ?? 0) / limit))
+  };
+}
+
+function noteFingerprint(firstName: string, lastName: string, countryName: string, userAgent?: string) {
+  return normalizeAnswer(`${firstName} ${lastName} ${countryName} ${userAgent ?? ""}`);
+}
+
+export async function registerBoardNote(db: D1Database, board: EventBoard, input: {
+  firstName?: string;
+  lastName?: string;
+  countryId?: string | null;
+  countryName?: string;
+  countryIso2?: string | null;
+  noteHtml?: string;
+  userAgent?: string;
+}) {
+  if (board.status !== "open") return { ok: false, message: "La pizarra no esta abierta para recibir notas." };
+  const firstName = input.firstName?.replace(/\s+/g, " ").trim() ?? "";
+  const lastName = input.lastName?.replace(/\s+/g, " ").trim() ?? "";
+  const countryName = input.countryName?.replace(/\s+/g, " ").trim() ?? "";
+  const countryId = input.countryId?.trim() || null;
+  const countryIso2 = input.countryIso2?.trim().toUpperCase() || null;
+  const noteHtml = sanitizeRichHtml(input.noteHtml ?? "");
+  const noteText = textFromHtml(noteHtml);
+
+  if (!firstName || !lastName) return { ok: false, message: "Ingrese nombre y apellido." };
+  if (!countryName) return { ok: false, message: "Seleccione pais." };
+  if (!noteText) return { ok: false, message: "Ingrese una nota." };
+  if (noteText.length > board.max_note_length) {
+    return { ok: false, message: `La nota no debe superar ${board.max_note_length} caracteres.` };
+  }
+
+  const fingerprint = noteFingerprint(firstName, lastName, countryName, input.userAgent);
+  const count = await db
+    .prepare("SELECT COUNT(*) AS total FROM event_board_notes WHERE board_id = ? AND participant_fingerprint = ? AND status = 'active'")
+    .bind(board.id, fingerprint)
+    .first<{ total: number }>();
+  const maxNotes = board.allow_multiple_notes ? Math.max(board.max_notes_per_participant ?? 1, 1) : 1;
+  if (Number(count?.total ?? 0) >= maxNotes) {
+    return { ok: false, message: `Ya registro el maximo permitido de notas (${maxNotes}).` };
+  }
+
+  const noteId = `board_note_${crypto.randomUUID().slice(0, 12)}`;
+  const excerpt = noteText.length > 50 ? `${noteText.slice(0, 50)}...` : noteText;
+  await db
+    .prepare(
+      `INSERT INTO event_board_notes (
+        id, board_id, event_id, session_id, first_name, last_name, country_id, country_name, country_iso2,
+        note_html, note_text, note_excerpt, participant_fingerprint
+       )
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+    .bind(noteId, board.id, board.event_id, board.session_id, firstName, lastName, countryId, countryName, countryIso2, noteHtml, noteText, excerpt, fingerprint)
+    .run();
+
+  return { ok: true, note: await db.prepare("SELECT * FROM event_board_notes WHERE id = ?").bind(noteId).first<EventBoardNote>() };
 }
 
 export async function countQuestionResponsesByParticipant(db: D1Database, questionId: string, participantId: string) {

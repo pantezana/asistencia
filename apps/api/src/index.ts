@@ -12,6 +12,7 @@ import {
   cloneForm,
   createCatalogItem,
   createCatalogWithControl,
+  createEventBoard,
   createEventQuestion,
   createEventWithSchedule,
   createParticipant,
@@ -24,6 +25,8 @@ import {
   getOpenSessionForEvent,
   getPublicFormContextBySlug,
   getPublicFormStructure,
+  getPublicBoardByParticipantSlug,
+  getPublicBoardByPresenterSlug,
   getPublicQuestionByParticipantSlug,
   getPublicQuestionByPresenterSlug,
   getQuestionSelectionGroups,
@@ -37,6 +40,8 @@ import {
   listDepartments,
   listDistrictsByProvince,
   listEventModules,
+  listEventBoards,
+  listBoardNotes,
   listEventQuestions,
   listQuestionResponsesByParticipant,
   listQuestionSelectionsByParticipant,
@@ -51,6 +56,7 @@ import {
   participantHasEventAttendance,
   addQuestionSelection,
   registerAttendance,
+  registerBoardNote,
   registerQuestionResponse,
   removeQuestionSelection,
   removeTemplateField,
@@ -60,6 +66,8 @@ import {
   updateCatalogStatus,
   updateCatalogWithControl,
   updateEventDetails,
+  updateEventBoard,
+  updateEventBoardStatus,
   updateEventQuestion,
   updateEventQuestionParticipantCloud,
   updateEventQuestionStatus,
@@ -571,6 +579,57 @@ app.get("/api/public/question-presenter/:slug/summary", async (c) => {
   return c.json({ ok: true, question, summary: summary.results, selectionGroups: selectionGroups?.results ?? [] });
 });
 
+app.get("/api/public/boards/:slug", async (c) => {
+  const board = await getPublicBoardByParticipantSlug(c.env.DB, c.req.param("slug"));
+  if (!board || board.status === "archived" || board.status === "draft") {
+    return c.json({ ok: false, message: "Pizarra no disponible." }, 404);
+  }
+  return c.json({ ok: true, board });
+});
+
+app.post("/api/public/boards/:slug/notes", async (c) => {
+  const board = await getPublicBoardByParticipantSlug(c.env.DB, c.req.param("slug"));
+  if (!board || board.status === "archived" || board.status === "draft") {
+    return c.json({ ok: false, message: "Pizarra no disponible." }, 404);
+  }
+  const body = await c.req.json<{
+    firstName?: string;
+    lastName?: string;
+    countryId?: string | null;
+    countryName?: string;
+    countryIso2?: string | null;
+    noteHtml?: string;
+  }>().catch(() => null);
+  const result = await registerBoardNote(c.env.DB, board, {
+    firstName: body?.firstName,
+    lastName: body?.lastName,
+    countryId: body?.countryId,
+    countryName: body?.countryName,
+    countryIso2: body?.countryIso2,
+    noteHtml: body?.noteHtml,
+    userAgent: c.req.header("user-agent") ?? ""
+  });
+  return c.json(result, result.ok ? 201 : 400);
+});
+
+app.get("/api/public/board-presenter/:slug", async (c) => {
+  const board = await getPublicBoardByPresenterSlug(c.env.DB, c.req.param("slug"));
+  if (!board || board.status === "archived") return c.json({ ok: false, message: "Pizarra no disponible." }, 404);
+  const page = Number(c.req.query("page") ?? "1");
+  const pageSize = Number(c.req.query("pageSize") ?? "48");
+  const notes = await listBoardNotes(c.env.DB, board.id, page, pageSize);
+  return c.json({ ok: true, board, ...notes });
+});
+
+app.get("/api/public/board-presenter/:slug/notes", async (c) => {
+  const board = await getPublicBoardByPresenterSlug(c.env.DB, c.req.param("slug"));
+  if (!board || board.status === "archived") return c.json({ ok: false, message: "Pizarra no disponible." }, 404);
+  const page = Number(c.req.query("page") ?? "1");
+  const pageSize = Number(c.req.query("pageSize") ?? "48");
+  const notes = await listBoardNotes(c.env.DB, board.id, page, pageSize);
+  return c.json({ ok: true, board, ...notes });
+});
+
 app.use("/api/admin/*", requireAuth());
 
 app.get("/api/admin/me", (c) => {
@@ -878,6 +937,80 @@ app.post("/api/admin/events/:eventId/questions/:questionId/participant-cloud", a
   const body = await c.req.json<{ show?: boolean }>().catch(() => null);
   const ok = await updateEventQuestionParticipantCloud(c.env.DB, eventId, c.req.param("questionId"), Boolean(body?.show));
   if (!ok) return c.json({ ok: false, message: "Pregunta no encontrada." }, 404);
+  return c.json({ ok: true });
+});
+
+app.get("/api/admin/events/:eventId/boards", async (c) => {
+  const eventId = c.req.param("eventId");
+  const canManage = await userCanManageEvent(c.env.DB, eventId, c.get("user"));
+  if (!canManage) return c.json({ ok: false, message: "Evento no encontrado o no autorizado." }, 404);
+
+  const boards = await listEventBoards(c.env.DB, eventId);
+  return c.json({ ok: true, boards: boards.results });
+});
+
+app.post("/api/admin/events/:eventId/boards", async (c) => {
+  const eventId = c.req.param("eventId");
+  const canManage = await userCanManageEvent(c.env.DB, eventId, c.get("user"));
+  if (!canManage) return c.json({ ok: false, message: "Evento no encontrado o no autorizado." }, 404);
+
+  const body = await c.req.json<{
+    title?: string;
+    sessionId?: string | null;
+    participantSlug?: string;
+    maxNoteLength?: number;
+    allowMultipleNotes?: boolean;
+    maxNotesPerParticipant?: number | null;
+    instructions?: Array<{ languageLabel?: string | null; contentHtml?: string; sortOrder?: number }>;
+  }>().catch(() => null);
+
+  const result = await createEventBoard(c.env.DB, eventId, c.get("user"), {
+    title: body?.title ?? "",
+    sessionId: body?.sessionId || null,
+    participantSlug: body?.participantSlug,
+    maxNoteLength: body?.maxNoteLength,
+    allowMultipleNotes: body?.allowMultipleNotes,
+    maxNotesPerParticipant: body?.maxNotesPerParticipant ?? null,
+    instructions: body?.instructions
+  });
+  return c.json(result, result.ok ? 201 : 400);
+});
+
+app.put("/api/admin/events/:eventId/boards/:boardId", async (c) => {
+  const eventId = c.req.param("eventId");
+  const canManage = await userCanManageEvent(c.env.DB, eventId, c.get("user"));
+  if (!canManage) return c.json({ ok: false, message: "Evento no encontrado o no autorizado." }, 404);
+
+  const body = await c.req.json<{
+    title?: string;
+    sessionId?: string | null;
+    participantSlug?: string;
+    maxNoteLength?: number;
+    allowMultipleNotes?: boolean;
+    maxNotesPerParticipant?: number | null;
+    instructions?: Array<{ languageLabel?: string | null; contentHtml?: string; sortOrder?: number }>;
+  }>().catch(() => null);
+
+  const result = await updateEventBoard(c.env.DB, eventId, c.req.param("boardId"), {
+    title: body?.title ?? "",
+    sessionId: body?.sessionId || null,
+    participantSlug: body?.participantSlug,
+    maxNoteLength: body?.maxNoteLength,
+    allowMultipleNotes: body?.allowMultipleNotes,
+    maxNotesPerParticipant: body?.maxNotesPerParticipant ?? null,
+    instructions: body?.instructions
+  });
+  return c.json(result, result.ok ? 200 : 400);
+});
+
+app.post("/api/admin/events/:eventId/boards/:boardId/status", async (c) => {
+  const eventId = c.req.param("eventId");
+  const canManage = await userCanManageEvent(c.env.DB, eventId, c.get("user"));
+  if (!canManage) return c.json({ ok: false, message: "Evento no encontrado o no autorizado." }, 404);
+
+  const body = await c.req.json<{ status?: string }>().catch(() => null);
+  const ok = await updateEventBoardStatus(c.env.DB, eventId, c.req.param("boardId"), body?.status ?? "draft");
+  if (!ok) return c.json({ ok: false, message: "Pizarra no encontrada." }, 404);
   return c.json({ ok: true });
 });
 

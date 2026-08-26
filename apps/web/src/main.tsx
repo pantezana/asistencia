@@ -242,6 +242,43 @@ type QuestionSelectionGroup = {
   selection_count: number;
 };
 
+type EventBoardInstruction = {
+  id?: string;
+  language_label: string | null;
+  content_html: string;
+  content_text?: string;
+  sort_order: number;
+};
+
+type EventBoard = {
+  id: string;
+  event_id: string;
+  session_id: string | null;
+  title: string;
+  status: string;
+  participant_slug: string;
+  presenter_slug: string;
+  max_note_length: number;
+  allow_multiple_notes: number;
+  max_notes_per_participant: number | null;
+  note_count: number;
+  event_title?: string;
+  event_slug?: string;
+  instructions?: EventBoardInstruction[];
+};
+
+type EventBoardNote = {
+  id: string;
+  first_name: string;
+  last_name: string;
+  country_name: string;
+  country_iso2: string | null;
+  note_html: string;
+  note_text: string;
+  note_excerpt: string;
+  created_at: string;
+};
+
 function cleanText(value: string | null | undefined) {
   return (value ?? "")
     .replaceAll("Ã¡", "á")
@@ -259,6 +296,74 @@ function cleanText(value: string | null | undefined) {
     .replaceAll("Â·", "·")
     .replaceAll("Â", "");
 }
+
+function stripHtml(value: string) {
+  const element = document.createElement("div");
+  element.innerHTML = value;
+  return element.textContent?.replace(/\s+/g, " ").trim() ?? "";
+}
+
+function sanitizeClientHtml(value: string) {
+  const template = document.createElement("template");
+  template.innerHTML = value;
+  template.content.querySelectorAll("script, style, iframe, img, video, audio, object, embed, form").forEach((node) => node.remove());
+  template.content.querySelectorAll("*").forEach((node) => {
+    [...node.attributes].forEach((attribute) => {
+      if (attribute.name.startsWith("on") || attribute.name === "style") node.removeAttribute(attribute.name);
+      if (node.tagName.toLowerCase() === "a" && attribute.name === "href" && !/^https?:\/\//i.test(attribute.value)) {
+        node.removeAttribute("href");
+      }
+    });
+  });
+  return template.innerHTML;
+}
+
+function countryFlag(countryName: string, iso2?: string | null) {
+  const code = (iso2 || countryIsoMap[cleanText(countryName).toLowerCase()] || "").toUpperCase();
+  if (code.length !== 2) return "🌎";
+  return [...code].map((letter) => String.fromCodePoint(127397 + letter.charCodeAt(0))).join("");
+}
+
+const countryIsoMap: Record<string, string> = {
+  argentina: "AR",
+  bolivia: "BO",
+  brasil: "BR",
+  brazil: "BR",
+  canada: "CA",
+  chile: "CL",
+  colombia: "CO",
+  "costa rica": "CR",
+  cuba: "CU",
+  ecuador: "EC",
+  "el salvador": "SV",
+  "estados unidos": "US",
+  "estados unidos de america": "US",
+  guatemala: "GT",
+  honduras: "HN",
+  mexico: "MX",
+  nicaragua: "NI",
+  panama: "PA",
+  paraguay: "PY",
+  peru: "PE",
+  "perú": "PE",
+  "puerto rico": "PR",
+  "republica dominicana": "DO",
+  "república dominicana": "DO",
+  uruguay: "UY",
+  venezuela: "VE",
+  alemania: "DE",
+  espana: "ES",
+  españa: "ES",
+  francia: "FR",
+  italia: "IT",
+  portugal: "PT",
+  "reino unido": "GB",
+  china: "CN",
+  india: "IN",
+  indonesia: "ID",
+  japon: "JP",
+  japón: "JP"
+};
 
 function publicFieldLabel(field: PublicFormField) {
   if (field.field_key === "datos_generales_paterno") return "Apellido Paterno";
@@ -442,6 +547,14 @@ function App() {
     return <QuestionParticipantView slug={path.replace("/q/", "")} />;
   }
 
+  if (path.startsWith("/b/p/")) {
+    return <BoardPresenterView slug={path.replace("/b/p/", "")} />;
+  }
+
+  if (path.startsWith("/b/")) {
+    return <BoardParticipantView slug={path.replace("/b/", "")} />;
+  }
+
   if (path.startsWith("/f/")) {
     return <PublicAttendanceForm slug={path.replace("/f/", "") || "inauguracion-otca"} />;
   }
@@ -455,6 +568,7 @@ function AdminShell() {
   const [events, setEvents] = React.useState<AdminEvent[]>([]);
   const [sessions, setSessions] = React.useState<AdminSession[]>([]);
   const [eventQuestions, setEventQuestions] = React.useState<EventQuestion[]>([]);
+  const [eventBoards, setEventBoards] = React.useState<EventBoard[]>([]);
   const [selectedSessionId, setSelectedSessionId] = React.useState<string | null>(null);
   const [savingSession, setSavingSession] = React.useState(false);
   const [formTemplates, setFormTemplates] = React.useState<FormTemplate[]>([]);
@@ -569,6 +683,26 @@ function AdminShell() {
     maxSelectableConcepts: "5",
     participantSlug: ""
   });
+  const emptyBoardInstruction = { languageLabel: "Espanol", contentHtml: "<p></p>", sortOrder: 1 };
+  const [boardDraft, setBoardDraft] = React.useState({
+    title: "",
+    sessionId: "",
+    participantSlug: "",
+    maxNoteLength: "800",
+    allowMultipleNotes: false,
+    maxNotesPerParticipant: "1",
+    instructions: [emptyBoardInstruction]
+  });
+  const [editingBoardId, setEditingBoardId] = React.useState<string | null>(null);
+  const [boardEditDraft, setBoardEditDraft] = React.useState({
+    title: "",
+    sessionId: "",
+    participantSlug: "",
+    maxNoteLength: "800",
+    allowMultipleNotes: false,
+    maxNotesPerParticipant: "1",
+    instructions: [emptyBoardInstruction]
+  });
 
   React.useEffect(() => {
     fetch("/api/auth/me", { credentials: "include" })
@@ -590,8 +724,10 @@ function AdminShell() {
   React.useEffect(() => {
     if (selectedEventId) {
       setEditingQuestionId(null);
+      setEditingBoardId(null);
       void loadSessions(selectedEventId);
       void loadEventQuestions(selectedEventId);
+      void loadEventBoards(selectedEventId);
     }
   }, [selectedEventId]);
 
@@ -723,6 +859,13 @@ function AdminShell() {
     if (!response.ok) return;
     const payload = (await response.json()) as { questions: EventQuestion[] };
     setEventQuestions(payload.questions);
+  }
+
+  async function loadEventBoards(eventId: string) {
+    const response = await fetch(`/api/admin/events/${eventId}/boards`, { credentials: "include" });
+    if (!response.ok) return;
+    const payload = (await response.json()) as { boards: EventBoard[] };
+    setEventBoards(payload.boards);
   }
 
   async function saveSelectedTemplate(event: React.FormEvent<HTMLFormElement>) {
@@ -1316,6 +1459,162 @@ function AdminShell() {
     await loadEventQuestions(selectedEventId);
     cancelQuestionEdit();
     setActionMessage("Pregunta actualizada correctamente.");
+  }
+
+  function boardPayload(draft: typeof boardDraft) {
+    return {
+      title: draft.title,
+      sessionId: draft.sessionId || null,
+      participantSlug: draft.participantSlug,
+      maxNoteLength: Number(draft.maxNoteLength) || 800,
+      allowMultipleNotes: draft.allowMultipleNotes,
+      maxNotesPerParticipant: draft.allowMultipleNotes ? Number(draft.maxNotesPerParticipant) || 1 : 1,
+      instructions: draft.instructions.map((instruction, index) => ({
+        languageLabel: instruction.languageLabel,
+        contentHtml: sanitizeClientHtml(instruction.contentHtml),
+        sortOrder: index + 1
+      }))
+    };
+  }
+
+  function resetBoardDraft() {
+    setBoardDraft({
+      title: "",
+      sessionId: "",
+      participantSlug: "",
+      maxNoteLength: "800",
+      allowMultipleNotes: false,
+      maxNotesPerParticipant: "1",
+      instructions: [{ ...emptyBoardInstruction }]
+    });
+  }
+
+  async function createBoard(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedEventId || !boardDraft.title.trim()) return;
+
+    setActionMessage(null);
+    const response = await fetch(`/api/admin/events/${selectedEventId}/boards`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(boardPayload(boardDraft))
+    });
+    const payload = (await response.json()) as { ok: boolean; message?: string };
+
+    if (!response.ok || !payload.ok) {
+      setActionMessage(payload.message ?? "No se pudo crear la pizarra.");
+      return;
+    }
+
+    resetBoardDraft();
+    await loadEventBoards(selectedEventId);
+    setActionMessage("Pizarra interactiva creada correctamente.");
+  }
+
+  function startBoardEdit(board: EventBoard) {
+    setEditingBoardId(board.id);
+    setBoardEditDraft({
+      title: board.title,
+      sessionId: board.session_id ?? "",
+      participantSlug: board.participant_slug,
+      maxNoteLength: board.max_note_length.toString(),
+      allowMultipleNotes: Boolean(board.allow_multiple_notes),
+      maxNotesPerParticipant: board.max_notes_per_participant?.toString() ?? "1",
+      instructions: board.instructions?.length
+        ? board.instructions.map((instruction, index) => ({
+          languageLabel: instruction.language_label ?? "",
+          contentHtml: instruction.content_html,
+          sortOrder: index + 1
+        }))
+        : [{ ...emptyBoardInstruction }]
+    });
+    setActionMessage(null);
+  }
+
+  function cancelBoardEdit() {
+    setEditingBoardId(null);
+    setBoardEditDraft({
+      title: "",
+      sessionId: "",
+      participantSlug: "",
+      maxNoteLength: "800",
+      allowMultipleNotes: false,
+      maxNotesPerParticipant: "1",
+      instructions: [{ ...emptyBoardInstruction }]
+    });
+  }
+
+  async function saveBoardEdit(board: EventBoard, event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedEventId) return;
+    const response = await fetch(`/api/admin/events/${selectedEventId}/boards/${board.id}`, {
+      method: "PUT",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(boardPayload(boardEditDraft))
+    });
+    const payload = (await response.json()) as { ok: boolean; message?: string };
+    if (!response.ok || !payload.ok) {
+      setActionMessage(payload.message ?? "No se pudo actualizar la pizarra.");
+      return;
+    }
+    await loadEventBoards(selectedEventId);
+    cancelBoardEdit();
+    setActionMessage("Pizarra actualizada correctamente.");
+  }
+
+  async function changeBoardStatus(board: EventBoard, status: string) {
+    if (!selectedEventId) return;
+    const response = await fetch(`/api/admin/events/${selectedEventId}/boards/${board.id}/status`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status })
+    });
+    const payload = (await response.json()) as { ok: boolean; message?: string };
+    if (!response.ok || !payload.ok) {
+      setActionMessage(payload.message ?? "No se pudo actualizar la pizarra.");
+      return;
+    }
+    await loadEventBoards(selectedEventId);
+    setActionMessage("Estado de pizarra actualizado.");
+  }
+
+  function updateInstruction(
+    mode: "create" | "edit",
+    index: number,
+    field: "languageLabel" | "contentHtml",
+    value: string
+  ) {
+    const setter = mode === "create" ? setBoardDraft : setBoardEditDraft;
+    setter((current) => ({
+      ...current,
+      instructions: current.instructions.map((instruction, itemIndex) =>
+        itemIndex === index ? { ...instruction, [field]: value } : instruction
+      )
+    }));
+  }
+
+  function addInstruction(mode: "create" | "edit") {
+    const setter = mode === "create" ? setBoardDraft : setBoardEditDraft;
+    setter((current) => ({
+      ...current,
+      instructions: [
+        ...current.instructions,
+        { languageLabel: "", contentHtml: "<p></p>", sortOrder: current.instructions.length + 1 }
+      ]
+    }));
+  }
+
+  function removeInstruction(mode: "create" | "edit", index: number) {
+    const setter = mode === "create" ? setBoardDraft : setBoardEditDraft;
+    setter((current) => ({
+      ...current,
+      instructions: current.instructions.length > 1
+        ? current.instructions.filter((_, itemIndex) => itemIndex !== index)
+        : current.instructions
+    }));
   }
 
   function updateSessionDraft(index: number, field: keyof EventSessionDraft, value: string) {
@@ -1966,6 +2265,191 @@ function AdminShell() {
                   );
                 })}
                 {eventQuestions.length === 0 ? <p className="blocked-message">No hay preguntas interactivas para este evento.</p> : null}
+              </div>
+            </div>
+          ) : null}
+
+          {selectedEvent ? (
+            <div className="admin-form-panel">
+              <div className="detail-heading">
+                <div>
+                  <p className="eyebrow">Pizarra abierta</p>
+                  <h3>Pizarras interactivas</h3>
+                  <p>Publique instrucciones y reciba notas libres de participantes sin validación documental.</p>
+                </div>
+              </div>
+
+              <form className="builder-card" onSubmit={createBoard}>
+                <div className="builder-grid">
+                  <label>
+                    Título
+                    <input
+                      value={boardDraft.title}
+                      onChange={(event) => setBoardDraft((current) => ({ ...current, title: event.target.value }))}
+                      placeholder="Ejemplo: Presentación de participantes"
+                      required
+                    />
+                  </label>
+                  <label>
+                    Sesión asociada
+                    <select value={boardDraft.sessionId} onChange={(event) => setBoardDraft((current) => ({ ...current, sessionId: event.target.value }))}>
+                      <option value="">Todo el evento</option>
+                      {sessions.map((session) => (
+                        <option key={session.id} value={session.id}>{session.title}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Enlace corto de pizarra
+                    <input
+                      value={boardDraft.participantSlug}
+                      onChange={(event) => setBoardDraft((current) => ({ ...current, participantSlug: event.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-") }))}
+                      placeholder="opcional"
+                    />
+                  </label>
+                  <label>
+                    Máximo caracteres nota
+                    <input
+                      min="20"
+                      max="5000"
+                      type="number"
+                      value={boardDraft.maxNoteLength}
+                      onChange={(event) => setBoardDraft((current) => ({ ...current, maxNoteLength: event.target.value }))}
+                    />
+                  </label>
+                  <label>
+                    Máximo notas por participante
+                    <input
+                      min="1"
+                      type="number"
+                      value={boardDraft.maxNotesPerParticipant}
+                      onChange={(event) => setBoardDraft((current) => ({ ...current, maxNotesPerParticipant: event.target.value }))}
+                      disabled={!boardDraft.allowMultipleNotes}
+                    />
+                  </label>
+                  <label className="check-field">
+                    <input
+                      checked={boardDraft.allowMultipleNotes}
+                      onChange={(event) => setBoardDraft((current) => ({ ...current, allowMultipleNotes: event.target.checked }))}
+                      type="checkbox"
+                    />
+                    Permitir más de una nota
+                  </label>
+                </div>
+                <div className="instruction-editor-list">
+                  {boardDraft.instructions.map((instruction, index) => (
+                    <div className="instruction-editor" key={`new-${index}`}>
+                      <label>
+                        Etiqueta / idioma
+                        <input value={instruction.languageLabel} onChange={(event) => updateInstruction("create", index, "languageLabel", event.target.value)} />
+                      </label>
+                      <RichEditable
+                        onChange={(value) => updateInstruction("create", index, "contentHtml", value)}
+                        placeholder="Escriba o pegue la instrucción con formato"
+                        value={instruction.contentHtml}
+                      />
+                      <button className="text-button danger" type="button" onClick={() => removeInstruction("create", index)}>Quitar instrucción</button>
+                    </div>
+                  ))}
+                </div>
+                <div className="actions">
+                  <button className="button secondary" type="button" onClick={() => addInstruction("create")}>Agregar instrucción</button>
+                  <button className="button" type="submit">Crear pizarra</button>
+                </div>
+              </form>
+
+              <div className="question-list">
+                {eventBoards.map((board) => {
+                  const participantUrl = `${window.location.origin}/b/${board.participant_slug}`;
+                  const presenterUrl = `${window.location.origin}/b/p/${board.presenter_slug}`;
+                  const isEditingBoard = editingBoardId === board.id;
+                  const hasNotes = board.note_count > 0;
+                  return (
+                    <div className={`question-card${isEditingBoard ? " editing" : ""}`} key={board.id}>
+                      {!isEditingBoard ? (
+                        <>
+                          <div>
+                            <strong>{board.title}</strong>
+                            <span>{board.note_count} notas · {board.status}</span>
+                            <a href={participantUrl}>{participantUrl}</a>
+                            <a href={presenterUrl}>{presenterUrl}</a>
+                          </div>
+                          <div className="row-actions">
+                            <button className="button secondary table-action" type="button" onClick={() => startBoardEdit(board)}>Editar</button>
+                            <button className="button secondary table-action" type="button" onClick={() => void changeBoardStatus(board, "open")}>Abrir</button>
+                            <button className="button secondary table-action" type="button" onClick={() => void changeBoardStatus(board, "closed")}>Cerrar</button>
+                            <button className="button secondary table-action" type="button" onClick={() => void changeBoardStatus(board, "archived")}>Archivar</button>
+                          </div>
+                        </>
+                      ) : (
+                        <form className="question-edit-form" onSubmit={(event) => void saveBoardEdit(board, event)}>
+                          <div className="builder-grid">
+                            <label>
+                              Título
+                              <input value={boardEditDraft.title} onChange={(event) => setBoardEditDraft((current) => ({ ...current, title: event.target.value }))} required />
+                            </label>
+                            <label>
+                              Sesión asociada
+                              <select value={boardEditDraft.sessionId} onChange={(event) => setBoardEditDraft((current) => ({ ...current, sessionId: event.target.value }))}>
+                                <option value="">Todo el evento</option>
+                                {sessions.map((session) => (
+                                  <option key={session.id} value={session.id}>{session.title}</option>
+                                ))}
+                              </select>
+                            </label>
+                            <label>
+                              Enlace corto
+                              <input
+                                value={boardEditDraft.participantSlug}
+                                onChange={(event) => setBoardEditDraft((current) => ({ ...current, participantSlug: event.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-") }))}
+                                disabled={hasNotes}
+                                required
+                              />
+                            </label>
+                            <label>
+                              Máximo caracteres nota
+                              <input type="number" min="20" max="5000" value={boardEditDraft.maxNoteLength} onChange={(event) => setBoardEditDraft((current) => ({ ...current, maxNoteLength: event.target.value }))} />
+                            </label>
+                            <label>
+                              Máximo notas por participante
+                              <input type="number" min="1" value={boardEditDraft.maxNotesPerParticipant} onChange={(event) => setBoardEditDraft((current) => ({ ...current, maxNotesPerParticipant: event.target.value }))} disabled={!boardEditDraft.allowMultipleNotes} />
+                            </label>
+                            <label className="check-field">
+                              <input checked={boardEditDraft.allowMultipleNotes} onChange={(event) => setBoardEditDraft((current) => ({ ...current, allowMultipleNotes: event.target.checked }))} type="checkbox" />
+                              Permitir más de una nota
+                            </label>
+                          </div>
+                          <div className="instruction-editor-list">
+                            {boardEditDraft.instructions.map((instruction, index) => (
+                              <div className="instruction-editor" key={`edit-${index}`}>
+                                <label>
+                                  Etiqueta / idioma
+                                  <input value={instruction.languageLabel} onChange={(event) => updateInstruction("edit", index, "languageLabel", event.target.value)} />
+                                </label>
+                                <RichEditable
+                                  onChange={(value) => updateInstruction("edit", index, "contentHtml", value)}
+                                  placeholder="Escriba o pegue la instrucción con formato"
+                                  value={instruction.contentHtml}
+                                />
+                                <button className="text-button danger" type="button" onClick={() => removeInstruction("edit", index)}>Quitar instrucción</button>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="question-edit-note">
+                            <span>{board.note_count} notas registradas</span>
+                            {hasNotes ? <span>El enlace corto está bloqueado por trazabilidad.</span> : <span>El enlace corto aún puede modificarse.</span>}
+                          </div>
+                          <div className="actions">
+                            <button className="button secondary" type="button" onClick={() => addInstruction("edit")}>Agregar instrucción</button>
+                            <button className="button" type="submit">Guardar pizarra</button>
+                            <button className="button secondary" type="button" onClick={cancelBoardEdit}>Cancelar</button>
+                          </div>
+                        </form>
+                      )}
+                    </div>
+                  );
+                })}
+                {eventBoards.length === 0 ? <p className="blocked-message">No hay pizarras interactivas para este evento.</p> : null}
               </div>
             </div>
           ) : null}
@@ -2754,6 +3238,36 @@ function Metric({ label, value }: { label: string; value: string }) {
       <span>{label}</span>
       <strong>{value}</strong>
     </div>
+  );
+}
+
+function RichEditable({
+  value,
+  onChange,
+  placeholder
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+}) {
+  const ref = React.useRef<HTMLDivElement | null>(null);
+
+  React.useEffect(() => {
+    if (ref.current && ref.current.innerHTML !== value) {
+      ref.current.innerHTML = value;
+    }
+  }, [value]);
+
+  return (
+    <div
+      className="rich-editor"
+      contentEditable
+      data-placeholder={placeholder}
+      onBlur={(event) => onChange(sanitizeClientHtml(event.currentTarget.innerHTML))}
+      onInput={(event) => onChange(event.currentTarget.innerHTML)}
+      ref={ref}
+      suppressContentEditableWarning
+    />
   );
 }
 
@@ -4088,6 +4602,207 @@ function QuestionPresenterView({ slug }: { slug: string }) {
               <p className="presenter-selection-empty">Esperando selecciones de participantes...</p>
             )}
           </section>
+        ) : null}
+      </section>
+    </main>
+  );
+}
+
+function BoardParticipantView({ slug }: { slug: string }) {
+  const [board, setBoard] = React.useState<EventBoard | null>(null);
+  const [countries, setCountries] = React.useState<CatalogItem[]>([]);
+  const [form, setForm] = React.useState({ firstName: "", lastName: "", countryId: "", noteHtml: "" });
+  const [message, setMessage] = React.useState("");
+  const [submitting, setSubmitting] = React.useState(false);
+
+  React.useEffect(() => {
+    fetch(`/api/public/boards/${slug}`)
+      .then((response) => response.ok ? response.json() as Promise<{ board: EventBoard }> : Promise.reject())
+      .then((payload: { board: EventBoard }) => setBoard(payload.board))
+      .catch(() => setMessage("Pizarra no disponible."));
+    fetch("/api/public/catalogs/pais/items")
+      .then((response) => response.ok ? response.json() as Promise<{ items: CatalogItem[] }> : Promise.reject())
+      .then((payload) => setCountries(payload.items))
+      .catch(() => setCountries([]));
+  }, [slug]);
+
+  if (!board) return <PublicMessage title="Pizarra interactiva" message={message || "Cargando pizarra."} />;
+
+  const selectedCountry = countries.find((country) => country.id === form.countryId);
+  const noteText = stripHtml(form.noteHtml);
+  const canSubmit = board.status === "open";
+
+  async function submitNote(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!board || !selectedCountry) return;
+    setSubmitting(true);
+    setMessage("");
+    const response = await fetch(`/api/public/boards/${slug}/notes`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        firstName: form.firstName,
+        lastName: form.lastName,
+        countryId: selectedCountry.id,
+        countryName: selectedCountry.name,
+        countryIso2: countryIsoMap[cleanText(selectedCountry.name).toLowerCase()] ?? null,
+        noteHtml: sanitizeClientHtml(form.noteHtml)
+      })
+    });
+    const payload = (await response.json().catch(() => null)) as { ok?: boolean; message?: string } | null;
+    setSubmitting(false);
+    if (!response.ok || !payload?.ok) {
+      setMessage(payload?.message ?? "No se pudo registrar la nota.");
+      return;
+    }
+    setForm((current) => ({ ...current, noteHtml: "" }));
+    setMessage("Nota registrada correctamente.");
+  }
+
+  return (
+    <main className="board-public-page">
+      <section className="board-public-stage">
+        <p className="eyebrow">{board.event_title}</p>
+        <h1>{board.title}</h1>
+        <div className="instruction-card-row">
+          {board.instructions?.map((instruction) => (
+            <article className="instruction-card" key={instruction.id ?? instruction.sort_order}>
+              {instruction.language_label ? <strong>{instruction.language_label}</strong> : null}
+              <div dangerouslySetInnerHTML={{ __html: instruction.content_html }} />
+            </article>
+          ))}
+        </div>
+        {!canSubmit ? <p className="blocked-message">La pizarra ya no recibe nuevas notas.</p> : null}
+        {canSubmit ? (
+          <form className="board-note-form" onSubmit={submitNote}>
+            <div className="builder-grid">
+              <label>
+                Nombre
+                <input value={form.firstName} onChange={(event) => setForm((current) => ({ ...current, firstName: event.target.value }))} required />
+              </label>
+              <label>
+                Apellido
+                <input value={form.lastName} onChange={(event) => setForm((current) => ({ ...current, lastName: event.target.value }))} required />
+              </label>
+              <label>
+                País
+                <select value={form.countryId} onChange={(event) => setForm((current) => ({ ...current, countryId: event.target.value }))} required>
+                  <option value="">Seleccione</option>
+                  {countries.map((country) => (
+                    <option key={country.id} value={country.id}>{countryFlag(country.name)} {country.name}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <label className="rich-label">
+              Nota
+              <RichEditable value={form.noteHtml} onChange={(value) => setForm((current) => ({ ...current, noteHtml: value }))} placeholder="Escriba o pegue su nota" />
+              <span className="field-hint">{noteText.length} / {board.max_note_length}</span>
+            </label>
+            <div className="actions centered-actions">
+              <button className="button" type="submit" disabled={submitting || noteText.length > board.max_note_length}>
+                {submitting ? "Registrando..." : "Publicar nota"}
+              </button>
+            </div>
+          </form>
+        ) : null}
+        {message ? <p className={message.includes("correctamente") ? "form-success" : "form-error"}>{message}</p> : null}
+      </section>
+    </main>
+  );
+}
+
+function BoardPresenterView({ slug }: { slug: string }) {
+  const [board, setBoard] = React.useState<EventBoard | null>(null);
+  const [notes, setNotes] = React.useState<EventBoardNote[]>([]);
+  const [page, setPage] = React.useState(1);
+  const [totalPages, setTotalPages] = React.useState(1);
+  const [total, setTotal] = React.useState(0);
+  const [expanded, setExpanded] = React.useState<Record<string, boolean>>({});
+  const [message, setMessage] = React.useState("");
+
+  React.useEffect(() => {
+    let active = true;
+    async function loadNotes() {
+      const response = await fetch(`/api/public/board-presenter/${slug}/notes?page=${page}&pageSize=48`);
+      const payload = (await response.json().catch(() => null)) as {
+        ok?: boolean;
+        board?: EventBoard;
+        notes?: EventBoardNote[];
+        totalPages?: number;
+        total?: number;
+        message?: string;
+      } | null;
+      if (!active) return;
+      if (!response.ok || !payload?.ok || !payload.board) {
+        setMessage(payload?.message ?? "Pizarra no disponible.");
+        return;
+      }
+      setBoard(payload.board);
+      setNotes(payload.notes ?? []);
+      setTotalPages(payload.totalPages ?? 1);
+      setTotal(payload.total ?? 0);
+      setMessage("");
+    }
+    void loadNotes();
+    const interval = window.setInterval(loadNotes, 3000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [slug, page]);
+
+  if (!board) return <PublicMessage title="Vista de pizarra" message={message || "Cargando notas."} />;
+
+  return (
+    <main className="board-presenter-page">
+      <section className="board-presenter-stage">
+        <p className="eyebrow">{board.event_title}</p>
+        <h1>{board.title}</h1>
+        <div className="instruction-card-row compact">
+          {board.instructions?.map((instruction) => (
+            <article className="instruction-card" key={instruction.id ?? instruction.sort_order}>
+              {instruction.language_label ? <strong>{instruction.language_label}</strong> : null}
+              <div dangerouslySetInnerHTML={{ __html: instruction.content_html }} />
+            </article>
+          ))}
+        </div>
+        <div className="board-toolbar">
+          <strong>{total} notas</strong>
+          <span className={`status ${board.status === "open" ? "open" : "closed"}`}>{board.status}</span>
+        </div>
+        {notes.length > 0 ? (
+          <div className="postit-grid">
+            {notes.map((note, index) => {
+              const isExpanded = Boolean(expanded[note.id]);
+              return (
+                <article className={`postit-card tone-${index % 5}`} key={note.id}>
+                  <div className="postit-head">
+                    <span>{countryFlag(note.country_name, note.country_iso2)}</span>
+                    <strong>{note.first_name.split(" ")[0]} {note.last_name.split(" ")[0]}</strong>
+                  </div>
+                  <div
+                    className={isExpanded ? "postit-body expanded" : "postit-body"}
+                    dangerouslySetInnerHTML={{ __html: isExpanded ? note.note_html : cleanText(note.note_excerpt) }}
+                  />
+                  {note.note_text.length > 50 ? (
+                    <button className="text-button" type="button" onClick={() => setExpanded((current) => ({ ...current, [note.id]: !isExpanded }))}>
+                      {isExpanded ? "Ver menos" : "..."}
+                    </button>
+                  ) : null}
+                </article>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="empty-cloud">Esperando notas...</p>
+        )}
+        {totalPages > 1 ? (
+          <div className="presenter-pagination">
+            <button type="button" disabled={page === 1} onClick={() => setPage((current) => Math.max(1, current - 1))}>Anterior</button>
+            <span>{page} / {totalPages}</span>
+            <button type="button" disabled={page >= totalPages} onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>Siguiente</button>
+          </div>
         ) : null}
       </section>
     </main>

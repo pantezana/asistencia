@@ -208,6 +208,52 @@ export type EventQuestionSelectionGroup = {
   selection_count: number;
 };
 
+export type EventBoard = {
+  id: string;
+  event_id: string;
+  session_id: string | null;
+  title: string;
+  status: string;
+  participant_slug: string;
+  presenter_slug: string;
+  max_note_length: number;
+  allow_multiple_notes: number;
+  max_notes_per_participant: number | null;
+  created_by_user_id: string;
+  note_count: number;
+  created_at: string;
+  updated_at: string;
+  event_title?: string;
+  event_slug?: string;
+};
+
+export type EventBoardInstruction = {
+  id: string;
+  board_id: string;
+  language_label: string | null;
+  content_html: string;
+  content_text: string;
+  sort_order: number;
+  status: string;
+};
+
+export type EventBoardNote = {
+  id: string;
+  board_id: string;
+  event_id: string;
+  session_id: string | null;
+  first_name: string;
+  last_name: string;
+  country_id: string | null;
+  country_name: string;
+  country_iso2: string | null;
+  note_html: string;
+  note_text: string;
+  note_excerpt: string;
+  status: string;
+  created_at: string;
+};
+
 export type Participant = {
   id: string;
   document_type: string;
