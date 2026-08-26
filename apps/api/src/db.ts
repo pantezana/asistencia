@@ -522,7 +522,7 @@ export async function updateEventQuestionParticipantCloud(db: D1Database, eventI
 }
 
 export async function listEventBoards(db: D1Database, eventId: string) {
-  return db
+  const boards = await db
     .prepare(
       `SELECT b.*, COUNT(n.id) AS note_count
        FROM event_boards b
@@ -533,6 +533,13 @@ export async function listEventBoards(db: D1Database, eventId: string) {
     )
     .bind(eventId)
     .all<EventBoard>();
+  const enrichedBoards = await Promise.all(
+    boards.results.map(async (board) => {
+      const instructions = await listBoardInstructions(db, board.id);
+      return { ...board, instructions: instructions.results };
+    })
+  );
+  return { ...boards, results: enrichedBoards };
 }
 
 export async function listBoardInstructions(db: D1Database, boardId: string) {
