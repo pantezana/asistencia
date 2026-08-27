@@ -102,6 +102,7 @@ type AdminSession = {
   status: string;
   attendance_status: string;
   module_title: string;
+  dashboard_items?: EventDashboardItem[];
 };
 
 type FormField = {
@@ -173,6 +174,7 @@ type EventSessionDraft = {
   sessionDate: string;
   startTime: string;
   endTime: string;
+  dashboardItems: Array<{ sessionId: string; name: string; valueType: string; value: string; sortOrder: number; status: string }>;
 };
 
 type CreatedEventResult = {
@@ -703,7 +705,7 @@ function AdminShell() {
     endTime: "17:00"
   });
   const [sessionDrafts, setSessionDrafts] = React.useState<EventSessionDraft[]>([
-    { moduleTitle: "MÃ³dulo general", title: "SesiÃ³n 1", theme: "", sessionDate: "", startTime: "08:00", endTime: "17:00" }
+    { moduleTitle: "MÃ³dulo general", title: "SesiÃ³n 1", theme: "", sessionDate: "", startTime: "08:00", endTime: "17:00", dashboardItems: [] }
   ]);
   const [eventEditDraft, setEventEditDraft] = React.useState({
     title: "",
@@ -722,7 +724,8 @@ function AdminShell() {
     sessionDate: "",
     startTime: "",
     endTime: "",
-    status: "closed"
+    status: "closed",
+    dashboardItems: [] as Array<{ sessionId: string; name: string; valueType: string; value: string; sortOrder: number; status: string }>
   });
   const [questionDraft, setQuestionDraft] = React.useState({
     questionText: "",
@@ -822,7 +825,15 @@ function AdminShell() {
       sessionDate: session.session_date,
       startTime: session.start_time,
       endTime: session.end_time,
-      status: session.attendance_status
+      status: session.attendance_status,
+      dashboardItems: (session.dashboard_items ?? []).map((item, index) => ({
+        sessionId: item.session_id ?? session.id,
+        name: cleanText(item.name),
+        valueType: item.value_type,
+        value: item.value,
+        sortOrder: item.sort_order || index + 1,
+        status: item.status || "active"
+      }))
     });
   }, [sessions, selectedSessionId]);
 
@@ -1424,7 +1435,15 @@ function AdminShell() {
       sessionDate: session.session_date,
       startTime: session.start_time,
       endTime: session.end_time,
-      status: session.attendance_status
+      status: session.attendance_status,
+      dashboardItems: (session.dashboard_items ?? []).map((item, index) => ({
+        sessionId: item.session_id ?? session.id,
+        name: cleanText(item.name),
+        valueType: item.value_type,
+        value: item.value,
+        sortOrder: item.sort_order || index + 1,
+        status: item.status || "active"
+      }))
     });
   }
 
@@ -1441,14 +1460,28 @@ function AdminShell() {
       body: JSON.stringify(sessionEditDraft)
     });
     const payload = (await response.json()) as { ok: boolean; message?: string };
-    setSavingSession(false);
 
     if (!response.ok || !payload.ok) {
+      setSavingSession(false);
       setActionMessage(payload.message ?? "No se pudo actualizar la sesion.");
       return;
     }
 
+    const itemsResponse = await fetch(`/api/admin/events/${selectedEventId}/sessions/${selectedSessionId}/dashboard-items`, {
+      method: "PUT",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items: sessionEditDraft.dashboardItems })
+    });
+    const itemsPayload = (await itemsResponse.json()) as { ok: boolean; message?: string };
+    setSavingSession(false);
+    if (!itemsResponse.ok || !itemsPayload.ok) {
+      setActionMessage(itemsPayload.message ?? "La sesion se actualizo, pero no se pudo guardar la informacion del tablero.");
+      return;
+    }
+
     await loadSessions(selectedEventId);
+    await loadEventDashboard(selectedEventId);
     await loadEvents();
     setActionMessage("Sesion actualizada correctamente.");
   }
@@ -1853,14 +1886,6 @@ function AdminShell() {
           value: item.value,
           sortOrder: item.sortOrder,
           status: item.status
-        })),
-        sessionItems: dashboardDraft.sessionItems.map((item) => ({
-          sessionId: item.sessionId,
-          name: item.name,
-          valueType: item.valueType,
-          value: item.value,
-          sortOrder: item.sortOrder,
-          status: item.status
         }))
       })
     });
@@ -1874,7 +1899,7 @@ function AdminShell() {
     setActionMessage("Tablero guardado correctamente.");
   }
 
-  function updateSessionDraft(index: number, field: keyof EventSessionDraft, value: string) {
+  function updateSessionDraft(index: number, field: Exclude<keyof EventSessionDraft, "dashboardItems">, value: string) {
     setSessionDrafts((current) => current.map((session, itemIndex) =>
       itemIndex === index ? { ...session, [field]: value } : session
     ));
@@ -1889,9 +1914,65 @@ function AdminShell() {
         theme: "",
         sessionDate: "",
         startTime: eventDraft.startTime,
-        endTime: eventDraft.endTime
+        endTime: eventDraft.endTime,
+        dashboardItems: []
       }
     ]);
+  }
+
+  function addSessionDraftDashboardItem(sessionIndex: number) {
+    setSessionDrafts((current) => current.map((session, index) => index === sessionIndex
+      ? {
+        ...session,
+        dashboardItems: [
+          ...session.dashboardItems,
+          { sessionId: "", name: "", valueType: "text", value: "", sortOrder: session.dashboardItems.length + 1, status: "active" }
+        ]
+      }
+      : session));
+  }
+
+  function updateSessionDraftDashboardItem(sessionIndex: number, itemIndex: number, field: "name" | "valueType" | "value" | "sortOrder" | "status", value: string) {
+    setSessionDrafts((current) => current.map((session, index) => index === sessionIndex
+      ? {
+        ...session,
+        dashboardItems: session.dashboardItems.map((item, nestedIndex) => nestedIndex === itemIndex
+          ? { ...item, [field]: field === "sortOrder" ? Number(value) || 1 : value }
+          : item)
+      }
+      : session));
+  }
+
+  function removeSessionDraftDashboardItem(sessionIndex: number, itemIndex: number) {
+    setSessionDrafts((current) => current.map((session, index) => index === sessionIndex
+      ? { ...session, dashboardItems: session.dashboardItems.filter((_, nestedIndex) => nestedIndex !== itemIndex) }
+      : session));
+  }
+
+  function addSessionEditDashboardItem() {
+    setSessionEditDraft((current) => ({
+      ...current,
+      dashboardItems: [
+        ...current.dashboardItems,
+        { sessionId: selectedSessionId ?? "", name: "", valueType: "text", value: "", sortOrder: current.dashboardItems.length + 1, status: "active" }
+      ]
+    }));
+  }
+
+  function updateSessionEditDashboardItem(index: number, field: "name" | "valueType" | "value" | "sortOrder" | "status", value: string) {
+    setSessionEditDraft((current) => ({
+      ...current,
+      dashboardItems: current.dashboardItems.map((item, itemIndex) => itemIndex === index
+        ? { ...item, [field]: field === "sortOrder" ? Number(value) || 1 : value }
+        : item)
+    }));
+  }
+
+  function removeSessionEditDashboardItem(index: number) {
+    setSessionEditDraft((current) => ({
+      ...current,
+      dashboardItems: current.dashboardItems.filter((_, itemIndex) => itemIndex !== index)
+    }));
   }
 
   async function createEvent(event: React.FormEvent<HTMLFormElement>) {
@@ -2145,6 +2226,18 @@ function AdminShell() {
                       Fin
                       <input type="time" value={session.endTime} onChange={(event) => updateSessionDraft(index, "endTime", event.target.value)} required />
                     </label>
+                    <div className="session-dashboard-inline">
+                      <DashboardItemsEditor
+                        compact
+                        items={session.dashboardItems}
+                        onAdd={() => addSessionDraftDashboardItem(index)}
+                        onRemove={(itemIndex) => removeSessionDraftDashboardItem(index, itemIndex)}
+                        onUpdate={(itemIndex, field, value) => {
+                          if (field !== "sessionId") updateSessionDraftDashboardItem(index, itemIndex, field, value);
+                        }}
+                        title="Informacion para tablero"
+                      />
+                    </div>
                   </div>
                 ))}
               </div>
@@ -2828,14 +2921,14 @@ function AdminShell() {
                   title="Información del evento"
                 />
 
-                <DashboardItemsEditor
-                  items={dashboardDraft.sessionItems}
-                  onAdd={() => addDashboardItem("session")}
-                  onRemove={(index) => removeDashboardItem("session", index)}
-                  onUpdate={(index, field, value) => updateDashboardItem("session", index, field, value)}
-                  sessions={sessions}
-                  title="Información de sesiones"
-                />
+                <div className="dashboard-admin-section">
+                  <div className="mini-section-heading">
+                    <strong>Información de sesiones</strong>
+                  </div>
+                  <p className="blocked-message">
+                    La información específica de cada sesión se crea y edita desde el cronograma, dentro de cada sesión.
+                  </p>
+                </div>
 
                 <div className="actions">
                   <button className="button" type="submit" disabled={savingDashboard}>{savingDashboard ? "Guardando..." : "Guardar tablero"}</button>
@@ -2890,6 +2983,18 @@ function AdminShell() {
                     <option value="open">Abierta</option>
                   </select>
                 </label>
+                <div className="session-dashboard-inline">
+                  <DashboardItemsEditor
+                    compact
+                    items={sessionEditDraft.dashboardItems}
+                    onAdd={addSessionEditDashboardItem}
+                    onRemove={removeSessionEditDashboardItem}
+                    onUpdate={(index, field, value) => {
+                      if (field !== "sessionId") updateSessionEditDashboardItem(index, field, value);
+                    }}
+                    title="Información para tablero"
+                  />
+                </div>
               </div>
               <div className="actions">
                 <button className="button" type="submit" disabled={savingSession}>
@@ -3627,6 +3732,7 @@ function DashboardItemsEditor({
   title,
   items,
   sessions = [],
+  compact = false,
   onAdd,
   onRemove,
   onUpdate
@@ -3634,12 +3740,13 @@ function DashboardItemsEditor({
   title: string;
   items: Array<{ sessionId: string; name: string; valueType: string; value: string; sortOrder: number; status: string }>;
   sessions?: AdminSession[];
+  compact?: boolean;
   onAdd: () => void;
   onRemove: (index: number) => void;
   onUpdate: (index: number, field: "sessionId" | "name" | "valueType" | "value" | "sortOrder" | "status", value: string) => void;
 }) {
   return (
-    <div className="dashboard-admin-section">
+    <div className={`dashboard-admin-section${compact ? " compact" : ""}`}>
       <div className="mini-section-heading">
         <strong>{title}</strong>
         <button className="button secondary table-action" type="button" onClick={onAdd}>Agregar información</button>

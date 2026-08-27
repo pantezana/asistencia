@@ -2018,6 +2018,28 @@ textarea {
   padding-top: 18px;
 }
 
+.session-dashboard-inline {
+  grid-column: 1 / -1;
+  margin-top: 4px;
+}
+
+.dashboard-admin-section.compact {
+  background: #f8fbff;
+  border: 1px solid #d7e1ee;
+  border-radius: 8px;
+  margin-top: 8px;
+  padding: 12px;
+}
+
+.dashboard-admin-section.compact .mini-section-heading {
+  margin-bottom: 8px;
+}
+
+.dashboard-admin-section.compact .dashboard-item-editor {
+  background: #ffffff;
+  grid-template-columns: 80px minmax(160px, 1fr) 120px minmax(220px, 2fr) 120px auto;
+}
+
 .mini-section-heading {
   align-items: center;
   display: flex;

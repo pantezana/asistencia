@@ -279,7 +279,7 @@ export async function getOpenSessionForEvent(db: D1Database, eventId: string) {
 }
 
 export async function listEventSessions(db: D1Database, eventId: string) {
-  return db
+  const sessions = await db
     .prepare(
       `SELECT
         s.id,
@@ -300,6 +300,15 @@ export async function listEventSessions(db: D1Database, eventId: string) {
     )
     .bind(eventId)
     .all();
+  const dashboard = await getEventDashboard(db, eventId);
+  const sessionItems = dashboard?.sessionItems ?? [];
+  return {
+    ...sessions,
+    results: sessions.results.map((session: any) => ({
+      ...session,
+      dashboard_items: sessionItems.filter((item) => item.session_id === session.id)
+    }))
+  };
 }
 
 export async function listAdminEvents(db: D1Database, user: SessionUser) {
@@ -912,29 +921,91 @@ export async function upsertEventDashboard(db: D1Database, eventId: string, user
       .run();
   }
 
-  await db.prepare("DELETE FROM event_dashboard_instructions WHERE dashboard_id = ?").bind(dashboardId).run();
-  for (const instruction of instructions) {
-    await db
-      .prepare(
-        `INSERT INTO event_dashboard_instructions (id, dashboard_id, language_label, content_html, content_text, sort_order, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`
-      )
-      .bind(`dash_instruction_${crypto.randomUUID().slice(0, 12)}`, dashboardId, instruction.languageLabel, instruction.contentHtml, instruction.contentText, instruction.sortOrder, instruction.status)
-      .run();
+  if (input.instructions) {
+    await db.prepare("DELETE FROM event_dashboard_instructions WHERE dashboard_id = ?").bind(dashboardId).run();
+    for (const instruction of instructions) {
+      await db
+        .prepare(
+          `INSERT INTO event_dashboard_instructions (id, dashboard_id, language_label, content_html, content_text, sort_order, status)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`
+        )
+        .bind(`dash_instruction_${crypto.randomUUID().slice(0, 12)}`, dashboardId, instruction.languageLabel, instruction.contentHtml, instruction.contentText, instruction.sortOrder, instruction.status)
+        .run();
+    }
   }
 
-  await db.prepare("DELETE FROM event_dashboard_items WHERE dashboard_id = ?").bind(dashboardId).run();
-  for (const item of [...eventItems, ...sessionItems]) {
-    await db
-      .prepare(
-        `INSERT INTO event_dashboard_items (id, dashboard_id, event_id, session_id, scope, name, value_type, value, sort_order, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      )
-      .bind(`dash_item_${crypto.randomUUID().slice(0, 12)}`, dashboardId, eventId, item.sessionId, item.scope, item.name, item.valueType, item.value, item.sortOrder, item.status)
-      .run();
+  if (input.eventItems) {
+    await db.prepare("DELETE FROM event_dashboard_items WHERE dashboard_id = ? AND scope = 'event'").bind(dashboardId).run();
+    for (const item of eventItems) {
+      await db
+        .prepare(
+          `INSERT INTO event_dashboard_items (id, dashboard_id, event_id, session_id, scope, name, value_type, value, sort_order, status)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .bind(`dash_item_${crypto.randomUUID().slice(0, 12)}`, dashboardId, eventId, item.sessionId, item.scope, item.name, item.valueType, item.value, item.sortOrder, item.status)
+        .run();
+    }
+  }
+
+  if (input.sessionItems) {
+    await db.prepare("DELETE FROM event_dashboard_items WHERE dashboard_id = ? AND scope = 'session'").bind(dashboardId).run();
+    for (const item of sessionItems) {
+      await db
+        .prepare(
+          `INSERT INTO event_dashboard_items (id, dashboard_id, event_id, session_id, scope, name, value_type, value, sort_order, status)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .bind(`dash_item_${crypto.randomUUID().slice(0, 12)}`, dashboardId, eventId, item.sessionId, item.scope, item.name, item.valueType, item.value, item.sortOrder, item.status)
+        .run();
+    }
   }
 
   return { ok: true, dashboard: await getEventDashboard(db, eventId) };
+}
+
+export async function updateSessionDashboardItems(db: D1Database, eventId: string, sessionId: string, user: SessionUser, input: {
+  items?: DashboardItemInput[];
+}) {
+  const event = await db.prepare("SELECT id, title, short_link_slug FROM events WHERE id = ?").bind(eventId).first<{ id: string; title: string; short_link_slug: string }>();
+  if (!event) return { ok: false, message: "Evento no encontrado." };
+
+  const session = await db.prepare("SELECT id FROM event_sessions WHERE id = ? AND event_id = ?").bind(sessionId, eventId).first<{ id: string }>();
+  if (!session) return { ok: false, message: "Sesion no encontrada." };
+
+  let dashboard = await db.prepare("SELECT * FROM event_dashboards WHERE event_id = ?").bind(eventId).first<EventDashboard>();
+  if (!dashboard) {
+    const dashboardId = `dash_${crypto.randomUUID().slice(0, 12)}`;
+    const shortLinkSlug = await uniqueDashboardSlug(db, `${event.short_link_slug}-tablero`);
+    await db
+      .prepare(
+        `INSERT INTO event_dashboards (id, event_id, title, browser_title, short_link_slug, status, created_by_user_id)
+         VALUES (?, ?, ?, ?, ?, 'draft', ?)`
+      )
+      .bind(dashboardId, eventId, `Tablero - ${event.title}`, `Tablero - ${event.title}`, shortLinkSlug, user.id)
+      .run();
+    dashboard = await db.prepare("SELECT * FROM event_dashboards WHERE id = ?").bind(dashboardId).first<EventDashboard>();
+  }
+
+  if (!dashboard) return { ok: false, message: "No se pudo preparar el tablero del evento." };
+
+  const items = normalizeDashboardItems(input.items, "session").map((item) => ({ ...item, sessionId }));
+  await db.prepare("DELETE FROM event_dashboard_items WHERE dashboard_id = ? AND scope = 'session' AND session_id = ?").bind(dashboard.id, sessionId).run();
+  for (const item of items) {
+    await db
+      .prepare(
+        `INSERT INTO event_dashboard_items (id, dashboard_id, event_id, session_id, scope, name, value_type, value, sort_order, status)
+         VALUES (?, ?, ?, ?, 'session', ?, ?, ?, ?, ?)`
+      )
+      .bind(`dash_item_${crypto.randomUUID().slice(0, 12)}`, dashboard.id, eventId, sessionId, item.name, item.valueType, item.value, item.sortOrder, item.status)
+      .run();
+  }
+
+  const current = await getEventDashboard(db, eventId);
+  return {
+    ok: true,
+    items: current?.sessionItems?.filter((item) => item.session_id === sessionId) ?? [],
+    dashboard: current
+  };
 }
 
 export async function getPublicDashboardBySlug(db: D1Database, slug: string) {
@@ -1169,13 +1240,17 @@ export async function createEventWithSchedule(db: D1Database, user: SessionUser,
     sessionDate: string;
     startTime: string;
     endTime: string;
+    dashboardItems?: DashboardItemInput[];
   }>;
 }) {
   const suffix = crypto.randomUUID().slice(0, 8);
   const eventId = `evt_${suffix}`;
   const slug = normalizePublicSlug(input.shortLinkSlug);
   const formId = `form_${suffix}`;
+  const dashboardId = `dash_${suffix}`;
   const moduleIds = new Map<string, string>();
+  const hasSessionDashboardItems = input.sessions.some((session) => normalizeDashboardItems(session.dashboardItems, "session").length > 0);
+  const dashboardSlug = hasSessionDashboardItems ? await uniqueDashboardSlug(db, `${slug}-tablero`) : "";
   const statements: D1PreparedStatement[] = [
     db
       .prepare(
@@ -1196,6 +1271,17 @@ export async function createEventWithSchedule(db: D1Database, user: SessionUser,
       )
   ];
 
+  if (hasSessionDashboardItems) {
+    statements.push(
+      db
+        .prepare(
+          `INSERT INTO event_dashboards (id, event_id, title, browser_title, short_link_slug, status, created_by_user_id)
+           VALUES (?, ?, ?, ?, ?, 'draft', ?)`
+        )
+        .bind(dashboardId, eventId, `Tablero - ${input.title}`, `Tablero - ${input.title}`, dashboardSlug, user.id)
+    );
+  }
+
   input.sessions.forEach((session, index) => {
     const moduleKey = session.moduleTitle.trim() || "Modulo general";
     if (!moduleIds.has(moduleKey)) {
@@ -1211,6 +1297,7 @@ export async function createEventWithSchedule(db: D1Database, user: SessionUser,
       );
     }
 
+    const sessionId = `ses_${suffix}_${index + 1}`;
     statements.push(
       db
         .prepare(
@@ -1218,7 +1305,7 @@ export async function createEventWithSchedule(db: D1Database, user: SessionUser,
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'closed', 'closed')`
         )
         .bind(
-          `ses_${suffix}_${index + 1}`,
+          sessionId,
           eventId,
           moduleIds.get(moduleKey),
           index + 1,
@@ -1229,6 +1316,19 @@ export async function createEventWithSchedule(db: D1Database, user: SessionUser,
           session.endTime
         )
     );
+
+    if (hasSessionDashboardItems) {
+      for (const item of normalizeDashboardItems(session.dashboardItems, "session")) {
+        statements.push(
+          db
+            .prepare(
+              `INSERT INTO event_dashboard_items (id, dashboard_id, event_id, session_id, scope, name, value_type, value, sort_order, status)
+               VALUES (?, ?, ?, ?, 'session', ?, ?, ?, ?, ?)`
+            )
+            .bind(`dash_item_${suffix}_${index + 1}_${crypto.randomUUID().slice(0, 6)}`, dashboardId, eventId, sessionId, item.name, item.valueType, item.value, item.sortOrder, item.status)
+        );
+      }
+    }
   });
 
   const templateSections = await db

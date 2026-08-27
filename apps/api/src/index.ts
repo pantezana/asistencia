@@ -75,6 +75,7 @@ import {
   updateEventQuestionParticipantCloud,
   updateEventQuestionStatus,
   updateEventSessionDetails,
+  updateSessionDashboardItems,
   updateFormDetails,
   updateFormTemplateDetails,
   updateFormStatus,
@@ -689,6 +690,7 @@ app.post("/api/admin/events", async (c) => {
       sessionDate?: string;
       startTime?: string;
       endTime?: string;
+      dashboardItems?: Array<{ name?: string; valueType?: "text" | "link"; value?: string; sortOrder?: number; status?: string }>;
     }>;
   }>().catch(() => null);
 
@@ -727,7 +729,8 @@ app.post("/api/admin/events", async (c) => {
       theme: session.theme?.trim() || session.title?.trim() || `Sesión ${index + 1}`,
       sessionDate: session.sessionDate || "",
       startTime: session.startTime || "",
-      endTime: session.endTime || ""
+      endTime: session.endTime || "",
+      dashboardItems: session.dashboardItems
     }))
   });
 
@@ -1175,6 +1178,22 @@ app.put("/api/admin/events/:eventId/sessions/:sessionId", async (c) => {
     status: body.status === "open" ? "open" : "closed"
   });
 
+  return c.json(result, result.ok ? 200 : 404);
+});
+
+app.put("/api/admin/events/:eventId/sessions/:sessionId/dashboard-items", async (c) => {
+  const eventId = c.req.param("eventId");
+  const sessionId = c.req.param("sessionId");
+  const canManage = await userCanManageEvent(c.env.DB, eventId, c.get("user"));
+  if (!canManage) return c.json({ ok: false, message: "Evento no encontrado o no autorizado." }, 404);
+
+  const body = await c.req.json<{
+    items?: Array<{ name?: string; valueType?: "text" | "link"; value?: string; sortOrder?: number; status?: string }>;
+  }>().catch(() => null);
+
+  const result = await updateSessionDashboardItems(c.env.DB, eventId, sessionId, c.get("user"), {
+    items: body?.items ?? []
+  });
   return c.json(result, result.ok ? 200 : 404);
 });
 
