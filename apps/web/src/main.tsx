@@ -318,7 +318,7 @@ const DASHBOARD_ITEM_ICONS = [
   { key: "none", label: "Ninguno", symbol: "" },
   { key: "photos", label: "Fotografías", symbol: "📷" },
   { key: "infographic", label: "Infografía", symbol: "📊" },
-  { key: "presentations", label: "Ponencias", symbol: "🖥️" },
+  { key: "presentations", label: "Ponencias", symbol: "📊" },
   { key: "video", label: "Video", symbol: "▶️" },
   { key: "pdf", label: "PDF", symbol: "📄" },
   { key: "word", label: "Word", symbol: "📝" },
