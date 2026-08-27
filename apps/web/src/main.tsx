@@ -206,6 +206,7 @@ type EventQuestion = {
   event_id: string;
   session_id: string | null;
   question_text: string;
+  browser_title: string | null;
   description: string | null;
   interaction_type: string;
   status: string;
@@ -681,6 +682,7 @@ function AdminShell() {
   });
   const [questionDraft, setQuestionDraft] = React.useState({
     questionText: "",
+    browserTitle: "",
     description: "",
     sessionId: "",
     allowMultipleResponses: false,
@@ -692,6 +694,7 @@ function AdminShell() {
   const [editingQuestionId, setEditingQuestionId] = React.useState<string | null>(null);
   const [questionEditDraft, setQuestionEditDraft] = React.useState({
     questionText: "",
+    browserTitle: "",
     description: "",
     sessionId: "",
     allowMultipleResponses: false,
@@ -1350,6 +1353,7 @@ function AdminShell() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         questionText: questionDraft.questionText,
+        browserTitle: questionDraft.browserTitle || questionDraft.questionText,
         description: questionDraft.description,
         sessionId: questionDraft.sessionId || null,
         allowMultipleResponses: questionDraft.allowMultipleResponses,
@@ -1368,6 +1372,7 @@ function AdminShell() {
 
     setQuestionDraft({
       questionText: "",
+      browserTitle: "",
       description: "",
       sessionId: "",
       allowMultipleResponses: false,
@@ -1422,6 +1427,7 @@ function AdminShell() {
     setEditingQuestionId(question.id);
     setQuestionEditDraft({
       questionText: question.question_text,
+      browserTitle: question.browser_title ?? question.question_text,
       description: question.description ?? "",
       sessionId: question.session_id ?? "",
       allowMultipleResponses: Boolean(question.allow_multiple_responses),
@@ -1437,6 +1443,7 @@ function AdminShell() {
     setEditingQuestionId(null);
     setQuestionEditDraft({
       questionText: "",
+      browserTitle: "",
       description: "",
       sessionId: "",
       allowMultipleResponses: false,
@@ -1457,6 +1464,7 @@ function AdminShell() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         questionText: questionEditDraft.questionText,
+        browserTitle: questionEditDraft.browserTitle || questionEditDraft.questionText,
         description: questionEditDraft.description,
         sessionId: questionEditDraft.sessionId || null,
         allowMultipleResponses: questionEditDraft.allowMultipleResponses,
@@ -2100,6 +2108,14 @@ function AdminShell() {
                     />
                   </label>
                   <label>
+                    Nombre Navegador
+                    <input
+                      value={questionDraft.browserTitle}
+                      onChange={(event) => setQuestionDraft((current) => ({ ...current, browserTitle: event.target.value }))}
+                      placeholder="Ejemplo: Nube gobernanza OTCA"
+                    />
+                  </label>
+                  <label>
                     Sesión asociada
                     <select value={questionDraft.sessionId} onChange={(event) => setQuestionDraft((current) => ({ ...current, sessionId: event.target.value }))}>
                       <option value="">Todo el evento</option>
@@ -2208,6 +2224,14 @@ function AdminShell() {
                                 required
                               />
                               {hasResponses ? <span className="field-hint">No puede modificarse porque ya existen respuestas registradas.</span> : null}
+                            </label>
+                            <label>
+                              Nombre Navegador
+                              <input
+                                value={questionEditDraft.browserTitle}
+                                onChange={(event) => setQuestionEditDraft((current) => ({ ...current, browserTitle: event.target.value }))}
+                                placeholder="Título visible en la pestaña del navegador"
+                              />
                             </label>
                             <label>
                               Sesión asociada
@@ -4228,6 +4252,15 @@ function QuestionParticipantView({ slug }: { slug: string }) {
     };
   }, [slug]);
 
+  React.useEffect(() => {
+    if (!question) return;
+    const previousTitle = document.title;
+    document.title = question.browser_title?.trim() || question.question_text || "Pregunta interactiva";
+    return () => {
+      document.title = previousTitle;
+    };
+  }, [question]);
+
   async function identify(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage("");
@@ -4548,6 +4581,15 @@ function QuestionPresenterView({ slug }: { slug: string }) {
       window.clearInterval(interval);
     };
   }, [slug]);
+
+  React.useEffect(() => {
+    if (!question) return;
+    const previousTitle = document.title;
+    document.title = question.browser_title?.trim() || question.question_text || "Nube de respuestas";
+    return () => {
+      document.title = previousTitle;
+    };
+  }, [question]);
 
   if (!question) return <PublicMessage title="Vista de presentación" message={message || "Cargando respuestas."} />;
 

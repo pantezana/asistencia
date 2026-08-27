@@ -880,6 +880,7 @@ app.post("/api/admin/events/:eventId/questions", async (c) => {
 
   const body = await c.req.json<{
     questionText?: string;
+    browserTitle?: string;
     description?: string;
     sessionId?: string | null;
     allowMultipleResponses?: boolean;
@@ -891,6 +892,7 @@ app.post("/api/admin/events/:eventId/questions", async (c) => {
 
   const result = await createEventQuestion(c.env.DB, eventId, c.get("user"), {
     questionText: body?.questionText ?? "",
+    browserTitle: body?.browserTitle,
     description: body?.description,
     sessionId: body?.sessionId || null,
     allowMultipleResponses: body?.allowMultipleResponses,
@@ -910,6 +912,7 @@ app.put("/api/admin/events/:eventId/questions/:questionId", async (c) => {
 
   const body = await c.req.json<{
     questionText?: string;
+    browserTitle?: string;
     description?: string;
     sessionId?: string | null;
     status?: string;
@@ -922,6 +925,7 @@ app.put("/api/admin/events/:eventId/questions/:questionId", async (c) => {
 
   const result = await updateEventQuestion(c.env.DB, eventId, c.req.param("questionId"), {
     questionText: body?.questionText ?? "",
+    browserTitle: body?.browserTitle,
     description: body?.description,
     sessionId: body?.sessionId || null,
     status: body?.status,

@@ -347,6 +347,7 @@ export async function listEventQuestions(db: D1Database, eventId: string) {
 
 export async function createEventQuestion(db: D1Database, eventId: string, user: SessionUser, input: {
   questionText: string;
+  browserTitle?: string;
   description?: string;
   sessionId?: string | null;
   allowMultipleResponses?: boolean;
@@ -357,6 +358,7 @@ export async function createEventQuestion(db: D1Database, eventId: string, user:
 }) {
   const questionText = input.questionText.trim();
   if (!questionText) return { ok: false, message: "Ingrese la pregunta." };
+  const browserTitle = input.browserTitle?.trim() || questionText;
 
   const event = await db
     .prepare("SELECT id, short_link_slug FROM events WHERE id = ?")
@@ -382,17 +384,18 @@ export async function createEventQuestion(db: D1Database, eventId: string, user:
   await db
     .prepare(
       `INSERT INTO event_questions (
-        id, event_id, session_id, question_text, description, interaction_type, status,
+        id, event_id, session_id, question_text, browser_title, description, interaction_type, status,
         allow_multiple_responses, allow_response_update, max_responses_per_participant,
         max_answer_length, max_selectable_concepts, participant_slug, presenter_slug, created_by_user_id
        )
-       VALUES (?, ?, ?, ?, ?, 'word_cloud', 'draft', ?, 0, ?, ?, ?, ?, ?, ?)`
+       VALUES (?, ?, ?, ?, ?, ?, 'word_cloud', 'draft', ?, 0, ?, ?, ?, ?, ?, ?)`
     )
     .bind(
       questionId,
       eventId,
       input.sessionId || null,
       questionText,
+      browserTitle,
       input.description?.trim() || null,
       input.allowMultipleResponses ? 1 : 0,
       input.maxResponsesPerParticipant ?? null,
@@ -425,6 +428,7 @@ export async function getEventQuestionById(db: D1Database, questionId: string) {
 
 export async function updateEventQuestion(db: D1Database, eventId: string, questionId: string, input: {
   questionText: string;
+  browserTitle?: string;
   description?: string;
   sessionId?: string | null;
   status?: string;
@@ -448,6 +452,7 @@ export async function updateEventQuestion(db: D1Database, eventId: string, quest
 
   const questionText = input.questionText.trim();
   if (!questionText) return { ok: false, message: "Ingrese la pregunta." };
+  const browserTitle = input.browserTitle?.trim() || questionText;
   const responseCount = Number(current.response_count || 0);
   const participantSlug = normalizePublicSlug(input.participantSlug || current.participant_slug);
   if (!participantSlug) return { ok: false, message: "Ingrese un enlace corto valido." };
@@ -484,7 +489,7 @@ export async function updateEventQuestion(db: D1Database, eventId: string, quest
       `UPDATE event_questions
        SET session_id = ?, question_text = ?, description = ?, status = ?, allow_multiple_responses = ?,
            max_responses_per_participant = ?, max_answer_length = ?, max_selectable_concepts = ?,
-           participant_slug = ?, updated_at = CURRENT_TIMESTAMP
+           participant_slug = ?, browser_title = ?, updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`
     )
     .bind(
@@ -497,6 +502,7 @@ export async function updateEventQuestion(db: D1Database, eventId: string, quest
       maxAnswerLength,
       maxSelectableConcepts,
       participantSlug,
+      browserTitle,
       questionId
     )
     .run();

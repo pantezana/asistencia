@@ -163,6 +163,7 @@ export type EventQuestion = {
   event_id: string;
   session_id: string | null;
   question_text: string;
+  browser_title: string | null;
   description: string | null;
   interaction_type: string;
   status: string;
