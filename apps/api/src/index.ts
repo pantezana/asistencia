@@ -973,6 +973,7 @@ app.post("/api/admin/events/:eventId/boards", async (c) => {
 
   const body = await c.req.json<{
     title?: string;
+    browserTitle?: string;
     sessionId?: string | null;
     participantSlug?: string;
     maxNoteLength?: number;
@@ -983,6 +984,7 @@ app.post("/api/admin/events/:eventId/boards", async (c) => {
 
   const result = await createEventBoard(c.env.DB, eventId, c.get("user"), {
     title: body?.title ?? "",
+    browserTitle: body?.browserTitle,
     sessionId: body?.sessionId || null,
     participantSlug: body?.participantSlug,
     maxNoteLength: body?.maxNoteLength,
@@ -1000,6 +1002,7 @@ app.put("/api/admin/events/:eventId/boards/:boardId", async (c) => {
 
   const body = await c.req.json<{
     title?: string;
+    browserTitle?: string;
     sessionId?: string | null;
     participantSlug?: string;
     maxNoteLength?: number;
@@ -1010,6 +1013,7 @@ app.put("/api/admin/events/:eventId/boards/:boardId", async (c) => {
 
   const result = await updateEventBoard(c.env.DB, eventId, c.req.param("boardId"), {
     title: body?.title ?? "",
+    browserTitle: body?.browserTitle,
     sessionId: body?.sessionId || null,
     participantSlug: body?.participantSlug,
     maxNoteLength: body?.maxNoteLength,

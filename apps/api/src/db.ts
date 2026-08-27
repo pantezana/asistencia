@@ -593,6 +593,7 @@ function normalizeBoardInstructions(instructions: BoardInstructionInput[] | unde
 
 export async function createEventBoard(db: D1Database, eventId: string, user: SessionUser, input: {
   title: string;
+  browserTitle?: string;
   sessionId?: string | null;
   participantSlug?: string;
   maxNoteLength?: number;
@@ -602,6 +603,7 @@ export async function createEventBoard(db: D1Database, eventId: string, user: Se
 }) {
   const title = input.title.trim();
   if (!title) return { ok: false, message: "Ingrese el titulo de la pizarra." };
+  const browserTitle = input.browserTitle?.trim() || title;
 
   const event = await db.prepare("SELECT id, short_link_slug FROM events WHERE id = ?").bind(eventId).first<{ id: string; short_link_slug: string }>();
   if (!event) return { ok: false, message: "Evento no encontrado." };
@@ -624,16 +626,17 @@ export async function createEventBoard(db: D1Database, eventId: string, user: Se
   await db
     .prepare(
       `INSERT INTO event_boards (
-        id, event_id, session_id, title, status, participant_slug, presenter_slug, max_note_length,
+        id, event_id, session_id, title, browser_title, status, participant_slug, presenter_slug, max_note_length,
         allow_multiple_notes, max_notes_per_participant, created_by_user_id
        )
-       VALUES (?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?)`
+       VALUES (?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?)`
     )
     .bind(
       boardId,
       eventId,
       input.sessionId || null,
       title,
+      browserTitle,
       participantSlug,
       presenterSlug,
       maxNoteLength,
@@ -658,6 +661,7 @@ export async function createEventBoard(db: D1Database, eventId: string, user: Se
 
 export async function updateEventBoard(db: D1Database, eventId: string, boardId: string, input: {
   title: string;
+  browserTitle?: string;
   sessionId?: string | null;
   participantSlug?: string;
   maxNoteLength?: number;
@@ -679,6 +683,7 @@ export async function updateEventBoard(db: D1Database, eventId: string, boardId:
 
   const title = input.title.trim();
   if (!title) return { ok: false, message: "Ingrese el titulo de la pizarra." };
+  const browserTitle = input.browserTitle?.trim() || title;
   if (input.sessionId) {
     const session = await db.prepare("SELECT id FROM event_sessions WHERE id = ? AND event_id = ?").bind(input.sessionId, eventId).first<{ id: string }>();
     if (!session) return { ok: false, message: "Seleccione una sesion valida." };
@@ -703,11 +708,11 @@ export async function updateEventBoard(db: D1Database, eventId: string, boardId:
   await db
     .prepare(
       `UPDATE event_boards
-       SET session_id = ?, title = ?, participant_slug = ?, max_note_length = ?,
+       SET session_id = ?, title = ?, browser_title = ?, participant_slug = ?, max_note_length = ?,
            allow_multiple_notes = ?, max_notes_per_participant = ?, updated_at = CURRENT_TIMESTAMP
        WHERE id = ? AND event_id = ?`
     )
-    .bind(input.sessionId || null, title, participantSlug, maxNoteLength, input.allowMultipleNotes ? 1 : 0, maxNotesPerParticipant, boardId, eventId)
+    .bind(input.sessionId || null, title, browserTitle, participantSlug, maxNoteLength, input.allowMultipleNotes ? 1 : 0, maxNotesPerParticipant, boardId, eventId)
     .run();
 
   await db.prepare("UPDATE event_board_instructions SET status = 'inactive', updated_at = CURRENT_TIMESTAMP WHERE board_id = ?").bind(boardId).run();

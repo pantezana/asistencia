@@ -255,6 +255,7 @@ type EventBoard = {
   event_id: string;
   session_id: string | null;
   title: string;
+  browser_title: string | null;
   status: string;
   participant_slug: string;
   presenter_slug: string;
@@ -702,6 +703,7 @@ function AdminShell() {
   const emptyBoardInstruction = { languageLabel: "Espanol", contentHtml: "<p></p>", sortOrder: 1 };
   const [boardDraft, setBoardDraft] = React.useState({
     title: "",
+    browserTitle: "",
     sessionId: "",
     participantSlug: "",
     maxNoteLength: "800",
@@ -712,6 +714,7 @@ function AdminShell() {
   const [editingBoardId, setEditingBoardId] = React.useState<string | null>(null);
   const [boardEditDraft, setBoardEditDraft] = React.useState({
     title: "",
+    browserTitle: "",
     sessionId: "",
     participantSlug: "",
     maxNoteLength: "800",
@@ -1480,6 +1483,7 @@ function AdminShell() {
   function boardPayload(draft: typeof boardDraft) {
     return {
       title: draft.title,
+      browserTitle: draft.browserTitle || draft.title,
       sessionId: draft.sessionId || null,
       participantSlug: draft.participantSlug,
       maxNoteLength: Number(draft.maxNoteLength) || 800,
@@ -1496,6 +1500,7 @@ function AdminShell() {
   function resetBoardDraft() {
     setBoardDraft({
       title: "",
+      browserTitle: "",
       sessionId: "",
       participantSlug: "",
       maxNoteLength: "800",
@@ -1532,6 +1537,7 @@ function AdminShell() {
     setEditingBoardId(board.id);
     setBoardEditDraft({
       title: board.title,
+      browserTitle: board.browser_title ?? board.title,
       sessionId: board.session_id ?? "",
       participantSlug: board.participant_slug,
       maxNoteLength: board.max_note_length.toString(),
@@ -1552,6 +1558,7 @@ function AdminShell() {
     setEditingBoardId(null);
     setBoardEditDraft({
       title: "",
+      browserTitle: "",
       sessionId: "",
       participantSlug: "",
       maxNoteLength: "800",
@@ -2307,6 +2314,14 @@ function AdminShell() {
                     />
                   </label>
                   <label>
+                    Nombre Navegador
+                    <input
+                      value={boardDraft.browserTitle}
+                      onChange={(event) => setBoardDraft((current) => ({ ...current, browserTitle: event.target.value }))}
+                      placeholder="Ejemplo: Pizarra presentaciones OTCA"
+                    />
+                  </label>
+                  <label>
                     Sesión asociada
                     <select value={boardDraft.sessionId} onChange={(event) => setBoardDraft((current) => ({ ...current, sessionId: event.target.value }))}>
                       <option value="">Todo el evento</option>
@@ -2403,6 +2418,10 @@ function AdminShell() {
                             <label>
                               Título
                               <input value={boardEditDraft.title} onChange={(event) => setBoardEditDraft((current) => ({ ...current, title: event.target.value }))} required />
+                            </label>
+                            <label>
+                              Nombre Navegador
+                              <input value={boardEditDraft.browserTitle} onChange={(event) => setBoardEditDraft((current) => ({ ...current, browserTitle: event.target.value }))} placeholder="Título visible en la pestaña del navegador" />
                             </label>
                             <label>
                               Sesión asociada
@@ -4683,6 +4702,15 @@ function BoardParticipantView({ slug }: { slug: string }) {
     };
   }, [loadPublicNotes, showBoard]);
 
+  React.useEffect(() => {
+    if (!board) return;
+    const previousTitle = document.title;
+    document.title = board.browser_title?.trim() || board.title || "Pizarra interactiva";
+    return () => {
+      document.title = previousTitle;
+    };
+  }, [board]);
+
   if (!board) return <PublicMessage title="Pizarra interactiva" message={message || "Cargando pizarra."} />;
 
   const selectedCountry = countries.find((country) => country.id === form.countryId);
@@ -4874,6 +4902,15 @@ function BoardPresenterView({ slug }: { slug: string }) {
       window.clearInterval(interval);
     };
   }, [loadNotes]);
+
+  React.useEffect(() => {
+    if (!board) return;
+    const previousTitle = document.title;
+    document.title = board.browser_title?.trim() || board.title || "Pizarra";
+    return () => {
+      document.title = previousTitle;
+    };
+  }, [board]);
 
   async function moderateNote(note: EventBoardNote) {
     const participant = `${note.first_name} ${note.last_name}`.trim();

@@ -213,6 +213,7 @@ export type EventBoard = {
   event_id: string;
   session_id: string | null;
   title: string;
+  browser_title: string | null;
   status: string;
   participant_slug: string;
   presenter_slug: string;
