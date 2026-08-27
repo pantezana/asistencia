@@ -423,6 +423,11 @@ dd {
   color: #be123c;
 }
 
+.status.inactive {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
 .public-page {
   align-items: center;
   background: #eef4ff;

@@ -337,6 +337,16 @@ function getDashboardItemIcon(key?: string | null) {
   return DASHBOARD_ITEM_ICONS.find((icon) => icon.key === key) ?? DASHBOARD_ITEM_ICONS[0];
 }
 
+function getSessionStatusClass(status: string) {
+  return status === "open" ? "open" : status === "inactive" ? "inactive" : "closed";
+}
+
+function getSessionStatusLabel(status: string, feminine = false) {
+  if (status === "open") return feminine ? "Abierta" : "Abierto";
+  if (status === "inactive") return "Inactiva";
+  return feminine ? "Cerrada" : "Cerrado";
+}
+
 type EventDashboardSession = AdminSession & {
   module_order: number;
   items?: EventDashboardItem[];
@@ -2987,8 +2997,8 @@ function AdminShell() {
                   <p className="eyebrow">Sesion seleccionada</p>
                   <h3>Editar cronograma</h3>
                 </div>
-                <span className={`status ${sessionEditDraft.status === "open" ? "open" : "closed"}`}>
-                  {sessionEditDraft.status === "open" ? "Abierta" : "Cerrada"}
+                <span className={`status ${getSessionStatusClass(sessionEditDraft.status)}`}>
+                  {getSessionStatusLabel(sessionEditDraft.status, true)}
                 </span>
               </div>
               <div className="form-grid">
@@ -3021,6 +3031,7 @@ function AdminShell() {
                   <select value={sessionEditDraft.status} onChange={(event) => setSessionEditDraft((current) => ({ ...current, status: event.target.value }))}>
                     <option value="closed">Cerrada</option>
                     <option value="open">Abierta</option>
+                    <option value="inactive">Inactiva</option>
                   </select>
                 </label>
                 <div className="session-dashboard-inline">
@@ -3066,15 +3077,15 @@ function AdminShell() {
                     <td>{session.session_date}</td>
                     <td>{session.start_time} - {session.end_time}</td>
                     <td>
-                      <span className={`status ${session.attendance_status === "open" ? "open" : "closed"}`}>
-                        {session.attendance_status === "open" ? "Abierto" : "Cerrado"}
+                      <span className={`status ${getSessionStatusClass(session.attendance_status)}`}>
+                        {getSessionStatusLabel(session.attendance_status)}
                       </span>
                     </td>
                     <td>
                       <button className="button secondary table-action" type="button" onClick={() => editSession(session)}>
                         Editar
                       </button>
-                      {session.attendance_status === "open" ? (
+                      {session.attendance_status === "inactive" ? null : session.attendance_status === "open" ? (
                         <button className="button secondary table-action" type="button" onClick={() => changeSessionState(session, "close")}>
                           Cerrar
                         </button>

@@ -1051,7 +1051,7 @@ export async function getPublicDashboardBySlug(db: D1Database, slug: string) {
                 s.status, s.attendance_status
          FROM event_sessions s
          INNER JOIN event_modules m ON m.id = s.module_id
-         WHERE s.event_id = ? AND s.status <> 'archived'
+         WHERE s.event_id = ? AND s.attendance_status IN ('open', 'closed')
          ORDER BY m.order_index ASC, s.sequence ASC, s.session_date ASC, s.start_time ASC`
       )
       .bind(dashboard.event_id)
@@ -1100,6 +1100,10 @@ export async function openEventSession(db: D1Database, eventId: string, sessionI
 
   if (!existing || existing.event_id !== eventId) {
     return { ok: false, message: "Sesión no encontrada." };
+  }
+
+  if (existing.attendance_status === "inactive") {
+    return { ok: false, message: "La sesion esta inactiva. Edite la sesion para reactivarla antes de abrirla." };
   }
 
   await db.batch([
@@ -1170,7 +1174,7 @@ export async function updateEventSessionDetails(db: D1Database, eventId: string,
     module = { id: moduleId };
   }
 
-  const attendanceStatus = input.status === "open" ? "open" : "closed";
+  const attendanceStatus = input.status === "open" ? "open" : input.status === "inactive" ? "inactive" : "closed";
   const statements: D1PreparedStatement[] = [];
 
   if (attendanceStatus === "open") {

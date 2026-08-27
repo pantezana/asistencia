@@ -1175,7 +1175,7 @@ app.put("/api/admin/events/:eventId/sessions/:sessionId", async (c) => {
     sessionDate: body.sessionDate,
     startTime: body.startTime,
     endTime: body.endTime,
-    status: body.status === "open" ? "open" : "closed"
+    status: body.status === "open" ? "open" : body.status === "inactive" ? "inactive" : "closed"
   });
 
   return c.json(result, result.ok ? 200 : 404);
