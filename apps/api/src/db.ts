@@ -803,7 +803,13 @@ const DASHBOARD_ITEM_ICON_KEYS = new Set([
   "word",
   "excel",
   "image",
-  "drive"
+  "drive",
+  "url",
+  "board",
+  "question",
+  "people",
+  "forum",
+  "cloud"
 ]);
 
 function normalizeDashboardInstructions(instructions: DashboardInstructionInput[] | undefined) {

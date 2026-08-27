@@ -324,7 +324,13 @@ const DASHBOARD_ITEM_ICONS = [
   { key: "word", label: "Word", symbol: "📝" },
   { key: "excel", label: "Excel", symbol: "📗" },
   { key: "image", label: "Imagen", symbol: "🖼️" },
-  { key: "drive", label: "Drive", symbol: "☁️" }
+  { key: "drive", label: "Drive", symbol: "☁️" },
+  { key: "url", label: "URL", symbol: "🔗" },
+  { key: "board", label: "Pizarra", symbol: "🗒️" },
+  { key: "question", label: "Pregunta", symbol: "❓" },
+  { key: "people", label: "Personas", symbol: "👥" },
+  { key: "forum", label: "Foro", symbol: "💬" },
+  { key: "cloud", label: "Nube", symbol: "☁️" }
 ];
 
 function getDashboardItemIcon(key?: string | null) {
