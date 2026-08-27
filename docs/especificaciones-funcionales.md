@@ -151,6 +151,7 @@ Funciones iniciales:
 - Abrir y cerrar fechas del cronograma.
 - Generar enlace corto.
 - Generar código QR.
+- Configurar tablero general del evento para publicar informacion general y recursos por sesion.
 
 Los supervisores solo podrán operar sobre sus propios eventos.
 
@@ -196,6 +197,8 @@ Reglas:
 - El supervisor solo puede ver los eventos que creó.
 
 ## 9. Cronograma del evento
+
+> Nota de difusion del evento: la informacion publica general del evento, enlaces de sesiones, presentaciones, nubes, pizarras y grabaciones debe agruparse en un tablero publico del evento. Ver `docs/especificacion-tablero-evento.md`.
 
 Cada evento puede tener uno o muchos módulos. Cada módulo puede tener una o muchas sesiones.
 

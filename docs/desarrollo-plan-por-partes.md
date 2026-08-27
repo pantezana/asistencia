@@ -157,3 +157,21 @@ Reglas relevantes:
 Documento base:
 
 - `docs/especificacion-pizarras-interactivas.md`
+
+## Parte 11. Tablero general del evento
+
+Objetivo:
+
+- Crear un tablero publico por evento para agrupar informacion general y recursos por sesion.
+- Configurar titulo, enlace corto, nombre navegador e instrucciones opcionales.
+- Administrar informacion general del evento como elementos tipo texto o enlace.
+- Administrar informacion especifica de cada sesion como elementos tipo texto o enlace.
+- Mostrar solo informacion activa en el tablero publico.
+- Publicar una vista publica responsiva con nombre del evento, titulo del tablero, instrucciones, informacion general y sesiones.
+- Diferenciar visualmente sesiones del mismo modulo.
+- Paginar sesiones cuando el cronograma sea extenso.
+- Permitir agrupar enlaces a Zoom, presentaciones, nubes, pizarras, grabaciones y otros recursos.
+
+Documento base:
+
+- `docs/especificacion-tablero-evento.md`
