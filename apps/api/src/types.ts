@@ -286,6 +286,7 @@ export type EventDashboardItem = {
   session_id: string | null;
   scope: "event" | "session";
   name: string;
+  icon_key: string;
   value_type: "text" | "link";
   value: string;
   sort_order: number;

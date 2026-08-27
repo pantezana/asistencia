@@ -174,7 +174,7 @@ type EventSessionDraft = {
   sessionDate: string;
   startTime: string;
   endTime: string;
-  dashboardItems: Array<{ sessionId: string; name: string; valueType: string; value: string; sortOrder: number; status: string }>;
+  dashboardItems: DashboardItemDraft[];
 };
 
 type CreatedEventResult = {
@@ -297,11 +297,39 @@ type EventDashboardItem = {
   session_id: string | null;
   scope: "event" | "session";
   name: string;
+  icon_key?: string;
   value_type: "text" | "link";
   value: string;
   sort_order: number;
   status: string;
 };
+
+type DashboardItemDraft = {
+  sessionId: string;
+  name: string;
+  iconKey: string;
+  valueType: string;
+  value: string;
+  sortOrder: number;
+  status: string;
+};
+
+const DASHBOARD_ITEM_ICONS = [
+  { key: "none", label: "Ninguno", symbol: "" },
+  { key: "photos", label: "Fotografías", symbol: "📷" },
+  { key: "infographic", label: "Infografía", symbol: "📊" },
+  { key: "presentations", label: "Ponencias", symbol: "🖥️" },
+  { key: "video", label: "Video", symbol: "▶️" },
+  { key: "pdf", label: "PDF", symbol: "📄" },
+  { key: "word", label: "Word", symbol: "📝" },
+  { key: "excel", label: "Excel", symbol: "📗" },
+  { key: "image", label: "Imagen", symbol: "🖼️" },
+  { key: "drive", label: "Drive", symbol: "☁️" }
+];
+
+function getDashboardItemIcon(key?: string | null) {
+  return DASHBOARD_ITEM_ICONS.find((icon) => icon.key === key) ?? DASHBOARD_ITEM_ICONS[0];
+}
 
 type EventDashboardSession = AdminSession & {
   module_order: number;
@@ -725,7 +753,7 @@ function AdminShell() {
     startTime: "",
     endTime: "",
     status: "closed",
-    dashboardItems: [] as Array<{ sessionId: string; name: string; valueType: string; value: string; sortOrder: number; status: string }>
+    dashboardItems: [] as DashboardItemDraft[]
   });
   const [questionDraft, setQuestionDraft] = React.useState({
     questionText: "",
@@ -773,7 +801,7 @@ function AdminShell() {
     instructions: [emptyBoardInstruction]
   });
   const emptyDashboardInstruction = { languageLabel: "", contentHtml: "<p></p>", sortOrder: 1, status: "active" };
-  const emptyDashboardItem = { sessionId: "", name: "", valueType: "text", value: "", sortOrder: 1, status: "active" };
+  const emptyDashboardItem: DashboardItemDraft = { sessionId: "", name: "", iconKey: "none", valueType: "text", value: "", sortOrder: 1, status: "active" };
   const [dashboardDraft, setDashboardDraft] = React.useState({
     title: "",
     browserTitle: "",
@@ -829,6 +857,7 @@ function AdminShell() {
       dashboardItems: (session.dashboard_items ?? []).map((item, index) => ({
         sessionId: item.session_id ?? session.id,
         name: cleanText(item.name),
+        iconKey: item.icon_key ?? "none",
         valueType: item.value_type,
         value: item.value,
         sortOrder: item.sort_order || index + 1,
@@ -996,6 +1025,7 @@ function AdminShell() {
       eventItems: (payload.dashboard.eventItems ?? []).map((item, index) => ({
         sessionId: "",
         name: cleanText(item.name),
+        iconKey: item.icon_key ?? "none",
         valueType: item.value_type,
         value: item.value,
         sortOrder: item.sort_order || index + 1,
@@ -1004,6 +1034,7 @@ function AdminShell() {
       sessionItems: (payload.dashboard.sessionItems ?? []).map((item, index) => ({
         sessionId: item.session_id ?? "",
         name: cleanText(item.name),
+        iconKey: item.icon_key ?? "none",
         valueType: item.value_type,
         value: item.value,
         sortOrder: item.sort_order || index + 1,
@@ -1439,6 +1470,7 @@ function AdminShell() {
       dashboardItems: (session.dashboard_items ?? []).map((item, index) => ({
         sessionId: item.session_id ?? session.id,
         name: cleanText(item.name),
+        iconKey: item.icon_key ?? "none",
         valueType: item.value_type,
         value: item.value,
         sortOrder: item.sort_order || index + 1,
@@ -1828,6 +1860,7 @@ function AdminShell() {
           {
             sessionId: scope === "session" ? sessions[0]?.id ?? "" : "",
             name: "",
+            iconKey: "none",
             valueType: "text",
             value: "",
             sortOrder: current[key].length + 1,
@@ -1838,7 +1871,7 @@ function AdminShell() {
     });
   }
 
-  function updateDashboardItem(scope: "event" | "session", index: number, field: "sessionId" | "name" | "valueType" | "value" | "sortOrder" | "status", value: string) {
+  function updateDashboardItem(scope: "event" | "session", index: number, field: "sessionId" | "name" | "iconKey" | "valueType" | "value" | "sortOrder" | "status", value: string) {
     setDashboardDraft((current) => {
       const key = scope === "event" ? "eventItems" : "sessionItems";
       return {
@@ -1882,6 +1915,7 @@ function AdminShell() {
         })),
         eventItems: dashboardDraft.eventItems.map((item) => ({
           name: item.name,
+          iconKey: item.iconKey,
           valueType: item.valueType,
           value: item.value,
           sortOrder: item.sortOrder,
@@ -1926,13 +1960,13 @@ function AdminShell() {
         ...session,
         dashboardItems: [
           ...session.dashboardItems,
-          { sessionId: "", name: "", valueType: "text", value: "", sortOrder: session.dashboardItems.length + 1, status: "active" }
+          { sessionId: "", name: "", iconKey: "none", valueType: "text", value: "", sortOrder: session.dashboardItems.length + 1, status: "active" }
         ]
       }
       : session));
   }
 
-  function updateSessionDraftDashboardItem(sessionIndex: number, itemIndex: number, field: "name" | "valueType" | "value" | "sortOrder" | "status", value: string) {
+  function updateSessionDraftDashboardItem(sessionIndex: number, itemIndex: number, field: "name" | "iconKey" | "valueType" | "value" | "sortOrder" | "status", value: string) {
     setSessionDrafts((current) => current.map((session, index) => index === sessionIndex
       ? {
         ...session,
@@ -1954,12 +1988,12 @@ function AdminShell() {
       ...current,
       dashboardItems: [
         ...current.dashboardItems,
-        { sessionId: selectedSessionId ?? "", name: "", valueType: "text", value: "", sortOrder: current.dashboardItems.length + 1, status: "active" }
+        { sessionId: selectedSessionId ?? "", name: "", iconKey: "none", valueType: "text", value: "", sortOrder: current.dashboardItems.length + 1, status: "active" }
       ]
     }));
   }
 
-  function updateSessionEditDashboardItem(index: number, field: "name" | "valueType" | "value" | "sortOrder" | "status", value: string) {
+  function updateSessionEditDashboardItem(index: number, field: "name" | "iconKey" | "valueType" | "value" | "sortOrder" | "status", value: string) {
     setSessionEditDraft((current) => ({
       ...current,
       dashboardItems: current.dashboardItems.map((item, itemIndex) => itemIndex === index
@@ -3738,12 +3772,12 @@ function DashboardItemsEditor({
   onUpdate
 }: {
   title: string;
-  items: Array<{ sessionId: string; name: string; valueType: string; value: string; sortOrder: number; status: string }>;
+  items: DashboardItemDraft[];
   sessions?: AdminSession[];
   compact?: boolean;
   onAdd: () => void;
   onRemove: (index: number) => void;
-  onUpdate: (index: number, field: "sessionId" | "name" | "valueType" | "value" | "sortOrder" | "status", value: string) => void;
+  onUpdate: (index: number, field: "sessionId" | "name" | "iconKey" | "valueType" | "value" | "sortOrder" | "status", value: string) => void;
 }) {
   return (
     <div className={`dashboard-admin-section${compact ? " compact" : ""}`}>
@@ -3773,6 +3807,14 @@ function DashboardItemsEditor({
             <label>
               Nombre
               <input value={item.name} onChange={(event) => onUpdate(index, "name", event.target.value)} placeholder="Ejemplo: Enlace Zoom" required />
+            </label>
+            <label>
+              Icono
+              <select value={item.iconKey} onChange={(event) => onUpdate(index, "iconKey", event.target.value)}>
+                {DASHBOARD_ITEM_ICONS.map((icon) => (
+                  <option key={icon.key} value={icon.key}>{icon.symbol ? `${icon.symbol} ${icon.label}` : icon.label}</option>
+                ))}
+              </select>
             </label>
             <label>
               Tipo
@@ -5632,7 +5674,10 @@ function DashboardInfoList({ items, compact = false }: { items: EventDashboardIt
     <div className={compact ? "dashboard-info-list compact" : "dashboard-info-list"}>
       {[...items].sort((a, b) => a.sort_order - b.sort_order).map((item) => (
         <div className="dashboard-info-row" key={item.id ?? `${item.name}-${item.sort_order}`}>
-          <strong>{cleanText(item.name)}</strong>
+          <strong>
+            {getDashboardItemIcon(item.icon_key).symbol ? <span className="dashboard-info-icon" aria-hidden="true">{getDashboardItemIcon(item.icon_key).symbol}</span> : null}
+            {cleanText(item.name)}
+          </strong>
           {item.value_type === "link" ? (
             <a href={item.value} target="_blank" rel="noreferrer">Enlace</a>
           ) : (

@@ -786,11 +786,25 @@ type DashboardItemInput = {
   sessionId?: string | null;
   scope?: "event" | "session";
   name?: string;
+  iconKey?: string;
   valueType?: "text" | "link";
   value?: string;
   sortOrder?: number;
   status?: string;
 };
+
+const DASHBOARD_ITEM_ICON_KEYS = new Set([
+  "none",
+  "photos",
+  "infographic",
+  "presentations",
+  "video",
+  "pdf",
+  "word",
+  "excel",
+  "image",
+  "drive"
+]);
 
 function normalizeDashboardInstructions(instructions: DashboardInstructionInput[] | undefined) {
   return (instructions ?? [])
@@ -814,6 +828,7 @@ function normalizeDashboardItems(items: DashboardItemInput[] | undefined, scope:
       sessionId: scope === "session" ? item.sessionId || null : null,
       scope,
       name: (item.name ?? "").trim(),
+      iconKey: DASHBOARD_ITEM_ICON_KEYS.has(item.iconKey ?? "") ? item.iconKey ?? "none" : "none",
       valueType: item.valueType === "link" ? "link" : "text",
       value: (item.value ?? "").trim(),
       sortOrder: Math.max(Math.floor(item.sortOrder || index + 1), 1),
@@ -837,7 +852,7 @@ async function listDashboardInstructions(db: D1Database, dashboardId: string, ac
 async function listDashboardItems(db: D1Database, dashboardId: string, activeOnly = false) {
   return db
     .prepare(
-      `SELECT id, dashboard_id, event_id, session_id, scope, name, value_type, value, sort_order, status
+      `SELECT id, dashboard_id, event_id, session_id, scope, name, icon_key, value_type, value, sort_order, status
        FROM event_dashboard_items
        WHERE dashboard_id = ?${activeOnly ? " AND status = 'active'" : ""}
        ORDER BY scope ASC, COALESCE(session_id, ''), sort_order ASC, created_at ASC`
@@ -939,10 +954,10 @@ export async function upsertEventDashboard(db: D1Database, eventId: string, user
     for (const item of eventItems) {
       await db
         .prepare(
-          `INSERT INTO event_dashboard_items (id, dashboard_id, event_id, session_id, scope, name, value_type, value, sort_order, status)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          `INSERT INTO event_dashboard_items (id, dashboard_id, event_id, session_id, scope, name, icon_key, value_type, value, sort_order, status)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
-        .bind(`dash_item_${crypto.randomUUID().slice(0, 12)}`, dashboardId, eventId, item.sessionId, item.scope, item.name, item.valueType, item.value, item.sortOrder, item.status)
+        .bind(`dash_item_${crypto.randomUUID().slice(0, 12)}`, dashboardId, eventId, item.sessionId, item.scope, item.name, item.iconKey, item.valueType, item.value, item.sortOrder, item.status)
         .run();
     }
   }
@@ -952,10 +967,10 @@ export async function upsertEventDashboard(db: D1Database, eventId: string, user
     for (const item of sessionItems) {
       await db
         .prepare(
-          `INSERT INTO event_dashboard_items (id, dashboard_id, event_id, session_id, scope, name, value_type, value, sort_order, status)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          `INSERT INTO event_dashboard_items (id, dashboard_id, event_id, session_id, scope, name, icon_key, value_type, value, sort_order, status)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
-        .bind(`dash_item_${crypto.randomUUID().slice(0, 12)}`, dashboardId, eventId, item.sessionId, item.scope, item.name, item.valueType, item.value, item.sortOrder, item.status)
+        .bind(`dash_item_${crypto.randomUUID().slice(0, 12)}`, dashboardId, eventId, item.sessionId, item.scope, item.name, item.iconKey, item.valueType, item.value, item.sortOrder, item.status)
         .run();
     }
   }
@@ -993,10 +1008,10 @@ export async function updateSessionDashboardItems(db: D1Database, eventId: strin
   for (const item of items) {
     await db
       .prepare(
-        `INSERT INTO event_dashboard_items (id, dashboard_id, event_id, session_id, scope, name, value_type, value, sort_order, status)
-         VALUES (?, ?, ?, ?, 'session', ?, ?, ?, ?, ?)`
+        `INSERT INTO event_dashboard_items (id, dashboard_id, event_id, session_id, scope, name, icon_key, value_type, value, sort_order, status)
+         VALUES (?, ?, ?, ?, 'session', ?, ?, ?, ?, ?, ?)`
       )
-      .bind(`dash_item_${crypto.randomUUID().slice(0, 12)}`, dashboard.id, eventId, sessionId, item.name, item.valueType, item.value, item.sortOrder, item.status)
+      .bind(`dash_item_${crypto.randomUUID().slice(0, 12)}`, dashboard.id, eventId, sessionId, item.name, item.iconKey, item.valueType, item.value, item.sortOrder, item.status)
       .run();
   }
 
@@ -1322,10 +1337,10 @@ export async function createEventWithSchedule(db: D1Database, user: SessionUser,
         statements.push(
           db
             .prepare(
-              `INSERT INTO event_dashboard_items (id, dashboard_id, event_id, session_id, scope, name, value_type, value, sort_order, status)
-               VALUES (?, ?, ?, ?, 'session', ?, ?, ?, ?, ?)`
+              `INSERT INTO event_dashboard_items (id, dashboard_id, event_id, session_id, scope, name, icon_key, value_type, value, sort_order, status)
+               VALUES (?, ?, ?, ?, 'session', ?, ?, ?, ?, ?, ?)`
             )
-            .bind(`dash_item_${suffix}_${index + 1}_${crypto.randomUUID().slice(0, 6)}`, dashboardId, eventId, sessionId, item.name, item.valueType, item.value, item.sortOrder, item.status)
+            .bind(`dash_item_${suffix}_${index + 1}_${crypto.randomUUID().slice(0, 6)}`, dashboardId, eventId, sessionId, item.name, item.iconKey, item.valueType, item.value, item.sortOrder, item.status)
         );
       }
     }

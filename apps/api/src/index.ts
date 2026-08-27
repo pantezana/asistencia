@@ -690,7 +690,7 @@ app.post("/api/admin/events", async (c) => {
       sessionDate?: string;
       startTime?: string;
       endTime?: string;
-      dashboardItems?: Array<{ name?: string; valueType?: "text" | "link"; value?: string; sortOrder?: number; status?: string }>;
+      dashboardItems?: Array<{ name?: string; iconKey?: string; valueType?: "text" | "link"; value?: string; sortOrder?: number; status?: string }>;
     }>;
   }>().catch(() => null);
 
@@ -1073,8 +1073,8 @@ app.put("/api/admin/events/:eventId/dashboard", async (c) => {
     shortLinkSlug?: string;
     status?: string;
     instructions?: Array<{ languageLabel?: string | null; contentHtml?: string; sortOrder?: number; status?: string }>;
-    eventItems?: Array<{ sessionId?: string | null; scope?: "event" | "session"; name?: string; valueType?: "text" | "link"; value?: string; sortOrder?: number; status?: string }>;
-    sessionItems?: Array<{ sessionId?: string | null; scope?: "event" | "session"; name?: string; valueType?: "text" | "link"; value?: string; sortOrder?: number; status?: string }>;
+    eventItems?: Array<{ sessionId?: string | null; scope?: "event" | "session"; name?: string; iconKey?: string; valueType?: "text" | "link"; value?: string; sortOrder?: number; status?: string }>;
+    sessionItems?: Array<{ sessionId?: string | null; scope?: "event" | "session"; name?: string; iconKey?: string; valueType?: "text" | "link"; value?: string; sortOrder?: number; status?: string }>;
   }>().catch(() => null);
 
   const result = await upsertEventDashboard(c.env.DB, eventId, c.get("user"), {
@@ -1188,7 +1188,7 @@ app.put("/api/admin/events/:eventId/sessions/:sessionId/dashboard-items", async 
   if (!canManage) return c.json({ ok: false, message: "Evento no encontrado o no autorizado." }, 404);
 
   const body = await c.req.json<{
-    items?: Array<{ name?: string; valueType?: "text" | "link"; value?: string; sortOrder?: number; status?: string }>;
+    items?: Array<{ name?: string; iconKey?: string; valueType?: "text" | "link"; value?: string; sortOrder?: number; status?: string }>;
   }>().catch(() => null);
 
   const result = await updateSessionDashboardItems(c.env.DB, eventId, sessionId, c.get("user"), {
