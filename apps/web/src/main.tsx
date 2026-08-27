@@ -281,6 +281,45 @@ type EventBoardNote = {
   created_at: string;
 };
 
+type EventDashboardInstruction = {
+  id?: string;
+  language_label: string | null;
+  content_html: string;
+  content_text?: string;
+  sort_order: number;
+  status: string;
+};
+
+type EventDashboardItem = {
+  id?: string;
+  session_id: string | null;
+  scope: "event" | "session";
+  name: string;
+  value_type: "text" | "link";
+  value: string;
+  sort_order: number;
+  status: string;
+};
+
+type EventDashboardSession = AdminSession & {
+  module_order: number;
+  items?: EventDashboardItem[];
+};
+
+type EventDashboard = {
+  id: string;
+  event_id: string;
+  title: string;
+  browser_title: string | null;
+  short_link_slug: string;
+  status: string;
+  event_title?: string;
+  instructions?: EventDashboardInstruction[];
+  eventItems?: EventDashboardItem[];
+  sessionItems?: EventDashboardItem[];
+  sessions?: EventDashboardSession[];
+};
+
 function cleanText(value: string | null | undefined) {
   return (value ?? "")
     .replaceAll("Ã¡", "á")
@@ -573,6 +612,10 @@ function App() {
     return <BoardParticipantView slug={path.replace("/b/", "")} />;
   }
 
+  if (path.startsWith("/t/")) {
+    return <DashboardPublicView slug={path.replace("/t/", "")} />;
+  }
+
   if (path.startsWith("/f/")) {
     return <PublicAttendanceForm slug={path.replace("/f/", "") || "inauguracion-otca"} />;
   }
@@ -587,6 +630,7 @@ function AdminShell() {
   const [sessions, setSessions] = React.useState<AdminSession[]>([]);
   const [eventQuestions, setEventQuestions] = React.useState<EventQuestion[]>([]);
   const [eventBoards, setEventBoards] = React.useState<EventBoard[]>([]);
+  const [eventDashboard, setEventDashboard] = React.useState<EventDashboard | null>(null);
   const [selectedSessionId, setSelectedSessionId] = React.useState<string | null>(null);
   const [savingSession, setSavingSession] = React.useState(false);
   const [formTemplates, setFormTemplates] = React.useState<FormTemplate[]>([]);
@@ -725,6 +769,18 @@ function AdminShell() {
     maxNotesPerParticipant: "1",
     instructions: [emptyBoardInstruction]
   });
+  const emptyDashboardInstruction = { languageLabel: "", contentHtml: "<p></p>", sortOrder: 1, status: "active" };
+  const emptyDashboardItem = { sessionId: "", name: "", valueType: "text", value: "", sortOrder: 1, status: "active" };
+  const [dashboardDraft, setDashboardDraft] = React.useState({
+    title: "",
+    browserTitle: "",
+    shortLinkSlug: "",
+    status: "draft",
+    instructions: [] as Array<typeof emptyDashboardInstruction>,
+    eventItems: [] as Array<typeof emptyDashboardItem>,
+    sessionItems: [] as Array<typeof emptyDashboardItem>
+  });
+  const [savingDashboard, setSavingDashboard] = React.useState(false);
 
   React.useEffect(() => {
     fetch("/api/auth/me", { credentials: "include" })
@@ -750,6 +806,7 @@ function AdminShell() {
       void loadSessions(selectedEventId);
       void loadEventQuestions(selectedEventId);
       void loadEventBoards(selectedEventId);
+      void loadEventDashboard(selectedEventId);
     }
   }, [selectedEventId]);
 
@@ -784,6 +841,12 @@ function AdminShell() {
       status: event.status
     });
     setAssociatedTemplateDraftId(event.associated_template_id ?? "");
+    setDashboardDraft((current) => ({
+      ...current,
+      title: current.title || `Tablero - ${event.title}`,
+      browserTitle: current.browserTitle || `Tablero - ${event.title}`,
+      shortLinkSlug: current.shortLinkSlug || `${event.short_link_slug}-tablero`
+    }));
   }, [events, selectedEventId]);
 
   React.useEffect(() => {
@@ -888,6 +951,54 @@ function AdminShell() {
     if (!response.ok) return;
     const payload = (await response.json()) as { boards: EventBoard[] };
     setEventBoards(payload.boards);
+  }
+
+  async function loadEventDashboard(eventId: string) {
+    const response = await fetch(`/api/admin/events/${eventId}/dashboard`, { credentials: "include" });
+    if (!response.ok) return;
+    const payload = (await response.json()) as { dashboard: EventDashboard | null };
+    setEventDashboard(payload.dashboard);
+    const event = events.find((item) => item.id === eventId);
+    if (!payload.dashboard) {
+      setDashboardDraft({
+        title: event ? `Tablero - ${cleanText(event.title)}` : "",
+        browserTitle: event ? `Tablero - ${cleanText(event.title)}` : "",
+        shortLinkSlug: event ? `${event.short_link_slug}-tablero` : "",
+        status: "draft",
+        instructions: [],
+        eventItems: [],
+        sessionItems: []
+      });
+      return;
+    }
+    setDashboardDraft({
+      title: cleanText(payload.dashboard.title),
+      browserTitle: cleanText(payload.dashboard.browser_title ?? payload.dashboard.title),
+      shortLinkSlug: payload.dashboard.short_link_slug,
+      status: payload.dashboard.status,
+      instructions: (payload.dashboard.instructions ?? []).map((instruction, index) => ({
+        languageLabel: cleanText(instruction.language_label ?? ""),
+        contentHtml: instruction.content_html,
+        sortOrder: instruction.sort_order || index + 1,
+        status: instruction.status || "active"
+      })),
+      eventItems: (payload.dashboard.eventItems ?? []).map((item, index) => ({
+        sessionId: "",
+        name: cleanText(item.name),
+        valueType: item.value_type,
+        value: item.value,
+        sortOrder: item.sort_order || index + 1,
+        status: item.status || "active"
+      })),
+      sessionItems: (payload.dashboard.sessionItems ?? []).map((item, index) => ({
+        sessionId: item.session_id ?? "",
+        name: cleanText(item.name),
+        valueType: item.value_type,
+        value: item.value,
+        sortOrder: item.sort_order || index + 1,
+        status: item.status || "active"
+      }))
+    });
   }
 
   async function saveSelectedTemplate(event: React.FormEvent<HTMLFormElement>) {
@@ -1646,6 +1757,121 @@ function AdminShell() {
         ? current.instructions.filter((_, itemIndex) => itemIndex !== index)
         : current.instructions
     }));
+  }
+
+  function addDashboardInstruction() {
+    setDashboardDraft((current) => ({
+      ...current,
+      instructions: [
+        ...current.instructions,
+        { languageLabel: "", contentHtml: "<p></p>", sortOrder: current.instructions.length + 1, status: "active" }
+      ]
+    }));
+  }
+
+  function updateDashboardInstruction(index: number, field: "languageLabel" | "contentHtml" | "status", value: string) {
+    setDashboardDraft((current) => ({
+      ...current,
+      instructions: current.instructions.map((instruction, itemIndex) =>
+        itemIndex === index ? { ...instruction, [field]: value } : instruction
+      )
+    }));
+  }
+
+  function removeDashboardInstruction(index: number) {
+    setDashboardDraft((current) => ({
+      ...current,
+      instructions: current.instructions.filter((_, itemIndex) => itemIndex !== index)
+    }));
+  }
+
+  function addDashboardItem(scope: "event" | "session") {
+    setDashboardDraft((current) => {
+      const key = scope === "event" ? "eventItems" : "sessionItems";
+      return {
+        ...current,
+        [key]: [
+          ...current[key],
+          {
+            sessionId: scope === "session" ? sessions[0]?.id ?? "" : "",
+            name: "",
+            valueType: "text",
+            value: "",
+            sortOrder: current[key].length + 1,
+            status: "active"
+          }
+        ]
+      };
+    });
+  }
+
+  function updateDashboardItem(scope: "event" | "session", index: number, field: "sessionId" | "name" | "valueType" | "value" | "sortOrder" | "status", value: string) {
+    setDashboardDraft((current) => {
+      const key = scope === "event" ? "eventItems" : "sessionItems";
+      return {
+        ...current,
+        [key]: current[key].map((item, itemIndex) => itemIndex === index
+          ? { ...item, [field]: field === "sortOrder" ? Number(value) || 1 : value }
+          : item)
+      };
+    });
+  }
+
+  function removeDashboardItem(scope: "event" | "session", index: number) {
+    setDashboardDraft((current) => {
+      const key = scope === "event" ? "eventItems" : "sessionItems";
+      return {
+        ...current,
+        [key]: current[key].filter((_, itemIndex) => itemIndex !== index)
+      };
+    });
+  }
+
+  async function saveDashboard(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedEventId) return;
+    setSavingDashboard(true);
+    setActionMessage(null);
+    const response = await fetch(`/api/admin/events/${selectedEventId}/dashboard`, {
+      method: "PUT",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: dashboardDraft.title,
+        browserTitle: dashboardDraft.browserTitle || dashboardDraft.title,
+        shortLinkSlug: dashboardDraft.shortLinkSlug,
+        status: dashboardDraft.status,
+        instructions: dashboardDraft.instructions.map((instruction, index) => ({
+          languageLabel: instruction.languageLabel,
+          contentHtml: sanitizeClientHtml(instruction.contentHtml),
+          sortOrder: index + 1,
+          status: instruction.status
+        })),
+        eventItems: dashboardDraft.eventItems.map((item) => ({
+          name: item.name,
+          valueType: item.valueType,
+          value: item.value,
+          sortOrder: item.sortOrder,
+          status: item.status
+        })),
+        sessionItems: dashboardDraft.sessionItems.map((item) => ({
+          sessionId: item.sessionId,
+          name: item.name,
+          valueType: item.valueType,
+          value: item.value,
+          sortOrder: item.sortOrder,
+          status: item.status
+        }))
+      })
+    });
+    const payload = (await response.json()) as { ok: boolean; message?: string; dashboard?: EventDashboard };
+    setSavingDashboard(false);
+    if (!response.ok || !payload.ok) {
+      setActionMessage(payload.message ?? "No se pudo guardar el tablero.");
+      return;
+    }
+    await loadEventDashboard(selectedEventId);
+    setActionMessage("Tablero guardado correctamente.");
   }
 
   function updateSessionDraft(index: number, field: keyof EventSessionDraft, value: string) {
@@ -2513,6 +2739,112 @@ function AdminShell() {
             </div>
           ) : null}
 
+          {selectedEvent ? (
+            <div className="admin-form-panel">
+              <div className="detail-heading">
+                <div>
+                  <p className="eyebrow">Difusión del evento</p>
+                  <h3>Tablero general</h3>
+                  <p>Organice información pública del evento y de cada sesión en un enlace único para participantes.</p>
+                </div>
+                {eventDashboard ? <span className={`status ${eventDashboard.status === "active" ? "open" : "closed"}`}>{eventDashboard.status}</span> : null}
+              </div>
+
+              <form className="builder-card" onSubmit={saveDashboard}>
+                <div className="builder-grid">
+                  <label>
+                    Título del tablero
+                    <input
+                      value={dashboardDraft.title}
+                      onChange={(event) => setDashboardDraft((current) => ({ ...current, title: event.target.value }))}
+                      required
+                    />
+                  </label>
+                  <label>
+                    Nombre Navegador
+                    <input
+                      value={dashboardDraft.browserTitle}
+                      onChange={(event) => setDashboardDraft((current) => ({ ...current, browserTitle: event.target.value }))}
+                    />
+                  </label>
+                  <label>
+                    Enlace corto
+                    <input
+                      value={dashboardDraft.shortLinkSlug}
+                      onChange={(event) => setDashboardDraft((current) => ({ ...current, shortLinkSlug: event.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-") }))}
+                      required
+                    />
+                    <span className="field-hint">{window.location.origin}/t/{dashboardDraft.shortLinkSlug || "enlace-tablero"}</span>
+                  </label>
+                  <label>
+                    Estado
+                    <select value={dashboardDraft.status} onChange={(event) => setDashboardDraft((current) => ({ ...current, status: event.target.value }))}>
+                      <option value="draft">Borrador</option>
+                      <option value="active">Activo</option>
+                      <option value="inactive">Inactivo</option>
+                      <option value="archived">Archivado</option>
+                    </select>
+                  </label>
+                </div>
+
+                <div className="dashboard-admin-section">
+                  <div className="mini-section-heading">
+                    <strong>Instrucciones</strong>
+                    <button className="button secondary table-action" type="button" onClick={addDashboardInstruction}>Agregar instrucción</button>
+                  </div>
+                  {dashboardDraft.instructions.length === 0 ? <p className="blocked-message">El tablero puede publicarse sin instrucciones.</p> : null}
+                  <div className="instruction-editor-list">
+                    {dashboardDraft.instructions.map((instruction, index) => (
+                      <div className="instruction-editor" key={`dashboard-instruction-${index}`}>
+                        <div className="builder-grid">
+                          <label>
+                            Etiqueta / idioma
+                            <input value={instruction.languageLabel} onChange={(event) => updateDashboardInstruction(index, "languageLabel", event.target.value)} />
+                          </label>
+                          <label>
+                            Estado
+                            <select value={instruction.status} onChange={(event) => updateDashboardInstruction(index, "status", event.target.value)}>
+                              <option value="active">Activo</option>
+                              <option value="inactive">Inactivo</option>
+                            </select>
+                          </label>
+                        </div>
+                        <RichEditable
+                          onChange={(value) => updateDashboardInstruction(index, "contentHtml", value)}
+                          placeholder="Escriba o pegue la instrucción con formato"
+                          value={instruction.contentHtml}
+                        />
+                        <button className="text-button danger" type="button" onClick={() => removeDashboardInstruction(index)}>Quitar instrucción</button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <DashboardItemsEditor
+                  items={dashboardDraft.eventItems}
+                  onAdd={() => addDashboardItem("event")}
+                  onRemove={(index) => removeDashboardItem("event", index)}
+                  onUpdate={(index, field, value) => updateDashboardItem("event", index, field, value)}
+                  title="Información del evento"
+                />
+
+                <DashboardItemsEditor
+                  items={dashboardDraft.sessionItems}
+                  onAdd={() => addDashboardItem("session")}
+                  onRemove={(index) => removeDashboardItem("session", index)}
+                  onUpdate={(index, field, value) => updateDashboardItem("session", index, field, value)}
+                  sessions={sessions}
+                  title="Información de sesiones"
+                />
+
+                <div className="actions">
+                  <button className="button" type="submit" disabled={savingDashboard}>{savingDashboard ? "Guardando..." : "Guardar tablero"}</button>
+                  {eventDashboard ? <a className="button secondary" href={`/t/${eventDashboard.short_link_slug}`}>Abrir tablero</a> : null}
+                </div>
+              </form>
+            </div>
+          ) : null}
+
           {actionMessage ? <p className="form-success">{actionMessage}</p> : null}
 
           {selectedSession ? (
@@ -3288,6 +3620,76 @@ function LoginPage({ onLogin }: { onLogin: (user: SessionUser) => void }) {
         </form>
       </section>
     </main>
+  );
+}
+
+function DashboardItemsEditor({
+  title,
+  items,
+  sessions = [],
+  onAdd,
+  onRemove,
+  onUpdate
+}: {
+  title: string;
+  items: Array<{ sessionId: string; name: string; valueType: string; value: string; sortOrder: number; status: string }>;
+  sessions?: AdminSession[];
+  onAdd: () => void;
+  onRemove: (index: number) => void;
+  onUpdate: (index: number, field: "sessionId" | "name" | "valueType" | "value" | "sortOrder" | "status", value: string) => void;
+}) {
+  return (
+    <div className="dashboard-admin-section">
+      <div className="mini-section-heading">
+        <strong>{title}</strong>
+        <button className="button secondary table-action" type="button" onClick={onAdd}>Agregar información</button>
+      </div>
+      {items.length === 0 ? <p className="blocked-message">No hay información configurada.</p> : null}
+      <div className="dashboard-item-list">
+        {items.map((item, index) => (
+          <div className="dashboard-item-editor" key={`${title}-${index}`}>
+            <label>
+              Orden
+              <input min="1" type="number" value={item.sortOrder} onChange={(event) => onUpdate(index, "sortOrder", event.target.value)} />
+            </label>
+            {sessions.length ? (
+              <label>
+                Sesión
+                <select value={item.sessionId} onChange={(event) => onUpdate(index, "sessionId", event.target.value)} required>
+                  <option value="">Seleccione sesión</option>
+                  {sessions.map((session) => (
+                    <option key={session.id} value={session.id}>{session.title} - {session.theme}</option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+            <label>
+              Nombre
+              <input value={item.name} onChange={(event) => onUpdate(index, "name", event.target.value)} placeholder="Ejemplo: Enlace Zoom" required />
+            </label>
+            <label>
+              Tipo
+              <select value={item.valueType} onChange={(event) => onUpdate(index, "valueType", event.target.value)}>
+                <option value="text">Texto</option>
+                <option value="link">Enlace</option>
+              </select>
+            </label>
+            <label className="wide-field">
+              Valor
+              <input value={item.value} onChange={(event) => onUpdate(index, "value", event.target.value)} placeholder={item.valueType === "link" ? "https://..." : "Texto a mostrar"} required />
+            </label>
+            <label>
+              Estado
+              <select value={item.status} onChange={(event) => onUpdate(index, "status", event.target.value)}>
+                <option value="active">Activo</option>
+                <option value="inactive">Inactivo</option>
+              </select>
+            </label>
+            <button className="text-button danger" type="button" onClick={() => onRemove(index)}>Quitar</button>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -5035,6 +5437,103 @@ function BoardPresenterView({ slug }: { slug: string }) {
         ) : null}
       </section>
     </main>
+  );
+}
+
+function DashboardPublicView({ slug }: { slug: string }) {
+  const [dashboard, setDashboard] = React.useState<EventDashboard | null>(null);
+  const [message, setMessage] = React.useState("Cargando tablero.");
+  const [page, setPage] = React.useState(1);
+  const pageSize = 18;
+
+  React.useEffect(() => {
+    fetch(`/api/public/dashboards/${slug}`)
+      .then((response) => response.ok ? response.json() as Promise<{ dashboard: EventDashboard }> : Promise.reject())
+      .then((payload) => {
+        setDashboard(payload.dashboard);
+        document.title = cleanText(payload.dashboard.browser_title ?? payload.dashboard.title);
+      })
+      .catch(() => setMessage("No se pudo cargar el tablero."));
+  }, [slug]);
+
+  if (!dashboard) return <PublicMessage title="Tablero no disponible" message={message} />;
+
+  const sessions = dashboard.sessions ?? [];
+  const totalPages = Math.max(1, Math.ceil(sessions.length / pageSize));
+  const visibleSessions = sessions.slice((page - 1) * pageSize, page * pageSize);
+  const moduleIds = Array.from(new Set(sessions.map((session) => session.module_id)));
+
+  return (
+    <main className="dashboard-public-page">
+      <section className="dashboard-public-stage">
+        <p className="eyebrow">{cleanText(dashboard.event_title)}</p>
+        <h1>{cleanText(dashboard.title)}</h1>
+
+        {dashboard.instructions?.length ? (
+          <div className="instruction-card-row dashboard-instructions">
+            {dashboard.instructions.map((instruction) => (
+              <article className="instruction-card" key={instruction.id ?? instruction.sort_order}>
+                {instruction.language_label ? <strong>{cleanText(instruction.language_label)}</strong> : null}
+                <div dangerouslySetInnerHTML={{ __html: instruction.content_html }} />
+              </article>
+            ))}
+          </div>
+        ) : null}
+
+        {dashboard.eventItems?.length ? (
+          <section className="dashboard-info-band">
+            <h2>Información del evento</h2>
+            <DashboardInfoList items={dashboard.eventItems} />
+          </section>
+        ) : null}
+
+        <section className="dashboard-sessions-section">
+          <h2>Sesiones</h2>
+          <div className="dashboard-session-grid">
+            {visibleSessions.map((session) => {
+              const tone = moduleIds.indexOf(session.module_id) % 6;
+              return (
+                <article className={`dashboard-session-card module-tone-${tone}`} key={session.id}>
+                  <span className="session-module">{cleanText(session.module_title)}</span>
+                  <h3>{cleanText(session.title)}</h3>
+                  <p>{cleanText(session.theme)}</p>
+                  <div className="session-meta">
+                    <span>{session.session_date}</span>
+                    <span>{session.start_time} - {session.end_time}</span>
+                  </div>
+                  {session.items?.length ? <DashboardInfoList items={session.items} compact /> : null}
+                </article>
+              );
+            })}
+          </div>
+          {sessions.length === 0 ? <p className="empty-cloud">No hay sesiones configuradas.</p> : null}
+          {totalPages > 1 ? (
+            <div className="presenter-pagination">
+              <button type="button" disabled={page === 1} onClick={() => setPage((current) => Math.max(1, current - 1))}>Anterior</button>
+              <span>{page} / {totalPages}</span>
+              <button type="button" disabled={page >= totalPages} onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>Siguiente</button>
+            </div>
+          ) : null}
+        </section>
+      </section>
+    </main>
+  );
+}
+
+function DashboardInfoList({ items, compact = false }: { items: EventDashboardItem[]; compact?: boolean }) {
+  return (
+    <div className={compact ? "dashboard-info-list compact" : "dashboard-info-list"}>
+      {[...items].sort((a, b) => a.sort_order - b.sort_order).map((item) => (
+        <div className="dashboard-info-row" key={item.id ?? `${item.name}-${item.sort_order}`}>
+          <strong>{cleanText(item.name)}</strong>
+          {item.value_type === "link" ? (
+            <a href={item.value} target="_blank" rel="noreferrer">Enlace</a>
+          ) : (
+            <span>{cleanText(item.value)}</span>
+          )}
+        </div>
+      ))}
+    </div>
   );
 }
 

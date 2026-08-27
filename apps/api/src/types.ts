@@ -256,6 +256,58 @@ export type EventBoardNote = {
   created_at: string;
 };
 
+export type EventDashboard = {
+  id: string;
+  event_id: string;
+  title: string;
+  browser_title: string | null;
+  short_link_slug: string;
+  status: string;
+  created_by_user_id: string;
+  created_at: string;
+  updated_at: string;
+  event_title?: string;
+};
+
+export type EventDashboardInstruction = {
+  id: string;
+  dashboard_id: string;
+  language_label: string | null;
+  content_html: string;
+  content_text: string;
+  sort_order: number;
+  status: string;
+};
+
+export type EventDashboardItem = {
+  id: string;
+  dashboard_id: string;
+  event_id: string;
+  session_id: string | null;
+  scope: "event" | "session";
+  name: string;
+  value_type: "text" | "link";
+  value: string;
+  sort_order: number;
+  status: string;
+};
+
+export type EventDashboardSession = {
+  id: string;
+  module_id: string;
+  module_title: string;
+  module_order: number;
+  sequence: number;
+  title: string;
+  theme: string;
+  session_date: string;
+  start_time: string;
+  end_time: string;
+  status: string;
+  attendance_status: string;
+  items?: EventDashboardItem[];
+};
+
 export type Participant = {
   id: string;
   document_type: string;

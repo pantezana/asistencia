@@ -7,6 +7,10 @@ import type {
   EventBoard,
   EventBoardInstruction,
   EventBoardNote,
+  EventDashboard,
+  EventDashboardInstruction,
+  EventDashboardItem,
+  EventDashboardSession,
   EventSummary,
   EventQuestion,
   EventQuestionResponseItem,
@@ -104,6 +108,23 @@ async function uniqueBoardSlug(db: D1Database, base: string, column: "participan
   while (
     await db
       .prepare(`SELECT id FROM event_boards WHERE ${column} = ?${currentId ? " AND id <> ?" : ""}`)
+      .bind(...(currentId ? [finalSlug, currentId] : [finalSlug]))
+      .first()
+  ) {
+    finalSlug = `${slug}-${counter}`;
+    counter += 1;
+  }
+  return finalSlug;
+}
+
+async function uniqueDashboardSlug(db: D1Database, base: string, currentId?: string) {
+  let slug = normalizePublicSlug(base);
+  if (!slug) slug = crypto.randomUUID().slice(0, 10);
+  let finalSlug = slug;
+  let counter = 2;
+  while (
+    await db
+      .prepare(`SELECT id FROM event_dashboards WHERE short_link_slug = ?${currentId ? " AND id <> ?" : ""}`)
       .bind(...(currentId ? [finalSlug, currentId] : [finalSlug]))
       .first()
   ) {
@@ -742,6 +763,221 @@ export async function updateEventBoardStatus(db: D1Database, eventId: string, bo
     .bind(nextStatus, boardId, eventId)
     .run();
   return result.meta.changes > 0;
+}
+
+type DashboardInstructionInput = {
+  languageLabel?: string | null;
+  contentHtml?: string;
+  sortOrder?: number;
+  status?: string;
+};
+
+type DashboardItemInput = {
+  id?: string;
+  sessionId?: string | null;
+  scope?: "event" | "session";
+  name?: string;
+  valueType?: "text" | "link";
+  value?: string;
+  sortOrder?: number;
+  status?: string;
+};
+
+function normalizeDashboardInstructions(instructions: DashboardInstructionInput[] | undefined) {
+  return (instructions ?? [])
+    .map((instruction, index) => {
+      const contentHtml = sanitizeRichHtml(instruction.contentHtml ?? "");
+      const contentText = textFromHtml(contentHtml);
+      return {
+        languageLabel: instruction.languageLabel?.trim() || null,
+        contentHtml,
+        contentText,
+        sortOrder: Math.max(Math.floor(instruction.sortOrder || index + 1), 1),
+        status: instruction.status === "inactive" ? "inactive" : "active"
+      };
+    })
+    .filter((instruction) => instruction.contentText);
+}
+
+function normalizeDashboardItems(items: DashboardItemInput[] | undefined, scope: "event" | "session") {
+  return (items ?? [])
+    .map((item, index) => ({
+      sessionId: scope === "session" ? item.sessionId || null : null,
+      scope,
+      name: (item.name ?? "").trim(),
+      valueType: item.valueType === "link" ? "link" : "text",
+      value: (item.value ?? "").trim(),
+      sortOrder: Math.max(Math.floor(item.sortOrder || index + 1), 1),
+      status: item.status === "inactive" ? "inactive" : "active"
+    }))
+    .filter((item) => item.name && item.value);
+}
+
+async function listDashboardInstructions(db: D1Database, dashboardId: string, activeOnly = false) {
+  return db
+    .prepare(
+      `SELECT id, dashboard_id, language_label, content_html, content_text, sort_order, status
+       FROM event_dashboard_instructions
+       WHERE dashboard_id = ?${activeOnly ? " AND status = 'active'" : ""}
+       ORDER BY sort_order ASC, created_at ASC`
+    )
+    .bind(dashboardId)
+    .all<EventDashboardInstruction>();
+}
+
+async function listDashboardItems(db: D1Database, dashboardId: string, activeOnly = false) {
+  return db
+    .prepare(
+      `SELECT id, dashboard_id, event_id, session_id, scope, name, value_type, value, sort_order, status
+       FROM event_dashboard_items
+       WHERE dashboard_id = ?${activeOnly ? " AND status = 'active'" : ""}
+       ORDER BY scope ASC, COALESCE(session_id, ''), sort_order ASC, created_at ASC`
+    )
+    .bind(dashboardId)
+    .all<EventDashboardItem>();
+}
+
+export async function getEventDashboard(db: D1Database, eventId: string) {
+  const dashboard = await db
+    .prepare(
+      `SELECT d.*, e.title AS event_title
+       FROM event_dashboards d
+       INNER JOIN events e ON e.id = d.event_id
+       WHERE d.event_id = ?`
+    )
+    .bind(eventId)
+    .first<EventDashboard>();
+  if (!dashboard) return null;
+
+  const [instructions, items] = await Promise.all([
+    listDashboardInstructions(db, dashboard.id),
+    listDashboardItems(db, dashboard.id)
+  ]);
+
+  return {
+    ...dashboard,
+    instructions: instructions.results,
+    eventItems: items.results.filter((item) => item.scope === "event"),
+    sessionItems: items.results.filter((item) => item.scope === "session")
+  };
+}
+
+export async function upsertEventDashboard(db: D1Database, eventId: string, user: SessionUser, input: {
+  title?: string;
+  browserTitle?: string;
+  shortLinkSlug?: string;
+  status?: string;
+  instructions?: DashboardInstructionInput[];
+  eventItems?: DashboardItemInput[];
+  sessionItems?: DashboardItemInput[];
+}) {
+  const event = await db.prepare("SELECT id, title, short_link_slug FROM events WHERE id = ?").bind(eventId).first<{ id: string; title: string; short_link_slug: string }>();
+  if (!event) return { ok: false, message: "Evento no encontrado." };
+
+  const title = (input.title ?? "").trim();
+  if (!title) return { ok: false, message: "Ingrese el titulo del tablero." };
+  const browserTitle = input.browserTitle?.trim() || title;
+  const nextStatus = ["draft", "active", "inactive", "archived"].includes(input.status ?? "") ? input.status! : "draft";
+  const current = await db.prepare("SELECT * FROM event_dashboards WHERE event_id = ?").bind(eventId).first<EventDashboard>();
+  const requestedSlug = input.shortLinkSlug?.trim() || current?.short_link_slug || `${event.short_link_slug}-tablero`;
+  const shortLinkSlug = await uniqueDashboardSlug(db, requestedSlug, current?.id);
+
+  const instructions = normalizeDashboardInstructions(input.instructions);
+  const eventItems = normalizeDashboardItems(input.eventItems, "event");
+  const sessionItems = normalizeDashboardItems(input.sessionItems, "session");
+
+  const sessionIds = Array.from(new Set(sessionItems.map((item) => item.sessionId).filter(Boolean))) as string[];
+  for (const sessionId of sessionIds) {
+    const session = await db.prepare("SELECT id FROM event_sessions WHERE id = ? AND event_id = ?").bind(sessionId, eventId).first<{ id: string }>();
+    if (!session) return { ok: false, message: "Una informacion de sesion tiene una sesion invalida." };
+  }
+
+  const dashboardId = current?.id ?? `dash_${crypto.randomUUID().slice(0, 12)}`;
+  if (current) {
+    await db
+      .prepare(
+        `UPDATE event_dashboards
+         SET title = ?, browser_title = ?, short_link_slug = ?, status = ?, updated_at = CURRENT_TIMESTAMP
+         WHERE id = ? AND event_id = ?`
+      )
+      .bind(title, browserTitle, shortLinkSlug, nextStatus, dashboardId, eventId)
+      .run();
+  } else {
+    await db
+      .prepare(
+        `INSERT INTO event_dashboards (id, event_id, title, browser_title, short_link_slug, status, created_by_user_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`
+      )
+      .bind(dashboardId, eventId, title, browserTitle, shortLinkSlug, nextStatus, user.id)
+      .run();
+  }
+
+  await db.prepare("UPDATE event_dashboard_instructions SET status = 'inactive', updated_at = CURRENT_TIMESTAMP WHERE dashboard_id = ?").bind(dashboardId).run();
+  for (const instruction of instructions) {
+    await db
+      .prepare(
+        `INSERT INTO event_dashboard_instructions (id, dashboard_id, language_label, content_html, content_text, sort_order, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`
+      )
+      .bind(`dash_instruction_${crypto.randomUUID().slice(0, 12)}`, dashboardId, instruction.languageLabel, instruction.contentHtml, instruction.contentText, instruction.sortOrder, instruction.status)
+      .run();
+  }
+
+  await db.prepare("UPDATE event_dashboard_items SET status = 'inactive', updated_at = CURRENT_TIMESTAMP WHERE dashboard_id = ?").bind(dashboardId).run();
+  for (const item of [...eventItems, ...sessionItems]) {
+    await db
+      .prepare(
+        `INSERT INTO event_dashboard_items (id, dashboard_id, event_id, session_id, scope, name, value_type, value, sort_order, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .bind(`dash_item_${crypto.randomUUID().slice(0, 12)}`, dashboardId, eventId, item.sessionId, item.scope, item.name, item.valueType, item.value, item.sortOrder, item.status)
+      .run();
+  }
+
+  return { ok: true, dashboard: await getEventDashboard(db, eventId) };
+}
+
+export async function getPublicDashboardBySlug(db: D1Database, slug: string) {
+  const dashboard = await db
+    .prepare(
+      `SELECT d.*, e.title AS event_title
+       FROM event_dashboards d
+       INNER JOIN events e ON e.id = d.event_id
+       WHERE d.short_link_slug = ?`
+    )
+    .bind(normalizePublicSlug(slug))
+    .first<EventDashboard>();
+  if (!dashboard) return null;
+
+  const [instructions, items, sessions] = await Promise.all([
+    listDashboardInstructions(db, dashboard.id, true),
+    listDashboardItems(db, dashboard.id, true),
+    db
+      .prepare(
+        `SELECT s.id, s.module_id, m.title AS module_title, m.order_index AS module_order,
+                s.sequence, s.title, s.theme, s.session_date, s.start_time, s.end_time,
+                s.status, s.attendance_status
+         FROM event_sessions s
+         INNER JOIN event_modules m ON m.id = s.module_id
+         WHERE s.event_id = ? AND s.status <> 'archived'
+         ORDER BY m.order_index ASC, s.sequence ASC, s.session_date ASC, s.start_time ASC`
+      )
+      .bind(dashboard.event_id)
+      .all<EventDashboardSession>()
+  ]);
+
+  const sessionItems = items.results.filter((item) => item.scope === "session");
+  const enrichedSessions = sessions.results.map((session) => ({
+    ...session,
+    items: sessionItems.filter((item) => item.session_id === session.id)
+  }));
+
+  return {
+    ...dashboard,
+    instructions: instructions.results,
+    eventItems: items.results.filter((item) => item.scope === "event"),
+    sessions: enrichedSessions
+  };
 }
 
 export async function listEventModules(db: D1Database, eventId: string) {

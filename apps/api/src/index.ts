@@ -27,6 +27,7 @@ import {
   getPublicFormStructure,
   getPublicBoardByParticipantSlug,
   getPublicBoardByPresenterSlug,
+  getPublicDashboardBySlug,
   getPublicQuestionByParticipantSlug,
   getPublicQuestionByPresenterSlug,
   getQuestionSelectionGroups,
@@ -41,6 +42,7 @@ import {
   listDistrictsByProvince,
   listEventModules,
   listEventBoards,
+  getEventDashboard,
   listBoardNotes,
   listEventQuestions,
   listQuestionResponsesByParticipant,
@@ -77,6 +79,7 @@ import {
   updateFormTemplateDetails,
   updateFormStatus,
   updateTemplateField,
+  upsertEventDashboard,
   userCanManageEvent
 } from "./db";
 import type { AppContext } from "./types";
@@ -647,6 +650,14 @@ app.delete("/api/public/board-presenter/:slug/notes/:noteId", async (c) => {
   return c.json(result, result.ok ? 200 : 404);
 });
 
+app.get("/api/public/dashboards/:slug", async (c) => {
+  const dashboard = await getPublicDashboardBySlug(c.env.DB, c.req.param("slug"));
+  if (!dashboard || dashboard.status === "archived" || dashboard.status === "draft" || dashboard.status === "inactive") {
+    return c.json({ ok: false, message: "Tablero no disponible." }, 404);
+  }
+  return c.json({ ok: true, dashboard });
+});
+
 app.use("/api/admin/*", requireAuth());
 
 app.get("/api/admin/me", (c) => {
@@ -1037,6 +1048,42 @@ app.post("/api/admin/events/:eventId/boards/:boardId/status", async (c) => {
   const ok = await updateEventBoardStatus(c.env.DB, eventId, c.req.param("boardId"), body?.status ?? "draft");
   if (!ok) return c.json({ ok: false, message: "Pizarra no encontrada." }, 404);
   return c.json({ ok: true });
+});
+
+app.get("/api/admin/events/:eventId/dashboard", async (c) => {
+  const eventId = c.req.param("eventId");
+  const canManage = await userCanManageEvent(c.env.DB, eventId, c.get("user"));
+  if (!canManage) return c.json({ ok: false, message: "Evento no encontrado o no autorizado." }, 404);
+
+  const dashboard = await getEventDashboard(c.env.DB, eventId);
+  return c.json({ ok: true, dashboard });
+});
+
+app.put("/api/admin/events/:eventId/dashboard", async (c) => {
+  const eventId = c.req.param("eventId");
+  const canManage = await userCanManageEvent(c.env.DB, eventId, c.get("user"));
+  if (!canManage) return c.json({ ok: false, message: "Evento no encontrado o no autorizado." }, 404);
+
+  const body = await c.req.json<{
+    title?: string;
+    browserTitle?: string;
+    shortLinkSlug?: string;
+    status?: string;
+    instructions?: Array<{ languageLabel?: string | null; contentHtml?: string; sortOrder?: number; status?: string }>;
+    eventItems?: Array<{ sessionId?: string | null; scope?: "event" | "session"; name?: string; valueType?: "text" | "link"; value?: string; sortOrder?: number; status?: string }>;
+    sessionItems?: Array<{ sessionId?: string | null; scope?: "event" | "session"; name?: string; valueType?: "text" | "link"; value?: string; sortOrder?: number; status?: string }>;
+  }>().catch(() => null);
+
+  const result = await upsertEventDashboard(c.env.DB, eventId, c.get("user"), {
+    title: body?.title,
+    browserTitle: body?.browserTitle,
+    shortLinkSlug: body?.shortLinkSlug,
+    status: body?.status,
+    instructions: body?.instructions,
+    eventItems: body?.eventItems,
+    sessionItems: body?.sessionItems
+  });
+  return c.json(result, result.ok ? 200 : 400);
 });
 
 app.get("/api/admin/events/:eventId/attendance.xlsx", async (c) => {
