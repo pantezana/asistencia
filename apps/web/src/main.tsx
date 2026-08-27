@@ -5678,19 +5678,25 @@ function DashboardPublicView({ slug }: { slug: string }) {
 function DashboardInfoList({ items, compact = false }: { items: EventDashboardItem[]; compact?: boolean }) {
   return (
     <div className={compact ? "dashboard-info-list compact" : "dashboard-info-list"}>
-      {[...items].sort((a, b) => a.sort_order - b.sort_order).map((item) => (
-        <div className="dashboard-info-row" key={item.id ?? `${item.name}-${item.sort_order}`}>
+      {[...items].sort((a, b) => a.sort_order - b.sort_order).map((item) => {
+        const icon = getDashboardItemIcon(item.icon_key);
+        const label = (
           <strong>
-            {getDashboardItemIcon(item.icon_key).symbol ? <span className="dashboard-info-icon" aria-hidden="true">{getDashboardItemIcon(item.icon_key).symbol}</span> : null}
+            {icon.symbol ? <span className="dashboard-info-icon" aria-hidden="true">{icon.symbol}</span> : null}
             {cleanText(item.name)}
           </strong>
-          {item.value_type === "link" ? (
-            <a href={item.value} target="_blank" rel="noreferrer">Enlace</a>
-          ) : (
+        );
+        return item.value_type === "link" ? (
+          <a className="dashboard-info-row dashboard-info-link" href={item.value} key={item.id ?? `${item.name}-${item.sort_order}`} target="_blank" rel="noreferrer">
+            {label}
+          </a>
+        ) : (
+          <div className="dashboard-info-row dashboard-info-text" key={item.id ?? `${item.name}-${item.sort_order}`}>
+            {label}
             <span>{cleanText(item.value)}</span>
-          )}
-        </div>
-      ))}
+          </div>
+        );
+      })}
     </div>
   );
 }
