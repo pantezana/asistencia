@@ -148,7 +148,16 @@ Ejemplos:
 
 ### 4.4 Informacion de sesion
 
-Elemento informativo asociado a una sesion especifica del cronograma.
+Elemento informativo adicional asociado a una sesion especifica del cronograma.
+
+El tablero siempre debe traer automaticamente desde la estructura propia de la sesion:
+
+- Modulo.
+- Tema.
+- Fecha.
+- Horario.
+
+Estos datos no se crean ni se administran como elementos informativos del tablero. Ya tienen su propio flujo de gestion en el evento, modulo y cronograma. Si el administrador edita el modulo, tema, fecha u horario desde la gestion normal de sesiones, el tablero debe reflejar automaticamente esos cambios.
 
 Campos:
 
@@ -166,6 +175,7 @@ Comportamiento publico:
 - Si el tipo es `text`, se muestra el valor como texto.
 - Si el tipo es `link`, se muestra la palabra `Enlace` como hipervinculo.
 - Solo se muestran elementos activos.
+- Complementa la informacion base de la sesion, pero no la reemplaza.
 
 Ejemplos:
 
@@ -248,6 +258,16 @@ Validaciones:
 
 Debe integrarse en la edicion de sesiones.
 
+Esta gestion solo corresponde a informacion adicional para el tablero. No debe duplicar ni recrear los campos propios de la sesion:
+
+- Modulo.
+- Tema.
+- Fecha.
+- Hora de inicio.
+- Hora de fin.
+
+Estos campos continuan administrandose en el CRUD normal de sesiones y modulos.
+
 Cada sesion debe permitir:
 
 - Agregar elemento informativo.
@@ -325,12 +345,17 @@ Formato publico de cada elemento:
 
 Cada sesion debe mostrarse como una caja.
 
-Contenido minimo:
+Contenido automatico obligatorio, leido directamente del cronograma:
 
 - Modulo.
 - Tema.
 - Fecha.
 - Horario.
+
+Estos datos no dependen de `event_dashboard_items`. La caja de sesion debe consultarlos desde las tablas actuales de modulos y sesiones. Si se cambia el modulo, tema, fecha u horario en la administracion normal del cronograma, el tablero debe reflejar el cambio sin requerir mantenimiento adicional.
+
+Contenido configurable adicional:
+
 - Informacion activa de sesion.
 
 Formato de informacion de sesion:
@@ -433,7 +458,9 @@ Indices:
 
 ### 7.3 `event_dashboard_items`
 
-Tabla unica para informacion general e informacion de sesiones.
+Tabla unica para informacion general del evento e informacion adicional de sesiones.
+
+No debe almacenar ni duplicar la metadata propia de la sesion como modulo, tema, fecha, hora de inicio u hora de fin. Esos datos se consultan desde la estructura actual del cronograma.
 
 Campos:
 
@@ -461,6 +488,7 @@ Reglas:
 - Si `scope = session`, `session_id` debe tener valor.
 - `value_type` solo puede ser `text` o `link`.
 - `status` define visibilidad publica.
+- Los items con `scope = session` representan recursos o datos complementarios, por ejemplo Zoom, ponente, presentacion, nube, pizarra o grabacion.
 
 Indices:
 
@@ -573,7 +601,9 @@ Componentes sugeridos:
 
 En cada sesion del cronograma debe existir un bloque `Informacion para tablero`.
 
-El administrador debe poder agregar N elementos.
+El administrador debe poder agregar N elementos complementarios.
+
+El bloque no debe permitir editar modulo, tema, fecha u horario como si fueran items del tablero. Esos datos deben seguir editandose en los campos propios de la sesion.
 
 Para no saturar la pantalla:
 
@@ -647,11 +677,12 @@ Requisitos:
 
 ## 15. Decision recomendada
 
-Implementar el tablero como una entidad propia del evento con una tabla unica de items para informacion general e informacion de sesion.
+Implementar el tablero como una entidad propia del evento con una tabla unica de items para informacion general e informacion adicional de sesion.
 
 Esta opcion es mas profesional y sostenible porque:
 
-- evita duplicar tablas para informacion de evento y sesion;
+- evita duplicar tablas para informacion general del evento y recursos adicionales de sesion;
+- evita duplicar la metadata propia del cronograma, porque modulo, tema, fecha y horario se leen desde las tablas actuales de sesiones;
 - permite agregar cualquier tipo de dato futuro;
 - simplifica la vista publica;
 - facilita activar/inactivar elementos;
