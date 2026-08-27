@@ -246,6 +246,14 @@ Campos:
 - Estado.
 - Orden.
 
+Regla de ordenamiento:
+
+- El orden de la informacion general del evento debe ser administrable.
+- El administrador debe poder decidir que dato aparece primero, segundo, tercero, etc.
+- Un elemento nuevo puede agregarse al final por defecto, pero debe poder moverse antes o despues de otros elementos.
+- La vista publica debe respetar siempre el orden configurado.
+- Esto permite destacar informacion prioritaria, como el enlace principal del evento, antes que recursos secundarios.
+
 Validaciones:
 
 - Nombre obligatorio.
@@ -283,6 +291,14 @@ Campos:
 - Valor.
 - Estado.
 - Orden.
+
+Regla de ordenamiento:
+
+- El orden de la informacion adicional de cada sesion debe ser administrable de forma independiente por sesion.
+- El administrador debe poder decidir que dato aparece arriba y cual debajo dentro de la caja de esa sesion.
+- Un elemento nuevo puede agregarse al final por defecto, pero debe poder reubicarse.
+- La vista publica debe respetar el orden configurado por sesion.
+- Esto permite mantener uniformidad entre sesiones, por ejemplo mostrar siempre primero `Zoom`, luego `Presentacion`, luego `Nube`, luego `Grabacion`, si asi lo decide el organizador.
 
 Validaciones:
 
@@ -340,6 +356,7 @@ Formato publico de cada elemento:
 - Nombre en negrita.
 - Valor a la derecha o debajo segun ancho.
 - Si es enlace, mostrar `Enlace` como hipervinculo.
+- Respetar el orden configurado por el administrador.
 
 ### 6.4 Sesiones
 
@@ -363,6 +380,7 @@ Formato de informacion de sesion:
 - Listado amigable.
 - Nombre en negrita.
 - Valor o `Enlace`.
+- Respetar el orden configurado para la sesion.
 
 ### 6.5 Colores por modulo
 
@@ -613,14 +631,18 @@ Para no saturar la pantalla:
 
 ### 11.3 Ordenamiento
 
-Primera version:
+Primera version obligatoria:
 
-- permitir subir/bajar elementos;
-- o usar campo numerico `orden`.
+- permitir reorganizar informacion general del evento;
+- permitir reorganizar informacion adicional de cada sesion;
+- ofrecer controles simples `Subir` y `Bajar` o un campo numerico `Orden`;
+- persistir el orden en `sort_order`;
+- recalcular o normalizar el orden para evitar duplicados visibles;
+- aplicar el orden en la vista publica.
 
 Fase futura:
 
-- drag and drop.
+- drag and drop como mejora ergonomica, sin reemplazar la regla funcional de ordenamiento.
 
 ## 12. Experiencia publica movil
 
@@ -657,6 +679,7 @@ Requisitos:
 - Instrucciones opcionales.
 - Items generales del evento.
 - Items por sesion.
+- Ordenamiento administrable de items generales y de items por sesion.
 - Vista publica `/t/:slug`.
 - Titulo dinamico del navegador.
 - Paginacion de sesiones.
@@ -664,7 +687,7 @@ Requisitos:
 ### Fase 2
 
 - Mejoras de administracion inline.
-- Ordenamiento con subir/bajar.
+- Drag and drop para mejorar el ordenamiento.
 - QR para tablero si se decide homologar con formularios.
 - Select para enlazar automaticamente nubes y pizarras existentes.
 
