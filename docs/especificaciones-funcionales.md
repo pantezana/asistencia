@@ -230,6 +230,7 @@ El CRUD de sesiones debe incluir:
 - Activar o desactivar sesión.
 - Abrir asistencia.
 - Cerrar asistencia.
+- Agregar y editar informacion opcional de tablero asociada directamente a la sesion.
 
 Datos iniciales de sesión:
 

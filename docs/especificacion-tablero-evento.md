@@ -196,7 +196,14 @@ Se recomienda incorporar:
 
 - un bloque `Tablero` dentro del evento seleccionado;
 - un bloque de informacion general del evento;
-- un bloque de informacion por sesion dentro de la edicion de cada sesion del cronograma.
+- un bloque `Informacion para tablero` dentro del flujo natural de creacion y edicion de cada sesion del cronograma.
+
+Regla de ubicacion funcional:
+
+- La informacion general del evento se administra desde el bloque `Tablero`.
+- La informacion especifica de una sesion no debe administrarse como un unico gran listado central dentro del tablero.
+- La informacion especifica de una sesion debe administrarse desde la misma pantalla o bloque donde se crea o edita esa sesion del cronograma.
+- Esto evita que el administrador tenga que buscar una sesion dentro de un listado largo de recursos y mantiene la informacion en su contexto natural.
 
 ### 5.2 Configuracion del tablero
 
@@ -264,7 +271,7 @@ Validaciones:
 
 ### 5.4 Gestion de informacion de sesion
 
-Debe integrarse en la edicion de sesiones.
+Debe integrarse en la creacion y edicion de sesiones del cronograma.
 
 Esta gestion solo corresponde a informacion adicional para el tablero. No debe duplicar ni recrear los campos propios de la sesion:
 
@@ -275,6 +282,40 @@ Esta gestion solo corresponde a informacion adicional para el tablero. No debe d
 - Hora de fin.
 
 Estos campos continuan administrandose en el CRUD normal de sesiones y modulos.
+
+#### 5.4.1 Creacion de sesion
+
+En el flujo de creacion de un evento, dentro del bloque donde se agregan las sesiones del cronograma, cada sesion debe poder incluir opcionalmente una lista de `Informacion para tablero`.
+
+La informacion de sesion no es obligatoria. El administrador puede crear una sesion sin ningun elemento informativo adicional.
+
+Si el administrador cuenta con los datos al momento de crear la sesion, debe poder agregarlos desde el mismo bloque de esa sesion.
+
+Comportamiento esperado:
+
+- Dentro de cada sesion del cronograma debe existir una accion `Agregar informacion`.
+- Al agregar informacion, el sistema muestra los campos `Nombre`, `Tipo`, `Valor`, `Estado` y `Orden`.
+- Cada informacion agregada debe acumularse en un grid o listado compacto dentro de esa misma sesion.
+- El grid debe mostrar, como minimo: orden, nombre, tipo, valor resumido, estado y acciones.
+- Antes de guardar el evento, la informacion agregada queda asociada a esa sesion en memoria del formulario.
+- Al crear el evento, se crean las sesiones y luego sus informaciones asociadas.
+- Si una sesion se elimina antes de guardar el evento, tambien se descartan sus informaciones temporales.
+
+#### 5.4.2 Edicion de sesion
+
+En el flujo de edicion de una sesion existente del cronograma debe existir un bloque `Informacion para tablero`.
+
+Comportamiento esperado:
+
+- Al seleccionar una sesion para editar, el sistema debe cargar sus informaciones ya registradas.
+- Las informaciones deben mostrarse en un grid seleccionable o listado compacto dentro del mismo panel de edicion de la sesion.
+- El administrador debe poder seleccionar una informacion para editarla.
+- El administrador debe poder cambiar nombre, tipo, valor, estado y orden.
+- El administrador debe poder activar o inactivar una informacion.
+- El administrador debe poder agregar nuevas informaciones desde la misma sesion seleccionada.
+- Al guardar, los cambios se aplican solo a la informacion de esa sesion.
+
+No debe requerirse que el administrador vaya al bloque general del tablero para editar informacion especifica de una sesion.
 
 Cada sesion debe permitir:
 
@@ -299,6 +340,11 @@ Regla de ordenamiento:
 - Un elemento nuevo puede agregarse al final por defecto, pero debe poder reubicarse.
 - La vista publica debe respetar el orden configurado por sesion.
 - Esto permite mantener uniformidad entre sesiones, por ejemplo mostrar siempre primero `Zoom`, luego `Presentacion`, luego `Nube`, luego `Grabacion`, si asi lo decide el organizador.
+
+Regla de experiencia:
+
+- La pantalla central del tablero puede mostrar una vista resumen de las informaciones de sesiones, pero la creacion y edicion operativa deben hacerse desde cada sesion del cronograma.
+- Si se muestra un resumen central, debe ser principalmente de consulta y navegacion hacia la sesion correspondiente, no el punto principal de mantenimiento.
 
 Validaciones:
 
@@ -623,6 +669,26 @@ El administrador debe poder agregar N elementos complementarios.
 
 El bloque no debe permitir editar modulo, tema, fecha u horario como si fueran items del tablero. Esos datos deben seguir editandose en los campos propios de la sesion.
 
+La gestion de esta informacion debe estar disponible en dos momentos:
+
+- al crear sesiones dentro del cronograma inicial del evento;
+- al editar una sesion ya existente desde el cronograma.
+
+En creacion:
+
+- cada sesion agregada al cronograma debe incluir una opcion `Agregar informacion`;
+- las informaciones agregadas se deben mostrar acumuladas en un grid dentro de esa sesion;
+- las informaciones quedan asociadas a esa sesion especifica al guardar el evento;
+- no es obligatorio registrar informacion de sesion.
+
+En edicion:
+
+- al seleccionar una sesion, se deben listar sus informaciones ya registradas;
+- el listado debe permitir seleccionar un elemento para editarlo;
+- debe poder modificarse nombre, tipo, valor, estado y orden;
+- debe poder agregarse nueva informacion para esa sesion;
+- debe poder activarse o inactivarse informacion existente.
+
 Para no saturar la pantalla:
 
 - usar un panel colapsable;
@@ -678,7 +744,7 @@ Requisitos:
 - CRUD basico de tablero por evento.
 - Instrucciones opcionales.
 - Items generales del evento.
-- Items por sesion.
+- Items por sesion administrados desde crear/editar sesiones del cronograma.
 - Ordenamiento administrable de items generales y de items por sesion.
 - Vista publica `/t/:slug`.
 - Titulo dinamico del navegador.
@@ -710,4 +776,5 @@ Esta opcion es mas profesional y sostenible porque:
 - simplifica la vista publica;
 - facilita activar/inactivar elementos;
 - permite reutilizar el mismo patron para enlaces a Zoom, presentaciones, nubes, pizarras y grabaciones;
-- mantiene la administracion dentro del contexto natural del evento y del cronograma.
+- mantiene la administracion dentro del contexto natural del evento y del cronograma;
+- evita un unico listado central de recursos de sesiones, que seria menos amigable cuando un evento tiene muchas sesiones.

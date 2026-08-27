@@ -165,7 +165,7 @@ Objetivo:
 - Crear un tablero publico por evento para agrupar informacion general y recursos por sesion.
 - Configurar titulo, enlace corto, nombre navegador e instrucciones opcionales.
 - Administrar informacion general del evento como elementos tipo texto o enlace.
-- Administrar informacion especifica de cada sesion como elementos tipo texto o enlace.
+- Administrar informacion especifica de cada sesion como elementos tipo texto o enlace desde la creacion y edicion de cada sesion del cronograma.
 - Mostrar solo informacion activa en el tablero publico.
 - Publicar una vista publica responsiva con nombre del evento, titulo del tablero, instrucciones, informacion general y sesiones.
 - Diferenciar visualmente sesiones del mismo modulo.
