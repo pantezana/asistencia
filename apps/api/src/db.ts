@@ -912,7 +912,7 @@ export async function upsertEventDashboard(db: D1Database, eventId: string, user
       .run();
   }
 
-  await db.prepare("UPDATE event_dashboard_instructions SET status = 'inactive', updated_at = CURRENT_TIMESTAMP WHERE dashboard_id = ?").bind(dashboardId).run();
+  await db.prepare("DELETE FROM event_dashboard_instructions WHERE dashboard_id = ?").bind(dashboardId).run();
   for (const instruction of instructions) {
     await db
       .prepare(
@@ -923,7 +923,7 @@ export async function upsertEventDashboard(db: D1Database, eventId: string, user
       .run();
   }
 
-  await db.prepare("UPDATE event_dashboard_items SET status = 'inactive', updated_at = CURRENT_TIMESTAMP WHERE dashboard_id = ?").bind(dashboardId).run();
+  await db.prepare("DELETE FROM event_dashboard_items WHERE dashboard_id = ?").bind(dashboardId).run();
   for (const item of [...eventItems, ...sessionItems]) {
     await db
       .prepare(
