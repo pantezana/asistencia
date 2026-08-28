@@ -131,14 +131,20 @@ Campos:
 - Nombre.
 - Tipo: `text` o `link`.
 - Valor.
+- Icono.
+- Visibilidad: `public` o `private`.
 - Estado.
 - Orden.
 
 Comportamiento publico:
 
 - Si el tipo es `text`, se muestra el valor como texto.
-- Si el tipo es `link`, se muestra la palabra `Enlace` como hipervinculo que abre el valor URL en otra pestana.
+- Si el tipo es `link` y la visibilidad es `public`, todo el control visual funciona como hipervinculo que abre el valor URL en otra pestana.
+- Si el tipo es `link` y la visibilidad es `private`, todo el control visual inicia el flujo de identificacion/registro antes de abrir la URL.
+- La palabra `Enlace` no debe mostrarse como texto separado.
 - Solo se muestran elementos activos.
+
+La especificacion de visibilidad y registro sin asistencia se detalla en `docs/especificacion-visibilidad-recursos-tablero.md`.
 
 Ejemplos:
 
@@ -166,6 +172,8 @@ Campos:
 - Nombre.
 - Tipo: `text` o `link`.
 - Valor.
+- Icono.
+- Visibilidad: `public` o `private`.
 - Estado.
 - Orden.
 
@@ -173,7 +181,9 @@ Comportamiento publico:
 
 - Se muestra dentro de la caja de la sesion correspondiente.
 - Si el tipo es `text`, se muestra el valor como texto.
-- Si el tipo es `link`, se muestra la palabra `Enlace` como hipervinculo.
+- Si el tipo es `link` y la visibilidad es `public`, todo el control visual funciona como hipervinculo.
+- Si el tipo es `link` y la visibilidad es `private`, todo el control visual inicia el flujo de identificacion/registro antes de abrir la URL.
+- La palabra `Enlace` no debe mostrarse como texto separado.
 - Solo se muestran elementos activos.
 - Complementa la informacion base de la sesion, pero no la reemplaza.
 
@@ -250,6 +260,8 @@ Campos:
 - Nombre.
 - Tipo.
 - Valor.
+- Icono.
+- Visibilidad.
 - Estado.
 - Orden.
 
@@ -268,6 +280,7 @@ Validaciones:
 - Valor obligatorio.
 - Si tipo es `link`, el valor debe ser una URL valida.
 - Si tipo es `text`, el valor debe aceptar texto razonable y saltos de linea simples si se requiere.
+- Si visibilidad es `private`, solo debe aplicar funcionalmente a elementos tipo `link`.
 
 ### 5.4 Gestion de informacion de sesion
 
@@ -399,9 +412,12 @@ Debe mostrarse en un bloque visual limpio, por ejemplo:
 
 Formato publico de cada elemento:
 
+- Icono opcional.
 - Nombre en negrita.
-- Valor a la derecha o debajo segun ancho.
-- Si es enlace, mostrar `Enlace` como hipervinculo.
+- Si es texto, el valor se muestra continuo y alineado a la izquierda junto al nombre.
+- Si es enlace publico, todo el control funciona como hipervinculo.
+- Si es enlace privado, todo el control inicia identificacion/registro antes de abrir la URL.
+- No se muestra la palabra `Enlace` como texto separado.
 - Respetar el orden configurado por el administrador.
 
 ### 6.4 Sesiones
@@ -424,8 +440,11 @@ Contenido configurable adicional:
 Formato de informacion de sesion:
 
 - Listado amigable.
+- Icono opcional.
 - Nombre en negrita.
-- Valor o `Enlace`.
+- Si es texto, valor continuo alineado a la izquierda.
+- Si es enlace publico, control completo clickeable.
+- Si es enlace privado, control completo con flujo de identificacion/registro.
 - Respetar el orden configurado para la sesion.
 
 ### 6.5 Colores por modulo
@@ -534,8 +553,10 @@ Campos:
 - `session_id`
 - `scope`
 - `name`
+- `icon_key`
 - `value_type`
 - `value`
+- `visibility`
 - `sort_order`
 - `status`
 - `created_at`
@@ -551,6 +572,9 @@ Reglas:
 - Si `scope = event`, `session_id` debe ser `null`.
 - Si `scope = session`, `session_id` debe tener valor.
 - `value_type` solo puede ser `text` o `link`.
+- `icon_key` es opcional y permite reforzar visualmente el tipo de recurso.
+- `visibility` solo puede ser `public` o `private`; por defecto debe ser `public`.
+- Si `visibility = private` y `value_type = link`, la URL real no debe exponerse en la API publica antes de validar acceso.
 - `status` define visibilidad publica.
 - Los items con `scope = session` representan recursos o datos complementarios, por ejemplo Zoom, ponente, presentacion, nube, pizarra o grabacion.
 

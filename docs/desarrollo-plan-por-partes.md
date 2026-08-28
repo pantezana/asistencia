@@ -171,7 +171,21 @@ Objetivo:
 - Diferenciar visualmente sesiones del mismo modulo.
 - Paginar sesiones cuando el cronograma sea extenso.
 - Permitir agrupar enlaces a Zoom, presentaciones, nubes, pizarras, grabaciones y otros recursos.
+- Configurar visibilidad publica o privada para enlaces del tablero.
+- Solicitar identificacion y, si corresponde, registro sin asistencia antes de abrir recursos privados.
+- Reutilizar el formulario asociado al evento para registrar participantes sin crear asistencia.
+
+Subfase de recursos privados:
+
+- Agregar campo `Visibilidad` a la informacion del evento y de sesiones.
+- Los recursos `publicos` abren directamente.
+- Los recursos `privados` no deben exponer la URL real antes de validar acceso.
+- Validar participantes por tipo y numero de documento.
+- Si el participante no existe, iniciar registro sin asistencia usando el modelo del evento.
+- Guardar la relacion del participante con el evento como registro/interes, sin crear asistencia.
+- Despues del registro, abrir el recurso solicitado.
 
 Documento base:
 
 - `docs/especificacion-tablero-evento.md`
+- `docs/especificacion-visibilidad-recursos-tablero.md`

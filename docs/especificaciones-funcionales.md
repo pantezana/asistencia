@@ -155,6 +155,22 @@ Funciones iniciales:
 
 Los supervisores solo podrán operar sobre sus propios eventos.
 
+### Recursos privados del tablero
+
+El tablero del evento debe permitir que los enlaces configurados como informacion del evento o informacion de sesiones tengan visibilidad `publica` o `privada`.
+
+Reglas:
+
+- Los enlaces publicos se abren directamente desde el tablero.
+- Los enlaces privados solicitan identificacion por tipo y numero de documento.
+- Si el participante existe en la base general, se permite acceso al recurso.
+- Si el participante no existe, se le invita a registrarse con el formulario asociado al evento.
+- El registro para acceder a recursos privados no debe crear asistencia en ninguna sesion.
+- Luego del registro, el participante debe poder acceder al recurso solicitado.
+- Un participante registrado sin asistencia debe comportarse como participante existente cuando luego use el formulario de asistencia.
+
+La especificacion completa esta en `docs/especificacion-visibilidad-recursos-tablero.md`.
+
 ### Reportes
 
 El menú **Reportes** debe permitir consultar información de eventos y asistencias.
@@ -246,6 +262,17 @@ Datos iniciales de sesión:
 - Orden de presentación.
 
 La apertura y cierre de asistencia debe controlarse por cada sesión del cronograma.
+
+### Sesiones inactivas
+
+Una sesion puede marcarse como `inactiva` cuando ya no se realizara o no debe publicarse.
+
+Reglas:
+
+- La sesion inactiva sigue visible para administradores en el panel de configuracion.
+- La sesion inactiva no aparece en el tablero publico.
+- La sesion inactiva no debe ser considerada sesion vigente para formularios, preguntas, pizarras o recursos publicos.
+- Para volver a usarla, el administrador debe cambiarla a `cerrada` o `abierta`.
 
 ## 10. Formularios de asistencia
 
