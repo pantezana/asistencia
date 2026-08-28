@@ -310,6 +310,7 @@ export async function getOpenSessionForEvent(db: D1Database, eventId: string) {
         s.sequence,
         s.title,
         s.theme,
+        s.country_of_schedule,
         s.session_date,
         s.start_time,
         s.end_time,
@@ -333,6 +334,7 @@ export async function listEventSessions(db: D1Database, eventId: string) {
         s.sequence,
         s.title,
         s.theme,
+        s.country_of_schedule,
         s.session_date,
         s.start_time,
         s.end_time,
@@ -1142,7 +1144,7 @@ export async function listEventModules(db: D1Database, eventId: string) {
 export async function getSessionById(db: D1Database, sessionId: string) {
   return db
     .prepare(
-      `SELECT id, event_id, module_id, sequence, title, theme, session_date, start_time, end_time, status, attendance_status
+      `SELECT id, event_id, module_id, sequence, title, theme, country_of_schedule, session_date, start_time, end_time, status, attendance_status
        FROM event_sessions
        WHERE id = ?`
     )
@@ -1198,6 +1200,7 @@ export async function updateEventSessionDetails(db: D1Database, eventId: string,
   moduleTitle: string;
   title: string;
   theme: string;
+  countryOfSchedule?: string;
   sessionDate: string;
   startTime: string;
   endTime: string;
@@ -1248,13 +1251,14 @@ export async function updateEventSessionDetails(db: D1Database, eventId: string,
     db
       .prepare(
         `UPDATE event_sessions
-         SET module_id = ?, title = ?, theme = ?, session_date = ?, start_time = ?, end_time = ?, status = ?, attendance_status = ?, updated_at = CURRENT_TIMESTAMP
+         SET module_id = ?, title = ?, theme = ?, country_of_schedule = ?, session_date = ?, start_time = ?, end_time = ?, status = ?, attendance_status = ?, updated_at = CURRENT_TIMESTAMP
          WHERE id = ? AND event_id = ?`
       )
       .bind(
         module.id,
         input.title,
         input.theme,
+        input.countryOfSchedule ?? "",
         input.sessionDate,
         input.startTime,
         input.endTime,
@@ -1318,6 +1322,7 @@ export async function createEventWithSchedule(db: D1Database, user: SessionUser,
     moduleTitle: string;
     title: string;
     theme: string;
+    countryOfSchedule?: string;
     sessionDate: string;
     startTime: string;
     endTime: string;
@@ -1383,8 +1388,8 @@ export async function createEventWithSchedule(db: D1Database, user: SessionUser,
     statements.push(
       db
         .prepare(
-          `INSERT INTO event_sessions (id, event_id, module_id, sequence, title, theme, session_date, start_time, end_time, status, attendance_status)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'closed', 'closed')`
+          `INSERT INTO event_sessions (id, event_id, module_id, sequence, title, theme, country_of_schedule, session_date, start_time, end_time, status, attendance_status)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'closed', 'closed')`
         )
         .bind(
           sessionId,
@@ -1393,6 +1398,7 @@ export async function createEventWithSchedule(db: D1Database, user: SessionUser,
           index + 1,
           session.title || `Sesión ${index + 1}`,
           session.theme || session.title || `Sesión ${index + 1}`,
+          session.countryOfSchedule ?? "",
           session.sessionDate,
           session.startTime,
           session.endTime

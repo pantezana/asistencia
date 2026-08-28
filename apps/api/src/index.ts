@@ -808,6 +808,7 @@ app.post("/api/admin/events", async (c) => {
       moduleTitle?: string;
       title?: string;
       theme?: string;
+      countryOfSchedule?: string;
       sessionDate?: string;
       startTime?: string;
       endTime?: string;
@@ -849,6 +850,7 @@ app.post("/api/admin/events", async (c) => {
       moduleTitle: session.moduleTitle?.trim() || "Módulo general",
       title: session.title?.trim() || `Sesión ${index + 1}`,
       theme: session.theme?.trim() || session.title?.trim() || `Sesión ${index + 1}`,
+      countryOfSchedule: session.countryOfSchedule?.trim() || "",
       sessionDate: session.sessionDate || "",
       startTime: session.startTime || "",
       endTime: session.endTime || "",
@@ -1278,6 +1280,7 @@ app.put("/api/admin/events/:eventId/sessions/:sessionId", async (c) => {
     moduleTitle?: string;
     title?: string;
     theme?: string;
+    countryOfSchedule?: string;
     sessionDate?: string;
     startTime?: string;
     endTime?: string;
@@ -1296,6 +1299,7 @@ app.put("/api/admin/events/:eventId/sessions/:sessionId", async (c) => {
     moduleTitle: body.moduleTitle?.trim() || "Modulo general",
     title: body.title.trim(),
     theme: body.theme?.trim() || body.title.trim(),
+    countryOfSchedule: body.countryOfSchedule?.trim() || "",
     sessionDate: body.sessionDate,
     startTime: body.startTime,
     endTime: body.endTime,

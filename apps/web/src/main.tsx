@@ -101,6 +101,7 @@ type AdminSession = {
   sequence: number;
   title: string;
   theme: string;
+  country_of_schedule: string | null;
   session_date: string;
   start_time: string;
   end_time: string;
@@ -176,6 +177,7 @@ type EventSessionDraft = {
   moduleTitle: string;
   title: string;
   theme: string;
+  countryOfSchedule: string;
   sessionDate: string;
   startTime: string;
   endTime: string;
@@ -759,7 +761,7 @@ function AdminShell() {
     endTime: "17:00"
   });
   const [sessionDrafts, setSessionDrafts] = React.useState<EventSessionDraft[]>([
-    { moduleTitle: "MÃ³dulo general", title: "SesiÃ³n 1", theme: "", sessionDate: "", startTime: "08:00", endTime: "17:00", dashboardItems: [] }
+    { moduleTitle: "MÃ³dulo general", title: "SesiÃ³n 1", theme: "", countryOfSchedule: "", sessionDate: "", startTime: "08:00", endTime: "17:00", dashboardItems: [] }
   ]);
   const [eventEditDraft, setEventEditDraft] = React.useState({
     title: "",
@@ -776,6 +778,7 @@ function AdminShell() {
     moduleTitle: "",
     title: "",
     theme: "",
+    countryOfSchedule: "",
     sessionDate: "",
     startTime: "",
     endTime: "",
@@ -877,6 +880,7 @@ function AdminShell() {
       moduleTitle: session.module_title,
       title: session.title,
       theme: session.theme,
+      countryOfSchedule: session.country_of_schedule ?? "",
       sessionDate: session.session_date,
       startTime: session.start_time,
       endTime: session.end_time,
@@ -1494,6 +1498,7 @@ function AdminShell() {
       moduleTitle: session.module_title,
       title: session.title,
       theme: session.theme,
+      countryOfSchedule: session.country_of_schedule ?? "",
       sessionDate: session.session_date,
       startTime: session.start_time,
       endTime: session.end_time,
@@ -1980,6 +1985,7 @@ function AdminShell() {
         moduleTitle: current.at(-1)?.moduleTitle || "MÃ³dulo general",
         title: `SesiÃ³n ${current.length + 1}`,
         theme: "",
+        countryOfSchedule: "",
         sessionDate: "",
         startTime: eventDraft.startTime,
         endTime: eventDraft.endTime,
@@ -2285,6 +2291,10 @@ function AdminShell() {
                     <label className="wide-field">
                       Tema
                       <input value={session.theme} onChange={(event) => updateSessionDraft(index, "theme", event.target.value)} required />
+                    </label>
+                    <label>
+                      País del Horario
+                      <input value={session.countryOfSchedule} onChange={(event) => updateSessionDraft(index, "countryOfSchedule", event.target.value)} placeholder="Ejemplo: Perú" />
                     </label>
                     <label>
                       Fecha
@@ -3039,6 +3049,10 @@ function AdminShell() {
                 <label className="wide-field">
                   Tema
                   <input value={sessionEditDraft.theme} onChange={(event) => setSessionEditDraft((current) => ({ ...current, theme: event.target.value }))} required />
+                </label>
+                <label>
+                  País del Horario
+                  <input value={sessionEditDraft.countryOfSchedule} onChange={(event) => setSessionEditDraft((current) => ({ ...current, countryOfSchedule: event.target.value }))} placeholder="Ejemplo: Perú" />
                 </label>
                 <label>
                   Fecha

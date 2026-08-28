@@ -52,6 +52,7 @@ export type OpenSession = {
   sequence: number;
   title: string;
   theme: string;
+  country_of_schedule: string | null;
   session_date: string;
   start_time: string;
   end_time: string;
