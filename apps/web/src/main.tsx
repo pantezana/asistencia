@@ -5321,7 +5321,7 @@ function BoardParticipantView({ slug }: { slug: string }) {
   const [form, setForm] = React.useState({ firstName: "", lastName: "", countryId: "", noteHtml: "" });
   const [message, setMessage] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
-  const [showBoard, setShowBoard] = React.useState(false);
+  const [showBoard, setShowBoard] = React.useState(true);
   const [notes, setNotes] = React.useState<EventBoardNote[]>([]);
   const [page, setPage] = React.useState(1);
   const [totalPages, setTotalPages] = React.useState(1);
@@ -5422,6 +5422,9 @@ function BoardParticipantView({ slug }: { slug: string }) {
         <section className="board-presenter-stage participant-board-stage">
           <p className="eyebrow">{board.event_title}</p>
           <h1>{board.title}</h1>
+          <div className="actions centered-actions board-view-action">
+            <button className="button board-view-button" type="button" onClick={() => setShowBoard(false)}>Registrar Respuesta</button>
+          </div>
           <div className="board-toolbar">
             <strong>{total} notas</strong>
             <span className={`status ${board.status === "open" ? "open" : "closed"}`}>{board.status}</span>
@@ -5460,7 +5463,7 @@ function BoardParticipantView({ slug }: { slug: string }) {
             </div>
           ) : null}
           <div className="actions centered-actions">
-            <button className="secondary-button" type="button" onClick={() => setShowBoard(false)}>Regresar al registro de notas</button>
+            <button className="secondary-button" type="button" onClick={() => setShowBoard(true)}>Regresar a pizarra de respuestas</button>
           </div>
         </section>
       </main>
@@ -5515,14 +5518,14 @@ function BoardParticipantView({ slug }: { slug: string }) {
             </label>
             <div className="actions centered-actions">
               <button className="button" type="submit" disabled={submitting || noteText.length > board.max_note_length}>
-                {submitting ? "Registrando..." : "Publicar nota"}
+                {submitting ? "Registrando..." : "Publicar respuesta"}
               </button>
             </div>
           </form>
         ) : null}
         <div className="actions centered-actions board-view-action">
-          <button className="button board-view-button" type="button" onClick={() => { setPage(1); setShowBoard(true); }}>
-            Ver Pizarra con todas las respuestas
+          <button className="secondary-button" type="button" onClick={() => { setPage(1); setShowBoard(true); }}>
+            Regresar a pizarra de respuestas
           </button>
         </div>
         {message ? <p className={message.includes("correctamente") ? "form-success" : "form-error"}>{message}</p> : null}
