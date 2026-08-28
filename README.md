@@ -48,6 +48,8 @@ Antes de desplegar en Cloudflare se debe:
 
 ## Despliegue
 
+Prueba de sincronización de despliegue — 2026-08-28.
+
 Build frontend:
 
 ```bash
