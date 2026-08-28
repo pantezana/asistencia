@@ -859,7 +859,16 @@ const DASHBOARD_ITEM_ICON_KEYS = new Set([
   "question",
   "people",
   "forum",
-  "cloud"
+  "cloud",
+  "whatsapp",
+  "youtube",
+  "email",
+  "phone",
+  "videocall",
+  "zoom",
+  "meet",
+  "web",
+  "tree"
 ]);
 
 function normalizeDashboardInstructions(instructions: DashboardInstructionInput[] | undefined) {
