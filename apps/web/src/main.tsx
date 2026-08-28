@@ -5462,9 +5462,6 @@ function BoardParticipantView({ slug }: { slug: string }) {
               <button type="button" disabled={page >= totalPages} onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>Siguiente</button>
             </div>
           ) : null}
-          <div className="actions centered-actions">
-            <button className="secondary-button" type="button" onClick={() => setShowBoard(true)}>Regresar a pizarra de respuestas</button>
-          </div>
         </section>
       </main>
     );
