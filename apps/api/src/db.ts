@@ -1098,7 +1098,7 @@ export async function getPublicDashboardBySlug(db: D1Database, slug: string) {
     db
       .prepare(
         `SELECT s.id, s.module_id, m.title AS module_title, m.order_index AS module_order,
-                s.sequence, s.title, s.theme, s.session_date, s.start_time, s.end_time,
+                s.sequence, s.title, s.theme, s.country_of_schedule, s.session_date, s.start_time, s.end_time,
                 s.status, s.attendance_status
          FROM event_sessions s
          INNER JOIN event_modules m ON m.id = s.module_id
