@@ -253,6 +253,52 @@ export async function getPublicFormContextBySlug(db: D1Database, slug: string) {
     }>();
 }
 
+export async function getPublicFormContextByEventSlug(db: D1Database, slug: string) {
+  return db
+    .prepare(
+      `SELECT
+        f.id AS form_id,
+        f.event_id,
+        f.name AS form_name,
+        f.status AS form_status,
+        f.short_link_slug AS form_short_link_slug,
+        f.form_template_id,
+        f.welcome_title_template,
+        e.id AS event_id,
+        e.title AS event_title,
+        e.source_title,
+        e.start_date,
+        e.end_date,
+        e.start_time,
+        e.end_time,
+        e.status AS event_status,
+        e.short_link_slug AS event_short_link_slug
+       FROM events e
+       INNER JOIN forms f ON f.event_id = e.id AND f.status = 'active'
+       WHERE e.short_link_slug = ?
+       ORDER BY f.updated_at DESC
+       LIMIT 1`
+    )
+    .bind(slug)
+    .first<{
+      form_id: string;
+      event_id: string;
+      form_name: string;
+      form_status: string;
+      form_short_link_slug: string;
+      form_template_id: string | null;
+      welcome_title_template: string;
+      event_title: string;
+      source_title: string | null;
+      start_date: string | null;
+      end_date: string | null;
+      start_time: string | null;
+      end_time: string | null;
+      event_status: string;
+      event_short_link_slug: string | null;
+    }>();
+}
+
 export async function getOpenSessionForEvent(db: D1Database, eventId: string) {
   return db
     .prepare(
@@ -789,6 +835,7 @@ type DashboardItemInput = {
   iconKey?: string;
   valueType?: "text" | "link";
   value?: string;
+  visibility?: "public" | "private";
   sortOrder?: number;
   status?: string;
 };
@@ -837,6 +884,7 @@ function normalizeDashboardItems(items: DashboardItemInput[] | undefined, scope:
       iconKey: DASHBOARD_ITEM_ICON_KEYS.has(item.iconKey ?? "") ? item.iconKey ?? "none" : "none",
       valueType: item.valueType === "link" ? "link" : "text",
       value: (item.value ?? "").trim(),
+      visibility: item.valueType === "link" && item.visibility === "private" ? "private" : "public",
       sortOrder: Math.max(Math.floor(item.sortOrder || index + 1), 1),
       status: item.status === "inactive" ? "inactive" : "active"
     }))
@@ -858,7 +906,7 @@ async function listDashboardInstructions(db: D1Database, dashboardId: string, ac
 async function listDashboardItems(db: D1Database, dashboardId: string, activeOnly = false) {
   return db
     .prepare(
-      `SELECT id, dashboard_id, event_id, session_id, scope, name, icon_key, value_type, value, sort_order, status
+      `SELECT id, dashboard_id, event_id, session_id, scope, name, icon_key, value_type, value, visibility, sort_order, status
        FROM event_dashboard_items
        WHERE dashboard_id = ?${activeOnly ? " AND status = 'active'" : ""}
        ORDER BY scope ASC, COALESCE(session_id, ''), sort_order ASC, created_at ASC`
@@ -870,7 +918,7 @@ async function listDashboardItems(db: D1Database, dashboardId: string, activeOnl
 export async function getEventDashboard(db: D1Database, eventId: string) {
   const dashboard = await db
     .prepare(
-      `SELECT d.*, e.title AS event_title
+      `SELECT d.*, e.title AS event_title, e.short_link_slug AS event_slug
        FROM event_dashboards d
        INNER JOIN events e ON e.id = d.event_id
        WHERE d.event_id = ?`
@@ -960,10 +1008,10 @@ export async function upsertEventDashboard(db: D1Database, eventId: string, user
     for (const item of eventItems) {
       await db
         .prepare(
-          `INSERT INTO event_dashboard_items (id, dashboard_id, event_id, session_id, scope, name, icon_key, value_type, value, sort_order, status)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          `INSERT INTO event_dashboard_items (id, dashboard_id, event_id, session_id, scope, name, icon_key, value_type, value, visibility, sort_order, status)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
-        .bind(`dash_item_${crypto.randomUUID().slice(0, 12)}`, dashboardId, eventId, item.sessionId, item.scope, item.name, item.iconKey, item.valueType, item.value, item.sortOrder, item.status)
+        .bind(`dash_item_${crypto.randomUUID().slice(0, 12)}`, dashboardId, eventId, item.sessionId, item.scope, item.name, item.iconKey, item.valueType, item.value, item.visibility, item.sortOrder, item.status)
         .run();
     }
   }
@@ -973,10 +1021,10 @@ export async function upsertEventDashboard(db: D1Database, eventId: string, user
     for (const item of sessionItems) {
       await db
         .prepare(
-          `INSERT INTO event_dashboard_items (id, dashboard_id, event_id, session_id, scope, name, icon_key, value_type, value, sort_order, status)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          `INSERT INTO event_dashboard_items (id, dashboard_id, event_id, session_id, scope, name, icon_key, value_type, value, visibility, sort_order, status)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
-        .bind(`dash_item_${crypto.randomUUID().slice(0, 12)}`, dashboardId, eventId, item.sessionId, item.scope, item.name, item.iconKey, item.valueType, item.value, item.sortOrder, item.status)
+        .bind(`dash_item_${crypto.randomUUID().slice(0, 12)}`, dashboardId, eventId, item.sessionId, item.scope, item.name, item.iconKey, item.valueType, item.value, item.visibility, item.sortOrder, item.status)
         .run();
     }
   }
@@ -1014,10 +1062,10 @@ export async function updateSessionDashboardItems(db: D1Database, eventId: strin
   for (const item of items) {
     await db
       .prepare(
-        `INSERT INTO event_dashboard_items (id, dashboard_id, event_id, session_id, scope, name, icon_key, value_type, value, sort_order, status)
-         VALUES (?, ?, ?, ?, 'session', ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO event_dashboard_items (id, dashboard_id, event_id, session_id, scope, name, icon_key, value_type, value, visibility, sort_order, status)
+         VALUES (?, ?, ?, ?, 'session', ?, ?, ?, ?, ?, ?, ?)`
       )
-      .bind(`dash_item_${crypto.randomUUID().slice(0, 12)}`, dashboard.id, eventId, sessionId, item.name, item.iconKey, item.valueType, item.value, item.sortOrder, item.status)
+      .bind(`dash_item_${crypto.randomUUID().slice(0, 12)}`, dashboard.id, eventId, sessionId, item.name, item.iconKey, item.valueType, item.value, item.visibility, item.sortOrder, item.status)
       .run();
   }
 
@@ -1059,15 +1107,21 @@ export async function getPublicDashboardBySlug(db: D1Database, slug: string) {
   ]);
 
   const sessionItems = items.results.filter((item) => item.scope === "session");
+  const publicItem = (item: EventDashboardItem): EventDashboardItem => {
+    if (item.value_type === "link" && item.visibility === "private") {
+      return { ...item, value: "", is_private: 1 };
+    }
+    return { ...item, is_private: 0 };
+  };
   const enrichedSessions = sessions.results.map((session) => ({
     ...session,
-    items: sessionItems.filter((item) => item.session_id === session.id)
+    items: sessionItems.filter((item) => item.session_id === session.id).map(publicItem)
   }));
 
   return {
     ...dashboard,
     instructions: instructions.results,
-    eventItems: items.results.filter((item) => item.scope === "event"),
+    eventItems: items.results.filter((item) => item.scope === "event").map(publicItem),
     sessions: enrichedSessions
   };
 }
@@ -1347,10 +1401,10 @@ export async function createEventWithSchedule(db: D1Database, user: SessionUser,
         statements.push(
           db
             .prepare(
-              `INSERT INTO event_dashboard_items (id, dashboard_id, event_id, session_id, scope, name, icon_key, value_type, value, sort_order, status)
-               VALUES (?, ?, ?, ?, 'session', ?, ?, ?, ?, ?, ?)`
+              `INSERT INTO event_dashboard_items (id, dashboard_id, event_id, session_id, scope, name, icon_key, value_type, value, visibility, sort_order, status)
+               VALUES (?, ?, ?, ?, 'session', ?, ?, ?, ?, ?, ?, ?)`
             )
-            .bind(`dash_item_${suffix}_${index + 1}_${crypto.randomUUID().slice(0, 6)}`, dashboardId, eventId, sessionId, item.name, item.iconKey, item.valueType, item.value, item.sortOrder, item.status)
+            .bind(`dash_item_${suffix}_${index + 1}_${crypto.randomUUID().slice(0, 6)}`, dashboardId, eventId, sessionId, item.name, item.iconKey, item.valueType, item.value, item.visibility, item.sortOrder, item.status)
         );
       }
     }
@@ -2355,6 +2409,62 @@ export async function participantHasEventAttendance(db: D1Database, eventId: str
     .first<{ id: string }>();
 
   return Boolean(row);
+}
+
+export async function ensureEventParticipantRegistration(db: D1Database, eventId: string, participantId: string, source = "resource_registration") {
+  const existing = await db
+    .prepare("SELECT id FROM event_participant_registrations WHERE event_id = ? AND participant_id = ? LIMIT 1")
+    .bind(eventId, participantId)
+    .first<{ id: string }>();
+
+  if (existing) {
+    await db
+      .prepare("UPDATE event_participant_registrations SET updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+      .bind(existing.id)
+      .run();
+    return existing.id;
+  }
+
+  const registrationId = `ereg_${crypto.randomUUID().slice(0, 12)}`;
+  await db
+    .prepare(
+      `INSERT INTO event_participant_registrations (id, event_id, participant_id, source)
+       VALUES (?, ?, ?, ?)`
+    )
+    .bind(registrationId, eventId, participantId, source)
+    .run();
+  return registrationId;
+}
+
+export async function participantIsRegisteredForEvent(db: D1Database, eventId: string, participantId: string) {
+  if (await participantHasEventAttendance(db, eventId, participantId)) {
+    await ensureEventParticipantRegistration(db, eventId, participantId, "attendance");
+    return true;
+  }
+
+  const row = await db
+    .prepare("SELECT id FROM event_participant_registrations WHERE event_id = ? AND participant_id = ? LIMIT 1")
+    .bind(eventId, participantId)
+    .first<{ id: string }>();
+
+  return Boolean(row);
+}
+
+export async function getDashboardPrivateResource(db: D1Database, dashboardSlug: string, itemId: string) {
+  return db
+    .prepare(
+      `SELECT i.id, i.event_id, i.value, i.value_type, i.visibility, i.status, d.short_link_slug
+       FROM event_dashboard_items i
+       INNER JOIN event_dashboards d ON d.id = i.dashboard_id
+       WHERE d.short_link_slug = ?
+         AND d.status = 'active'
+         AND i.id = ?
+         AND i.status = 'active'
+         AND i.value_type = 'link'
+       LIMIT 1`
+    )
+    .bind(normalizePublicSlug(dashboardSlug), itemId)
+    .first<{ id: string; event_id: string; value: string; value_type: string; visibility: string; status: string; short_link_slug: string }>();
 }
 
 export async function getPublicQuestionByParticipantSlug(db: D1Database, slug: string) {

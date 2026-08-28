@@ -16,6 +16,7 @@ import {
   createEventQuestion,
   createEventWithSchedule,
   createParticipant,
+  ensureEventParticipantRegistration,
   findParticipantByDocument,
   getAdminForm,
   getAttendanceReportData,
@@ -24,10 +25,12 @@ import {
   getFormTemplateStructure,
   getOpenSessionForEvent,
   getPublicFormContextBySlug,
+  getPublicFormContextByEventSlug,
   getPublicFormStructure,
   getPublicBoardByParticipantSlug,
   getPublicBoardByPresenterSlug,
   getPublicDashboardBySlug,
+  getDashboardPrivateResource,
   getPublicQuestionByParticipantSlug,
   getPublicQuestionByPresenterSlug,
   getQuestionSelectionGroups,
@@ -57,6 +60,7 @@ import {
   normalizePublicSlug,
   openEventSession,
   participantHasEventAttendance,
+  participantIsRegisteredForEvent,
   addQuestionSelection,
   registerAttendance,
   registerBoardNote,
@@ -192,7 +196,7 @@ function makeXlsx(headers: string[], rows: unknown[][]) {
 }
 
 async function getPublicContext(db: D1Database, slug: string) {
-  const context = await getPublicFormContextBySlug(db, slug);
+  const context = await getPublicFormContextBySlug(db, slug) ?? await getPublicFormContextByEventSlug(db, slug);
   if (!context) return null;
 
   return {
@@ -659,6 +663,122 @@ app.get("/api/public/dashboards/:slug", async (c) => {
   return c.json({ ok: true, dashboard });
 });
 
+app.get("/api/public/events/:eventSlug/registration-form", async (c) => {
+  const context = await getPublicContext(c.env.DB, c.req.param("eventSlug"));
+  if (!context) {
+    return c.json({ ok: false, message: "Formulario de registro no encontrado." }, 404);
+  }
+
+  const structure = await getPublicFormStructure(c.env.DB, context.form.id);
+  return c.json({
+    ok: true,
+    event: context.event,
+    form: context.form,
+    ...structure,
+    canRegister: true,
+    registrationMode: "resource"
+  });
+});
+
+app.post("/api/public/events/:eventSlug/resource-identify", async (c) => {
+  const context = await getPublicContext(c.env.DB, c.req.param("eventSlug"));
+  if (!context) return c.json({ ok: false, message: "Evento no encontrado." }, 404);
+
+  const body = await c.req.json<{ documentType?: string; documentNumber?: string }>().catch(() => null);
+  const documentType = body?.documentType?.trim();
+  const documentNumber = body?.documentNumber?.trim();
+
+  if (!documentType || !documentNumber) {
+    return c.json({ ok: false, message: "Ingrese tipo y numero de documento." }, 400);
+  }
+
+  const participant = await findParticipantByDocument(c.env.DB, documentType, documentNumber);
+  const registered = participant ? await participantIsRegisteredForEvent(c.env.DB, context.event.id, participant.id) : false;
+
+  return c.json({ ok: true, exists: Boolean(participant), registered, participant });
+});
+
+app.post("/api/public/events/:eventSlug/resource-register", async (c) => {
+  const context = await getPublicContext(c.env.DB, c.req.param("eventSlug"));
+  if (!context) return c.json({ ok: false, message: "Evento no encontrado." }, 404);
+
+  const body = await c.req.json<{
+    documentType?: string;
+    documentNumber?: string;
+    participantId?: string;
+    fields?: Record<string, string>;
+  }>().catch(() => null);
+  const documentType = body?.documentType?.trim();
+  const documentNumber = body?.documentNumber?.trim();
+
+  if (!documentType || !documentNumber) {
+    return c.json({ ok: false, message: "Ingrese tipo y numero de documento." }, 400);
+  }
+
+  let participant = await findParticipantByDocument(c.env.DB, documentType, documentNumber);
+  let participantId = participant?.id;
+
+  if (!participantId) {
+    const fields = body?.fields ?? {};
+    const firstName = fields.datos_generales_nombres?.trim();
+
+    if (!firstName) {
+      return c.json({ ok: false, message: "Ingrese los nombres del participante." }, 400);
+    }
+
+    participantId = await createParticipant(c.env.DB, {
+      documentType,
+      documentNumber,
+      firstName,
+      paternalLastName: fields.datos_generales_paterno?.trim(),
+      maternalLastName: fields.datos_generales_materno?.trim(),
+      email: fields.datos_generales_correo_electronico?.trim(),
+      phone: fields.datos_generales_celular?.trim(),
+      profileData: fields
+    });
+  }
+
+  await ensureEventParticipantRegistration(c.env.DB, context.event.id, participantId, "resource_registration");
+  participant = await findParticipantByDocument(c.env.DB, documentType, documentNumber);
+
+  return c.json({
+    ok: true,
+    participant,
+    message: "Registro completado correctamente. Ya puede acceder al recurso."
+  });
+});
+
+app.post("/api/public/dashboards/:slug/resources/:itemId/access", async (c) => {
+  const resource = await getDashboardPrivateResource(c.env.DB, c.req.param("slug"), c.req.param("itemId"));
+  if (!resource) return c.json({ ok: false, message: "Recurso no disponible." }, 404);
+
+  if (resource.visibility !== "private") {
+    return c.json({ ok: true, accessGranted: true, url: resource.value });
+  }
+
+  const body = await c.req.json<{ documentType?: string; documentNumber?: string }>().catch(() => null);
+  const documentType = body?.documentType?.trim();
+  const documentNumber = body?.documentNumber?.trim();
+
+  if (!documentType || !documentNumber) {
+    return c.json({ ok: false, message: "Ingrese tipo y numero de documento." }, 400);
+  }
+
+  const participant = await findParticipantByDocument(c.env.DB, documentType, documentNumber);
+  const registered = participant ? await participantIsRegisteredForEvent(c.env.DB, resource.event_id, participant.id) : false;
+
+  if (!participant || !registered) {
+    return c.json({
+      ok: false,
+      accessGranted: false,
+      needsRegistration: true,
+      message: "Aun no encontramos su registro. Puede registrarse en un momento y acceder a este y otros contenidos del evento."
+    }, 403);
+  }
+
+  return c.json({ ok: true, accessGranted: true, url: resource.value });
+});
+
 app.use("/api/admin/*", requireAuth());
 
 app.get("/api/admin/me", (c) => {
@@ -690,7 +810,7 @@ app.post("/api/admin/events", async (c) => {
       sessionDate?: string;
       startTime?: string;
       endTime?: string;
-      dashboardItems?: Array<{ name?: string; iconKey?: string; valueType?: "text" | "link"; value?: string; sortOrder?: number; status?: string }>;
+      dashboardItems?: Array<{ name?: string; iconKey?: string; valueType?: "text" | "link"; value?: string; visibility?: "public" | "private"; sortOrder?: number; status?: string }>;
     }>;
   }>().catch(() => null);
 
@@ -1073,8 +1193,8 @@ app.put("/api/admin/events/:eventId/dashboard", async (c) => {
     shortLinkSlug?: string;
     status?: string;
     instructions?: Array<{ languageLabel?: string | null; contentHtml?: string; sortOrder?: number; status?: string }>;
-    eventItems?: Array<{ sessionId?: string | null; scope?: "event" | "session"; name?: string; iconKey?: string; valueType?: "text" | "link"; value?: string; sortOrder?: number; status?: string }>;
-    sessionItems?: Array<{ sessionId?: string | null; scope?: "event" | "session"; name?: string; iconKey?: string; valueType?: "text" | "link"; value?: string; sortOrder?: number; status?: string }>;
+    eventItems?: Array<{ sessionId?: string | null; scope?: "event" | "session"; name?: string; iconKey?: string; valueType?: "text" | "link"; value?: string; visibility?: "public" | "private"; sortOrder?: number; status?: string }>;
+    sessionItems?: Array<{ sessionId?: string | null; scope?: "event" | "session"; name?: string; iconKey?: string; valueType?: "text" | "link"; value?: string; visibility?: "public" | "private"; sortOrder?: number; status?: string }>;
   }>().catch(() => null);
 
   const result = await upsertEventDashboard(c.env.DB, eventId, c.get("user"), {
@@ -1188,7 +1308,7 @@ app.put("/api/admin/events/:eventId/sessions/:sessionId/dashboard-items", async 
   if (!canManage) return c.json({ ok: false, message: "Evento no encontrado o no autorizado." }, 404);
 
   const body = await c.req.json<{
-    items?: Array<{ name?: string; iconKey?: string; valueType?: "text" | "link"; value?: string; sortOrder?: number; status?: string }>;
+    items?: Array<{ name?: string; iconKey?: string; valueType?: "text" | "link"; value?: string; visibility?: "public" | "private"; sortOrder?: number; status?: string }>;
   }>().catch(() => null);
 
   const result = await updateSessionDashboardItems(c.env.DB, eventId, sessionId, c.get("user"), {

@@ -2134,6 +2134,8 @@ textarea {
 }
 
 .dashboard-info-link {
+  font: inherit;
+  width: 100%;
   color: #061833;
   cursor: pointer;
   text-decoration: none;
@@ -2158,6 +2160,94 @@ textarea {
   font-size: 1.1em;
   margin-right: 8px;
   vertical-align: -1px;
+}
+
+.private-resource-button {
+  justify-content: space-between;
+  text-align: left;
+}
+
+.private-resource-badge {
+  background: #ecfdf5;
+  border: 1px solid #bbf7d0;
+  border-radius: 999px;
+  color: #047857;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 4px 8px;
+}
+
+.resource-modal-backdrop {
+  align-items: flex-start;
+  background: rgba(15, 23, 42, 0.42);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  overflow-y: auto;
+  padding: 48px 18px;
+  position: fixed;
+  z-index: 50;
+}
+
+.resource-modal {
+  background: #ffffff;
+  border: 1px solid #d8e5f5;
+  border-radius: 8px;
+  box-shadow: 0 22px 60px rgba(15, 23, 42, 0.2);
+  max-width: 920px;
+  padding: 26px;
+  position: relative;
+  width: min(920px, 100%);
+}
+
+.resource-modal h2 {
+  font-size: clamp(24px, 4vw, 38px);
+  line-height: 1.08;
+  margin: 6px 0 10px;
+}
+
+.resource-modal h3 {
+  margin: 22px 0 8px;
+}
+
+.resource-modal-close {
+  align-items: center;
+  background: #f8fafc;
+  border: 1px solid #d7e1ee;
+  border-radius: 999px;
+  color: #17202c;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 24px;
+  font-weight: 800;
+  height: 38px;
+  justify-content: center;
+  position: absolute;
+  right: 16px;
+  top: 16px;
+  width: 38px;
+}
+
+.resource-identify-form {
+  align-items: end;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(180px, 240px) 1fr auto;
+  margin-top: 18px;
+}
+
+.resource-registration-form {
+  border-top: 1px solid #e2e8f0;
+  margin-top: 22px;
+  padding-top: 12px;
+}
+
+.private-register-button {
+  background: #16a34a;
+}
+
+.private-register-button:hover {
+  background: #15803d;
 }
 
 .dashboard-session-grid {
@@ -2218,5 +2308,13 @@ textarea {
 
   .dashboard-public-stage h1 {
     font-size: 34px;
+  }
+
+  .resource-identify-form {
+    grid-template-columns: 1fr;
+  }
+
+  .resource-modal {
+    padding: 22px 16px;
   }
 }

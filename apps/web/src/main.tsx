@@ -28,6 +28,10 @@ type PublicFormResponse = {
   catalogs?: Record<string, CatalogItem[]>;
 };
 
+type ResourceRegistrationResponse = PublicFormResponse & {
+  registrationMode?: string;
+};
+
 type PublicFormSection = {
   id: string;
   section_key: string;
@@ -300,6 +304,8 @@ type EventDashboardItem = {
   icon_key?: string;
   value_type: "text" | "link";
   value: string;
+  is_private?: number;
+  visibility: "public" | "private";
   sort_order: number;
   status: string;
 };
@@ -310,6 +316,7 @@ type DashboardItemDraft = {
   iconKey: string;
   valueType: string;
   value: string;
+  visibility: string;
   sortOrder: number;
   status: string;
 };
@@ -360,6 +367,7 @@ type EventDashboard = {
   short_link_slug: string;
   status: string;
   event_title?: string;
+  event_slug?: string;
   instructions?: EventDashboardInstruction[];
   eventItems?: EventDashboardItem[];
   sessionItems?: EventDashboardItem[];
@@ -817,7 +825,7 @@ function AdminShell() {
     instructions: [emptyBoardInstruction]
   });
   const emptyDashboardInstruction = { languageLabel: "", contentHtml: "<p></p>", sortOrder: 1, status: "active" };
-  const emptyDashboardItem: DashboardItemDraft = { sessionId: "", name: "", iconKey: "none", valueType: "text", value: "", sortOrder: 1, status: "active" };
+  const emptyDashboardItem: DashboardItemDraft = { sessionId: "", name: "", iconKey: "none", valueType: "text", value: "", visibility: "public", sortOrder: 1, status: "active" };
   const [dashboardDraft, setDashboardDraft] = React.useState({
     title: "",
     browserTitle: "",
@@ -876,6 +884,7 @@ function AdminShell() {
         iconKey: item.icon_key ?? "none",
         valueType: item.value_type,
         value: item.value,
+        visibility: item.visibility ?? "public",
         sortOrder: item.sort_order || index + 1,
         status: item.status || "active"
       }))
@@ -1044,6 +1053,7 @@ function AdminShell() {
         iconKey: item.icon_key ?? "none",
         valueType: item.value_type,
         value: item.value,
+        visibility: item.visibility ?? "public",
         sortOrder: item.sort_order || index + 1,
         status: item.status || "active"
       })),
@@ -1053,6 +1063,7 @@ function AdminShell() {
         iconKey: item.icon_key ?? "none",
         valueType: item.value_type,
         value: item.value,
+        visibility: item.visibility ?? "public",
         sortOrder: item.sort_order || index + 1,
         status: item.status || "active"
       }))
@@ -1489,6 +1500,7 @@ function AdminShell() {
         iconKey: item.icon_key ?? "none",
         valueType: item.value_type,
         value: item.value,
+        visibility: item.visibility ?? "public",
         sortOrder: item.sort_order || index + 1,
         status: item.status || "active"
       }))
@@ -1879,6 +1891,7 @@ function AdminShell() {
             iconKey: "none",
             valueType: "text",
             value: "",
+            visibility: "public",
             sortOrder: current[key].length + 1,
             status: "active"
           }
@@ -1887,7 +1900,7 @@ function AdminShell() {
     });
   }
 
-  function updateDashboardItem(scope: "event" | "session", index: number, field: "sessionId" | "name" | "iconKey" | "valueType" | "value" | "sortOrder" | "status", value: string) {
+  function updateDashboardItem(scope: "event" | "session", index: number, field: "sessionId" | "name" | "iconKey" | "valueType" | "value" | "visibility" | "sortOrder" | "status", value: string) {
     setDashboardDraft((current) => {
       const key = scope === "event" ? "eventItems" : "sessionItems";
       return {
@@ -1934,6 +1947,7 @@ function AdminShell() {
           iconKey: item.iconKey,
           valueType: item.valueType,
           value: item.value,
+          visibility: item.visibility,
           sortOrder: item.sortOrder,
           status: item.status
         }))
@@ -1976,13 +1990,13 @@ function AdminShell() {
         ...session,
         dashboardItems: [
           ...session.dashboardItems,
-          { sessionId: "", name: "", iconKey: "none", valueType: "text", value: "", sortOrder: session.dashboardItems.length + 1, status: "active" }
+          { sessionId: "", name: "", iconKey: "none", valueType: "text", value: "", visibility: "public", sortOrder: session.dashboardItems.length + 1, status: "active" }
         ]
       }
       : session));
   }
 
-  function updateSessionDraftDashboardItem(sessionIndex: number, itemIndex: number, field: "name" | "iconKey" | "valueType" | "value" | "sortOrder" | "status", value: string) {
+  function updateSessionDraftDashboardItem(sessionIndex: number, itemIndex: number, field: "name" | "iconKey" | "valueType" | "value" | "visibility" | "sortOrder" | "status", value: string) {
     setSessionDrafts((current) => current.map((session, index) => index === sessionIndex
       ? {
         ...session,
@@ -2004,12 +2018,12 @@ function AdminShell() {
       ...current,
       dashboardItems: [
         ...current.dashboardItems,
-        { sessionId: selectedSessionId ?? "", name: "", iconKey: "none", valueType: "text", value: "", sortOrder: current.dashboardItems.length + 1, status: "active" }
+        { sessionId: selectedSessionId ?? "", name: "", iconKey: "none", valueType: "text", value: "", visibility: "public", sortOrder: current.dashboardItems.length + 1, status: "active" }
       ]
     }));
   }
 
-  function updateSessionEditDashboardItem(index: number, field: "name" | "iconKey" | "valueType" | "value" | "sortOrder" | "status", value: string) {
+  function updateSessionEditDashboardItem(index: number, field: "name" | "iconKey" | "valueType" | "value" | "visibility" | "sortOrder" | "status", value: string) {
     setSessionEditDraft((current) => ({
       ...current,
       dashboardItems: current.dashboardItems.map((item, itemIndex) => itemIndex === index
@@ -3794,7 +3808,7 @@ function DashboardItemsEditor({
   compact?: boolean;
   onAdd: () => void;
   onRemove: (index: number) => void;
-  onUpdate: (index: number, field: "sessionId" | "name" | "iconKey" | "valueType" | "value" | "sortOrder" | "status", value: string) => void;
+  onUpdate: (index: number, field: "sessionId" | "name" | "iconKey" | "valueType" | "value" | "visibility" | "sortOrder" | "status", value: string) => void;
 }) {
   return (
     <div className={`dashboard-admin-section${compact ? " compact" : ""}`}>
@@ -3835,9 +3849,19 @@ function DashboardItemsEditor({
             </label>
             <label>
               Tipo
-              <select value={item.valueType} onChange={(event) => onUpdate(index, "valueType", event.target.value)}>
+              <select value={item.valueType} onChange={(event) => {
+                onUpdate(index, "valueType", event.target.value);
+                if (event.target.value !== "link") onUpdate(index, "visibility", "public");
+              }}>
                 <option value="text">Texto</option>
                 <option value="link">Enlace</option>
+              </select>
+            </label>
+            <label>
+              Visibilidad
+              <select value={item.visibility} onChange={(event) => onUpdate(index, "visibility", event.target.value)} disabled={item.valueType !== "link"}>
+                <option value="public">Público</option>
+                <option value="private">Privado</option>
               </select>
             </label>
             <label className="wide-field">
@@ -5610,6 +5634,7 @@ function DashboardPublicView({ slug }: { slug: string }) {
   const [dashboard, setDashboard] = React.useState<EventDashboard | null>(null);
   const [message, setMessage] = React.useState("Cargando tablero.");
   const [page, setPage] = React.useState(1);
+  const [privateResource, setPrivateResource] = React.useState<EventDashboardItem | null>(null);
   const pageSize = 18;
 
   React.useEffect(() => {
@@ -5649,7 +5674,7 @@ function DashboardPublicView({ slug }: { slug: string }) {
         {dashboard.eventItems?.length ? (
           <section className="dashboard-info-band">
             <h2>Información del evento</h2>
-            <DashboardInfoList items={dashboard.eventItems} />
+            <DashboardInfoList dashboard={dashboard} items={dashboard.eventItems} onPrivateResource={setPrivateResource} />
           </section>
         ) : null}
 
@@ -5667,7 +5692,7 @@ function DashboardPublicView({ slug }: { slug: string }) {
                     <span>{session.session_date}</span>
                     <span>{session.start_time} - {session.end_time}</span>
                   </div>
-                  {session.items?.length ? <DashboardInfoList items={session.items} compact /> : null}
+                  {session.items?.length ? <DashboardInfoList dashboard={dashboard} items={session.items} compact onPrivateResource={setPrivateResource} /> : null}
                 </article>
               );
             })}
@@ -5681,12 +5706,30 @@ function DashboardPublicView({ slug }: { slug: string }) {
             </div>
           ) : null}
         </section>
+        {privateResource ? (
+          <PrivateResourceModal
+            dashboard={dashboard}
+            item={privateResource}
+            onClose={() => setPrivateResource(null)}
+            slug={slug}
+          />
+        ) : null}
       </section>
     </main>
   );
 }
 
-function DashboardInfoList({ items, compact = false }: { items: EventDashboardItem[]; compact?: boolean }) {
+function DashboardInfoList({
+  dashboard,
+  items,
+  compact = false,
+  onPrivateResource
+}: {
+  dashboard: EventDashboard;
+  items: EventDashboardItem[];
+  compact?: boolean;
+  onPrivateResource: (item: EventDashboardItem) => void;
+}) {
   return (
     <div className={compact ? "dashboard-info-list compact" : "dashboard-info-list"}>
       {[...items].sort((a, b) => a.sort_order - b.sort_order).map((item) => {
@@ -5697,6 +5740,14 @@ function DashboardInfoList({ items, compact = false }: { items: EventDashboardIt
             {cleanText(item.name)}
           </strong>
         );
+        if (item.value_type === "link" && (item.visibility === "private" || item.is_private)) {
+          return (
+            <button className="dashboard-info-row dashboard-info-link private-resource-button" key={item.id ?? `${item.name}-${item.sort_order}`} onClick={() => onPrivateResource(item)} type="button">
+              {label}
+              <span className="private-resource-badge">Privado</span>
+            </button>
+          );
+        }
         return item.value_type === "link" ? (
           <a className="dashboard-info-row dashboard-info-link" href={item.value} key={item.id ?? `${item.name}-${item.sort_order}`} target="_blank" rel="noreferrer">
             {label}
@@ -5708,6 +5759,198 @@ function DashboardInfoList({ items, compact = false }: { items: EventDashboardIt
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function PrivateResourceModal({
+  dashboard,
+  item,
+  onClose,
+  slug
+}: {
+  dashboard: EventDashboard;
+  item: EventDashboardItem;
+  onClose: () => void;
+  slug: string;
+}) {
+  const [documentType, setDocumentType] = React.useState("DNI");
+  const [documentNumber, setDocumentNumber] = React.useState("");
+  const [registrationForm, setRegistrationForm] = React.useState<ResourceRegistrationResponse | null>(null);
+  const [fields, setFields] = React.useState<Record<string, string>>({});
+  const [message, setMessage] = React.useState("Este recurso es para personas registradas en la comunidad del evento. Identifíquese para abrirlo.");
+  const [submitting, setSubmitting] = React.useState(false);
+  const eventSlug = dashboard.event_slug ?? "";
+  const documentTypeOptions = registrationForm?.catalogs?.tipodocumento?.filter((catalogItem) => catalogItem.status === "active") ?? fallbackDocumentTypeOptions;
+
+  React.useEffect(() => {
+    if (!eventSlug) return;
+    fetch(`/api/public/events/${eventSlug}/registration-form`)
+      .then((response) => response.ok ? response.json() as Promise<ResourceRegistrationResponse> : Promise.reject())
+      .then(setRegistrationForm)
+      .catch(() => setMessage("No se pudo preparar el formulario de registro del evento."));
+  }, [eventSlug]);
+
+  function openUrl(url: string) {
+    window.open(url, "_blank", "noopener,noreferrer");
+    onClose();
+  }
+
+  async function identify(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSubmitting(true);
+    setMessage("");
+    const response = await fetch(`/api/public/dashboards/${slug}/resources/${item.id}/access`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ documentType, documentNumber })
+    });
+    const payload = (await response.json().catch(() => null)) as { ok?: boolean; url?: string; message?: string; needsRegistration?: boolean } | null;
+    setSubmitting(false);
+
+    if (response.ok && payload?.url) {
+      openUrl(payload.url);
+      return;
+    }
+
+    setFields((current) => ({
+      ...current,
+      datos_generales_tipo_docidentidad: documentType,
+      datos_generales_numero_documento: documentNumber
+    }));
+    setMessage(payload?.message ?? "Aún no encontramos su registro. Puede registrarse en un momento y acceder al recurso.");
+  }
+
+  function updateField(fieldKey: string, value: string, field?: PublicFormField) {
+    const textValidation = field ? textValidationForField(field) : legacyTextValidation(fieldKey);
+    let nextValue = value;
+    if (textValidation === "numbers") nextValue = value.replace(/\D/g, "");
+    if (textValidation === "letters") nextValue = value.replace(/[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ\s]/g, "");
+    setFields((current) => ({ ...current, [fieldKey]: nextValue }));
+  }
+
+  function validEmail() {
+    const emailField = registrationForm?.sections
+      ?.flatMap((section) => section.fields)
+      .find((field) => field.field_key === "datos_generales_correo_electronico");
+    if (!emailField) return true;
+    const email = fields.datos_generales_correo_electronico?.trim() ?? "";
+    if (!email) return !Boolean(emailField.is_required);
+    return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email);
+  }
+
+  async function register(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!validEmail()) {
+      setMessage("Ingrese un correo electrónico válido, por ejemplo nombre@dominio.com.");
+      return;
+    }
+
+    setSubmitting(true);
+    const response = await fetch(`/api/public/events/${eventSlug}/resource-register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ documentType, documentNumber, fields })
+    });
+    const payload = (await response.json().catch(() => null)) as { ok?: boolean; message?: string } | null;
+    if (!response.ok || !payload?.ok) {
+      setSubmitting(false);
+      setMessage(payload?.message ?? "No se pudo completar el registro.");
+      return;
+    }
+
+    const accessResponse = await fetch(`/api/public/dashboards/${slug}/resources/${item.id}/access`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ documentType, documentNumber })
+    });
+    const accessPayload = (await accessResponse.json().catch(() => null)) as { url?: string; message?: string } | null;
+    setSubmitting(false);
+
+    if (accessResponse.ok && accessPayload?.url) {
+      openUrl(accessPayload.url);
+      return;
+    }
+
+    setMessage(accessPayload?.message ?? "Registro completado, pero no se pudo abrir el recurso.");
+  }
+
+  const registrationSections = registrationForm?.sections ?? [];
+  const showRegistration = Boolean(message && message.includes("Aún no encontramos"));
+
+  return (
+    <div className="resource-modal-backdrop" role="dialog" aria-modal="true">
+      <section className="resource-modal">
+        <button className="resource-modal-close" type="button" onClick={onClose} aria-label="Cerrar">×</button>
+        <p className="eyebrow">Recurso privado</p>
+        <h2>{cleanText(item.name)}</h2>
+        <p>{message}</p>
+
+        <form className="resource-identify-form" onSubmit={identify}>
+          <label>
+            Tipo de documento
+            <select value={documentType} onChange={(event) => setDocumentType(event.target.value)}>
+              {documentTypeOptions.map((catalogItem) => (
+                <option key={catalogItem.id} value={catalogItem.name}>{cleanText(catalogItem.name)}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Número de documento
+            <input value={documentNumber} onChange={(event) => setDocumentNumber(event.target.value)} required />
+          </label>
+          <button className="button" type="submit" disabled={submitting || !item.id}>
+            {submitting ? "Validando..." : "Continuar"}
+          </button>
+        </form>
+
+        {showRegistration && registrationForm ? (
+          <form className="resource-registration-form" onSubmit={register}>
+            <h3>Registro para acceder a recursos del evento</h3>
+            <p>Complete sus datos una sola vez. Con este registro podrá acceder a recursos privados del evento y registrar su asistencia cuando exista una sesión abierta.</p>
+            {registrationSections.map((section) => (
+              <fieldset className="public-section" key={section.id}>
+                <legend>{cleanText(section.title)}</legend>
+                {section.fields.map((field) => {
+                  if (field.field_key === "datos_generales_tipo_docidentidad" || field.field_key === "datos_generales_numero_documento") return null;
+                  if (field.field_type === "select" || field.field_type === "radio") {
+                    const options = field.field_type === "radio"
+                      ? [{ id: "si", name: "SI" }, { id: "no", name: "NO" }]
+                      : registrationForm.catalogs?.[field.catalog_key ?? ""] ?? [];
+                    return (
+                      <label key={field.id}>
+                        {publicFieldLabel(field)}
+                        <select value={fields[field.field_key] ?? ""} onChange={(event) => updateField(field.field_key, event.target.value, field)} required={Boolean(field.is_required) && field.field_key !== "organizacion_ruc"}>
+                          <option value="">Seleccione</option>
+                          {options.map((option) => (
+                            <option key={option.id} value={cleanText(option.name)}>{cleanText(option.name)}</option>
+                          ))}
+                        </select>
+                      </label>
+                    );
+                  }
+                  return (
+                    <label key={field.id}>
+                      {publicFieldLabel(field)}
+                      <input
+                        {...textInputProps(field)}
+                        value={fields[field.field_key] ?? ""}
+                        onChange={(event) => updateField(field.field_key, event.target.value, field)}
+                        required={Boolean(field.is_required) && field.field_key !== "organizacion_ruc"}
+                      />
+                    </label>
+                  );
+                })}
+              </fieldset>
+            ))}
+            <div className="actions centered-actions">
+              <button className="button private-register-button" type="submit" disabled={submitting}>
+                {submitting ? "Registrando..." : "Registrarme y acceder"}
+              </button>
+            </div>
+          </form>
+        ) : null}
+      </section>
     </div>
   );
 }

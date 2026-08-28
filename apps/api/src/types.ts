@@ -267,6 +267,7 @@ export type EventDashboard = {
   created_at: string;
   updated_at: string;
   event_title?: string;
+  event_slug?: string;
 };
 
 export type EventDashboardInstruction = {
@@ -288,7 +289,9 @@ export type EventDashboardItem = {
   name: string;
   icon_key: string;
   value_type: "text" | "link";
-  value: string;
+  value?: string;
+  is_private?: number;
+  visibility: "public" | "private";
   sort_order: number;
   status: string;
 };
