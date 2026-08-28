@@ -341,12 +341,12 @@ const DASHBOARD_ITEM_ICONS = [
   { key: "people", label: "Personas", symbol: "👥" },
   { key: "forum", label: "Foro", symbol: "💬" },
   { key: "cloud", label: "Nube", symbol: "☁️" },
-  { key: "whatsapp", label: "WhatsApp", symbol: "💬" },
+  { key: "whatsapp", label: "WhatsApp", symbol: "", className: "brand-icon whatsapp-icon" },
   { key: "youtube", label: "YouTube", symbol: "📺" },
   { key: "email", label: "Correo", symbol: "✉️" },
   { key: "phone", label: "Celular", symbol: "📱" },
   { key: "videocall", label: "Videollamada", symbol: "📹" },
-  { key: "zoom", label: "Zoom", symbol: "🎥" },
+  { key: "zoom", label: "Zoom", symbol: "", className: "brand-icon zoom-icon" },
   { key: "meet", label: "Meet", symbol: "💻" },
   { key: "web", label: "Web", symbol: "🌐" },
   { key: "tree", label: "Árbol", symbol: "🌳" }
@@ -5784,7 +5784,7 @@ function DashboardInfoList({
         const icon = getDashboardItemIcon(item.icon_key);
         const label = (
           <strong>
-            {icon.symbol ? <span className="dashboard-info-icon" aria-hidden="true">{icon.symbol}</span> : null}
+            {icon.className ? <span className={`dashboard-info-icon ${icon.className}`} aria-hidden="true" /> : icon.symbol ? <span className="dashboard-info-icon" aria-hidden="true">{icon.symbol}</span> : null}
             {cleanText(item.name)}
           </strong>
         );

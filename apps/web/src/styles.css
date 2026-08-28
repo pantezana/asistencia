@@ -2162,6 +2162,76 @@ textarea {
   vertical-align: -1px;
 }
 
+.dashboard-info-icon.brand-icon {
+  align-items: center;
+  border-radius: 50%;
+  display: inline-flex;
+  flex-shrink: 0;
+  height: 1.3em;
+  justify-content: center;
+  position: relative;
+  vertical-align: middle;
+  width: 1.3em;
+}
+
+.dashboard-info-icon.whatsapp-icon {
+  background: linear-gradient(180deg, #1fe067 0%, #18b54d 100%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+}
+
+.dashboard-info-icon.whatsapp-icon::before {
+  background: #ffffff;
+  border-radius: 0.36em 0.36em 0.36em 0.12em;
+  content: "";
+  height: 0.58em;
+  left: 0.27em;
+  position: absolute;
+  top: 0.3em;
+  width: 0.7em;
+}
+
+.dashboard-info-icon.whatsapp-icon::after {
+  border: 0.18em solid #ffffff;
+  border-bottom-color: transparent;
+  border-left-color: transparent;
+  border-radius: 0.22em;
+  content: "";
+  height: 0.3em;
+  left: 0.54em;
+  position: absolute;
+  top: 0.57em;
+  transform: rotate(45deg);
+  width: 0.3em;
+}
+
+.dashboard-info-icon.zoom-icon {
+  background: linear-gradient(180deg, #1a8cff 0%, #0c6ee8 100%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+
+.dashboard-info-icon.zoom-icon::before {
+  background: #ffffff;
+  border-radius: 0.18em;
+  content: "";
+  height: 0.52em;
+  left: 0.22em;
+  position: absolute;
+  top: 0.38em;
+  width: 0.82em;
+}
+
+.dashboard-info-icon.zoom-icon::after {
+  background: #ffffff;
+  border-radius: 0.16em;
+  box-shadow: -0.46em 0 0 -0.08em #ffffff;
+  content: "";
+  height: 0.22em;
+  left: 0.46em;
+  position: absolute;
+  top: 0.52em;
+  width: 0.26em;
+}
+
 .private-resource-button {
   justify-content: space-between;
   text-align: left;
