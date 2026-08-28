@@ -340,7 +340,16 @@ const DASHBOARD_ITEM_ICONS = [
   { key: "question", label: "Pregunta", symbol: "❓" },
   { key: "people", label: "Personas", symbol: "👥" },
   { key: "forum", label: "Foro", symbol: "💬" },
-  { key: "cloud", label: "Nube", symbol: "☁️" }
+  { key: "cloud", label: "Nube", symbol: "☁️" },
+  { key: "whatsapp", label: "WhatsApp", symbol: "💬" },
+  { key: "youtube", label: "YouTube", symbol: "📺" },
+  { key: "email", label: "Correo", symbol: "✉️" },
+  { key: "phone", label: "Celular", symbol: "📱" },
+  { key: "videocall", label: "Videollamada", symbol: "📹" },
+  { key: "zoom", label: "Zoom", symbol: "🎥" },
+  { key: "meet", label: "Meet", symbol: "💻" },
+  { key: "web", label: "Web", symbol: "🌐" },
+  { key: "tree", label: "Árbol", symbol: "🌳" }
 ];
 
 function getDashboardItemIcon(key?: string | null) {
