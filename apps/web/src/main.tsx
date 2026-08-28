@@ -5779,6 +5779,7 @@ function PrivateResourceModal({
   const [registrationForm, setRegistrationForm] = React.useState<ResourceRegistrationResponse | null>(null);
   const [fields, setFields] = React.useState<Record<string, string>>({});
   const [message, setMessage] = React.useState("Este recurso es para personas registradas en la comunidad del evento. Identifíquese para abrirlo.");
+  const [needsRegistration, setNeedsRegistration] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
   const eventSlug = dashboard.event_slug ?? "";
   const documentTypeOptions = registrationForm?.catalogs?.tipodocumento?.filter((catalogItem) => catalogItem.status === "active") ?? fallbackDocumentTypeOptions;
@@ -5800,6 +5801,7 @@ function PrivateResourceModal({
     event.preventDefault();
     setSubmitting(true);
     setMessage("");
+    setNeedsRegistration(false);
     const response = await fetch(`/api/public/dashboards/${slug}/resources/${item.id}/access`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -5818,6 +5820,7 @@ function PrivateResourceModal({
       datos_generales_tipo_docidentidad: documentType,
       datos_generales_numero_documento: documentNumber
     }));
+    setNeedsRegistration(Boolean(payload?.needsRegistration));
     setMessage(payload?.message ?? "Aún no encontramos su registro. Puede registrarse en un momento y acceder al recurso.");
   }
 
@@ -5876,7 +5879,7 @@ function PrivateResourceModal({
   }
 
   const registrationSections = registrationForm?.sections ?? [];
-  const showRegistration = Boolean(message && message.includes("Aún no encontramos"));
+  const showRegistration = needsRegistration;
 
   return (
     <div className="resource-modal-backdrop" role="dialog" aria-modal="true">
