@@ -5711,7 +5711,7 @@ function DashboardPublicView({ slug }: { slug: string }) {
 
         {dashboard.eventItems?.length ? (
           <section className="dashboard-info-band">
-            <h2>Información del evento</h2>
+            <h2>Información General</h2>
             <DashboardInfoList dashboard={dashboard} items={dashboard.eventItems} onPrivateResource={setPrivateResource} />
           </section>
         ) : null}
