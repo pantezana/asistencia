@@ -5880,6 +5880,18 @@ function PrivateResourceModal({
     );
   }
 
+  function isResourceOrganizationDetailField(fieldKey: string) {
+    return [
+      "organizacion_tipo_de_organizacion",
+      "organizacion_ruc",
+      "organizacion_organizacion",
+      "organizacion_pais",
+      "organizacion_departamento",
+      "organizacion_provincia",
+      "organizacion_distrito"
+    ].includes(fieldKey);
+  }
+
   function normalizedResourceText(value: string | null | undefined) {
     return cleanText(value)
       .normalize("NFD")
@@ -5916,6 +5928,32 @@ function PrivateResourceModal({
 
       return { ...current, actividad_es_productor_agrario_pecuario_forestal: value };
     });
+    setMessage("");
+  }
+
+  function updateResourceOrganizationAnswer(value: string) {
+    setFields((current) => {
+      if (value !== "SI") {
+        const {
+          organizacion_tipo_de_organizacion,
+          organizacion_ruc,
+          organizacion_organizacion,
+          organizacion_pais,
+          organizacion_departamento,
+          organizacion_provincia,
+          organizacion_distrito,
+          ...rest
+        } = current;
+
+        return { ...rest, organizacion_pertenece_a_organizacion: value };
+      }
+
+      return { ...current, organizacion_pertenece_a_organizacion: value };
+    });
+    setSelectedOrganizationDepartmentId("");
+    setSelectedOrganizationProvinceId("");
+    setOrganizationProvinces([]);
+    setOrganizationDistricts([]);
     setMessage("");
   }
 
@@ -6201,6 +6239,7 @@ function PrivateResourceModal({
                   if (field.field_key === "datos_generales_tipo_docidentidad" || field.field_key === "datos_generales_numero_documento") return null;
                   if (isResourceOptionalForeignLocationField(field.field_key) || isResourceOptionalOrganizationLocationField(field.field_key)) return null;
                   if (isResourceActivityProductField(field) && fields.actividad_es_productor_agrario_pecuario_forestal !== "SI") return null;
+                  if (isResourceOrganizationDetailField(field.field_key) && fields.organizacion_pertenece_a_organizacion !== "SI") return null;
 
                   if (field.field_key === "ubicacion_pais" && fields.ubicacion_pais && !isResourcePeru(fields.ubicacion_pais)) {
                     return (
@@ -6274,6 +6313,7 @@ function PrivateResourceModal({
                   if (field.field_key === "organizacion_pais" && fields.organizacion_pais && !isResourcePeru(fields.organizacion_pais)) {
                     return (
                       <React.Fragment key={field.id}>
+                        <p className="field-note">Ubicación de la sede de su organización</p>
                         <p className="field-note">Para sedes fuera de Perú no se requiere departamento, provincia ni distrito.</p>
                         <label>
                           {publicFieldLabel(field)}
@@ -6346,6 +6386,9 @@ function PrivateResourceModal({
                       : registrationForm.catalogs?.[field.catalog_key ?? ""] ?? [];
                     return (
                       <React.Fragment key={field.id}>
+                      {field.field_key === "organizacion_pais" ? (
+                        <p className="field-note">Ubicación de la sede de su organización</p>
+                      ) : null}
                       <label>
                         {publicFieldLabel(field)}
                         {field.catalog_key === "pais" ? (
@@ -6360,7 +6403,17 @@ function PrivateResourceModal({
                             required={Boolean(field.is_required)}
                           />
                         ) : (
-                          <select value={fields[field.field_key] ?? ""} onChange={(event) => updateField(field.field_key, event.target.value, field)} required={Boolean(field.is_required) && field.field_key !== "organizacion_ruc"}>
+                          <select
+                            value={fields[field.field_key] ?? ""}
+                            onChange={(event) => {
+                              if (field.field_key === "organizacion_pertenece_a_organizacion") {
+                                updateResourceOrganizationAnswer(event.target.value);
+                                return;
+                              }
+                              updateField(field.field_key, event.target.value, field);
+                            }}
+                            required={Boolean(field.is_required) && field.field_key !== "organizacion_ruc"}
+                          >
                             <option value="">Seleccione</option>
                             {options.map((option) => (
                               <option key={option.id} value={cleanText(option.name)}>{cleanText(option.name)}</option>
