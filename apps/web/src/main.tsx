@@ -5880,6 +5880,45 @@ function PrivateResourceModal({
     );
   }
 
+  function normalizedResourceText(value: string | null | undefined) {
+    return cleanText(value)
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim()
+      .toLowerCase();
+  }
+
+  function isResourceActivityProductField(field: PublicFormField) {
+    const label = normalizedResourceText(field.label);
+
+    return [
+      "actividad_producto_agrario",
+      "actividad_productos_pecuario",
+      "actividad_productos_forestales"
+    ].includes(field.field_key) || label === "principal producto";
+  }
+
+  function updateResourceProducerAnswer(value: string) {
+    setFields((current) => {
+      if (value !== "SI") {
+        const productFieldKeys = registrationForm?.sections
+          ?.flatMap((section) => section.fields)
+          .filter((field) => isResourceActivityProductField(field))
+          .map((field) => field.field_key) ?? [];
+        const next: Record<string, string> = { ...current, actividad_es_productor_agrario_pecuario_forestal: value };
+
+        productFieldKeys.forEach((fieldKey) => {
+          delete next[fieldKey];
+        });
+
+        return next;
+      }
+
+      return { ...current, actividad_es_productor_agrario_pecuario_forestal: value };
+    });
+    setMessage("");
+  }
+
   function updateResourceCountry(fieldKey: string, value: string, field: PublicFormField) {
     updateField(fieldKey, value, field);
 
@@ -6161,6 +6200,7 @@ function PrivateResourceModal({
                 {currentRegistrationSection.fields.map((field) => {
                   if (field.field_key === "datos_generales_tipo_docidentidad" || field.field_key === "datos_generales_numero_documento") return null;
                   if (isResourceOptionalForeignLocationField(field.field_key) || isResourceOptionalOrganizationLocationField(field.field_key)) return null;
+                  if (isResourceActivityProductField(field) && fields.actividad_es_productor_agrario_pecuario_forestal !== "SI") return null;
 
                   if (field.field_key === "ubicacion_pais" && fields.ubicacion_pais && !isResourcePeru(fields.ubicacion_pais)) {
                     return (
@@ -6305,7 +6345,8 @@ function PrivateResourceModal({
                       ? [{ id: "si", name: "SI" }, { id: "no", name: "NO" }]
                       : registrationForm.catalogs?.[field.catalog_key ?? ""] ?? [];
                     return (
-                      <label key={field.id}>
+                      <React.Fragment key={field.id}>
+                      <label>
                         {publicFieldLabel(field)}
                         {field.catalog_key === "pais" ? (
                           <SearchableSelect
@@ -6327,6 +6368,21 @@ function PrivateResourceModal({
                           </select>
                         )}
                       </label>
+                      {field.field_key === "actividad_actividad_del_productor" ? (
+                        <label>
+                          Es Productor Agrícola, Pecuario o Forestal
+                          <select
+                            value={fields.actividad_es_productor_agrario_pecuario_forestal ?? ""}
+                            onChange={(event) => updateResourceProducerAnswer(event.target.value)}
+                            required
+                          >
+                            <option value="">Seleccione</option>
+                            <option value="SI">SI</option>
+                            <option value="NO">NO</option>
+                          </select>
+                        </label>
+                      ) : null}
+                      </React.Fragment>
                     );
                   }
                   return (
