@@ -5704,19 +5704,21 @@ function DashboardPublicView({ slug }: { slug: string }) {
   return (
     <main className="dashboard-public-page">
       <section className="dashboard-public-stage">
-        <p className="eyebrow">{cleanText(dashboard.event_title)}</p>
-        <h1>{cleanText(dashboard.title)}</h1>
+        <div className="dashboard-hero-panel">
+          <p className="eyebrow">{cleanText(dashboard.event_title)}</p>
+          <h1>{cleanText(dashboard.title)}</h1>
 
-        {dashboard.instructions?.length ? (
-          <div className="instruction-card-row dashboard-instructions">
-            {dashboard.instructions.map((instruction) => (
-              <article className="instruction-card" key={instruction.id ?? instruction.sort_order}>
-                {instruction.language_label ? <strong>{cleanText(instruction.language_label)}</strong> : null}
-                <div dangerouslySetInnerHTML={{ __html: instruction.content_html }} />
-              </article>
-            ))}
-          </div>
-        ) : null}
+          {dashboard.instructions?.length ? (
+            <div className="instruction-card-row dashboard-instructions">
+              {dashboard.instructions.map((instruction) => (
+                <article className="instruction-card" key={instruction.id ?? instruction.sort_order}>
+                  {instruction.language_label ? <strong>{cleanText(instruction.language_label)}</strong> : null}
+                  <div dangerouslySetInnerHTML={{ __html: instruction.content_html }} />
+                </article>
+              ))}
+            </div>
+          ) : null}
+        </div>
 
         {dashboard.eventItems?.length ? (
           <section className="dashboard-info-band">
