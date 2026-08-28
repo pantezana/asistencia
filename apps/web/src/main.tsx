@@ -79,6 +79,7 @@ type AdminEvent = {
   id: string;
   title: string;
   theme: string | null;
+  country_of_schedule: string | null;
   start_date: string;
   end_date: string;
   start_time: string;
@@ -751,6 +752,7 @@ function AdminShell() {
     title: "",
     shortLinkSlug: "",
     theme: "",
+    countryOfSchedule: "",
     startDate: "",
     endDate: "",
     startTime: "08:00",
@@ -763,6 +765,7 @@ function AdminShell() {
     title: "",
     shortLinkSlug: "",
     theme: "",
+    countryOfSchedule: "",
     startDate: "",
     endDate: "",
     startTime: "",
@@ -899,6 +902,7 @@ function AdminShell() {
       title: event.title,
       shortLinkSlug: event.short_link_slug,
       theme: event.theme ?? "",
+      countryOfSchedule: event.country_of_schedule ?? "",
       startDate: event.start_date,
       endDate: event.end_date,
       startTime: event.start_time,
@@ -2228,6 +2232,10 @@ function AdminShell() {
                   <input value={eventDraft.theme} onChange={(event) => setEventDraft((current) => ({ ...current, theme: event.target.value }))} />
                 </label>
                 <label>
+                  País del Horario
+                  <input value={eventDraft.countryOfSchedule} onChange={(event) => setEventDraft((current) => ({ ...current, countryOfSchedule: event.target.value }))} placeholder="Ejemplo: Perú" />
+                </label>
+                <label>
                   Enlace corto
                   <input
                     value={eventDraft.shortLinkSlug}
@@ -2389,6 +2397,10 @@ function AdminShell() {
                   <label>
                     Tema
                     <input value={eventEditDraft.theme} onChange={(event) => setEventEditDraft((current) => ({ ...current, theme: event.target.value }))} />
+                  </label>
+                  <label>
+                    País del Horario
+                    <input value={eventEditDraft.countryOfSchedule} onChange={(event) => setEventEditDraft((current) => ({ ...current, countryOfSchedule: event.target.value }))} placeholder="Ejemplo: Perú" />
                   </label>
                   <label>
                     Enlace corto

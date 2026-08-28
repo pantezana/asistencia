@@ -799,6 +799,7 @@ app.post("/api/admin/events", async (c) => {
     title?: string;
     shortLinkSlug?: string;
     theme?: string;
+    countryOfSchedule?: string;
     startDate?: string;
     endDate?: string;
     startTime?: string;
@@ -839,6 +840,7 @@ app.post("/api/admin/events", async (c) => {
     title: body.title.trim(),
     shortLinkSlug,
     theme: body.theme?.trim(),
+    countryOfSchedule: body.countryOfSchedule?.trim() || "",
     startDate: body.startDate || sessions[0].sessionDate || "",
     endDate: body.endDate || sessions[sessions.length - 1].sessionDate || "",
     startTime: body.startTime || sessions[0].startTime || "",
@@ -895,6 +897,7 @@ app.put("/api/admin/events/:eventId", async (c) => {
     title?: string;
     shortLinkSlug?: string;
     theme?: string;
+    countryOfSchedule?: string;
     startDate?: string;
     endDate?: string;
     startTime?: string;
@@ -924,6 +927,7 @@ app.put("/api/admin/events/:eventId", async (c) => {
     title: body.title.trim(),
     shortLinkSlug,
     theme: body.theme?.trim(),
+    countryOfSchedule: body.countryOfSchedule?.trim() || "",
     startDate: body.startDate,
     endDate: body.endDate,
     startTime: body.startTime,

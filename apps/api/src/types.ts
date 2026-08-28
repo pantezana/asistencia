@@ -35,6 +35,7 @@ export type EventSummary = {
   id: string;
   title: string;
   source_title: string | null;
+  country_of_schedule: string | null;
   start_date: string | null;
   end_date: string | null;
   start_time: string | null;

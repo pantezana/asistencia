@@ -365,6 +365,7 @@ export async function listAdminEvents(db: D1Database, user: SessionUser) {
       e.title,
       e.source_title,
       e.theme,
+      e.country_of_schedule,
       e.start_date,
       e.end_date,
       e.start_time,
@@ -1308,6 +1309,7 @@ export async function createEventWithSchedule(db: D1Database, user: SessionUser,
   title: string;
   shortLinkSlug: string;
   theme?: string;
+  countryOfSchedule?: string;
   startDate: string;
   endDate: string;
   startTime: string;
@@ -1333,14 +1335,15 @@ export async function createEventWithSchedule(db: D1Database, user: SessionUser,
   const statements: D1PreparedStatement[] = [
     db
       .prepare(
-        `INSERT INTO events (id, title, source_title, theme, start_date, end_date, start_time, end_time, status, short_link_slug, created_by_user_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?)`
+        `INSERT INTO events (id, title, source_title, theme, country_of_schedule, start_date, end_date, start_time, end_time, status, short_link_slug, created_by_user_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?)`
       )
       .bind(
         eventId,
         input.title,
         input.title,
         input.theme ?? input.title,
+        input.countryOfSchedule ?? "",
         input.startDate,
         input.endDate,
         input.startTime,
@@ -1473,6 +1476,7 @@ export async function updateEventDetails(db: D1Database, eventId: string, input:
   title: string;
   shortLinkSlug: string;
   theme?: string;
+  countryOfSchedule?: string;
   startDate: string;
   endDate: string;
   startTime: string;
@@ -1487,13 +1491,14 @@ export async function updateEventDetails(db: D1Database, eventId: string, input:
   const result = await db
     .prepare(
       `UPDATE events
-       SET title = ?, source_title = ?, theme = ?, start_date = ?, end_date = ?, start_time = ?, end_time = ?, status = ?, short_link_slug = ?, updated_at = CURRENT_TIMESTAMP
+       SET title = ?, source_title = ?, theme = ?, country_of_schedule = ?, start_date = ?, end_date = ?, start_time = ?, end_time = ?, status = ?, short_link_slug = ?, updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`
     )
     .bind(
       input.title,
       input.title,
       input.theme ?? input.title,
+      input.countryOfSchedule ?? "",
       input.startDate,
       input.endDate,
       input.startTime,
