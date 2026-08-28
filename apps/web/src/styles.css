@@ -2178,8 +2178,10 @@ textarea {
   background: url("/icono_wp.png") center/contain no-repeat;
   border: none;
   box-shadow: none;
-  height: 1.35em;
-  width: 1.35em;
+  display: inline-flex;
+  flex-shrink: 0;
+  height: 1.9em;
+  width: 1.9em;
 }
 
 .dashboard-info-icon.zoom-icon {
