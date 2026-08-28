@@ -2180,8 +2180,8 @@ textarea {
   box-shadow: none;
   display: inline-flex;
   flex-shrink: 0;
-  height: 1.9em;
-  width: 1.9em;
+  height: 2.5em;
+  width: 2.5em;
 }
 
 .dashboard-info-icon.zoom-icon {
