@@ -5780,6 +5780,7 @@ function PrivateResourceModal({
   const [fields, setFields] = React.useState<Record<string, string>>({});
   const [message, setMessage] = React.useState("Este recurso es para personas registradas en la comunidad del evento. Identifíquese para abrirlo.");
   const [needsRegistration, setNeedsRegistration] = React.useState(false);
+  const [resourceSectionIndex, setResourceSectionIndex] = React.useState(0);
   const [registrationLoading, setRegistrationLoading] = React.useState(false);
   const [registrationLoadError, setRegistrationLoadError] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
@@ -5829,6 +5830,7 @@ function PrivateResourceModal({
       datos_generales_numero_documento: documentNumber
     }));
     setNeedsRegistration(Boolean(payload?.needsRegistration));
+    setResourceSectionIndex(0);
     setMessage(payload?.message ?? "Aún no encontramos su registro. Puede registrarse en un momento y acceder al recurso.");
   }
 
@@ -5848,6 +5850,47 @@ function PrivateResourceModal({
     const email = fields.datos_generales_correo_electronico?.trim() ?? "";
     if (!email) return !Boolean(emailField.is_required);
     return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email);
+  }
+
+  function validEmailForSection(section: PublicFormSection | undefined) {
+    if (!section) return true;
+    const emailField = section.fields.find((field) => field.field_key === "datos_generales_correo_electronico");
+    if (!emailField) return true;
+
+    const email = fields.datos_generales_correo_electronico?.trim() ?? "";
+    if (!email) return !Boolean(emailField.is_required);
+
+    return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email);
+  }
+
+  function previousResourceSection() {
+    if (resourceSectionIndex === 0) {
+      setNeedsRegistration(false);
+      setMessage("Este recurso es para personas registradas en la comunidad del evento. Identifíquese para abrirlo.");
+      return;
+    }
+
+    setResourceSectionIndex((current) => Math.max(0, current - 1));
+    setMessage("");
+  }
+
+  function submitResourceSection(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const sections = registrationForm?.sections ?? [];
+    const currentSection = sections[resourceSectionIndex];
+
+    if (!validEmailForSection(currentSection)) {
+      setMessage("Ingrese un correo electrónico válido, por ejemplo nombre@dominio.com.");
+      return;
+    }
+
+    if (resourceSectionIndex < sections.length - 1) {
+      setResourceSectionIndex((current) => current + 1);
+      setMessage("");
+      return;
+    }
+
+    void register(event);
   }
 
   async function register(event: React.FormEvent<HTMLFormElement>) {
@@ -5892,6 +5935,9 @@ function PrivateResourceModal({
   }
 
   const registrationSections = registrationForm?.sections ?? [];
+  const currentRegistrationSection = registrationSections[resourceSectionIndex];
+  const registrationProgressSteps = ["Documento", ...registrationSections.map((section) => cleanText(section.title))];
+  const currentRegistrationProgressIndex = needsRegistration ? resourceSectionIndex + 1 : 0;
   const showRegistration = needsRegistration;
 
   return (
@@ -5936,13 +5982,21 @@ function PrivateResourceModal({
         ) : null}
 
         {showRegistration && registrationForm ? (
-          <form className="resource-registration-form" onSubmit={register}>
+          <form className="resource-registration-form" onSubmit={submitResourceSection}>
             <h3>Registro para acceder a recursos del evento</h3>
             <p>Complete sus datos una sola vez. Con este registro podrá acceder a recursos privados del evento y registrar su asistencia cuando exista una sesión abierta.</p>
-            {registrationSections.map((section) => (
-              <fieldset className="public-section" key={section.id}>
-                <legend>{cleanText(section.title)}</legend>
-                {section.fields.map((field) => {
+            <div className="progress-steps resource-progress-steps" aria-label="Avance del registro">
+              {registrationProgressSteps.map((label, index) => (
+                <div className={`progress-step ${index === currentRegistrationProgressIndex ? "current" : ""} ${index < currentRegistrationProgressIndex ? "done" : ""}`} key={`${index}-${label}`}>
+                  <span>{index + 1}</span>
+                  <strong>{label}</strong>
+                </div>
+              ))}
+            </div>
+            {currentRegistrationSection ? (
+              <fieldset className="public-section" key={currentRegistrationSection.id}>
+                <legend>{cleanText(currentRegistrationSection.title)}</legend>
+                {currentRegistrationSection.fields.map((field) => {
                   if (field.field_key === "datos_generales_tipo_docidentidad" || field.field_key === "datos_generales_numero_documento") return null;
                   if (field.field_type === "select" || field.field_type === "radio") {
                     const options = field.field_type === "radio"
@@ -5973,10 +6027,13 @@ function PrivateResourceModal({
                   );
                 })}
               </fieldset>
-            ))}
-            <div className="actions centered-actions">
+            ) : null}
+            <div className="form-navigation">
+              <button className="button secondary" type="button" onClick={previousResourceSection}>
+                Atrás
+              </button>
               <button className="button private-register-button" type="submit" disabled={submitting}>
-                {submitting ? "Registrando..." : "Registrarme y acceder"}
+                {submitting ? "Registrando..." : resourceSectionIndex >= registrationSections.length - 1 ? "Registrarme y acceder" : "Siguiente"}
               </button>
             </div>
           </form>
