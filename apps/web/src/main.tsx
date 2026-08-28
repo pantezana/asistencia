@@ -5780,16 +5780,24 @@ function PrivateResourceModal({
   const [fields, setFields] = React.useState<Record<string, string>>({});
   const [message, setMessage] = React.useState("Este recurso es para personas registradas en la comunidad del evento. Identifíquese para abrirlo.");
   const [needsRegistration, setNeedsRegistration] = React.useState(false);
+  const [registrationLoading, setRegistrationLoading] = React.useState(false);
+  const [registrationLoadError, setRegistrationLoadError] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
   const eventSlug = dashboard.event_slug ?? "";
   const documentTypeOptions = registrationForm?.catalogs?.tipodocumento?.filter((catalogItem) => catalogItem.status === "active") ?? fallbackDocumentTypeOptions;
 
   React.useEffect(() => {
-    if (!eventSlug) return;
+    if (!eventSlug) {
+      setRegistrationLoadError("No se encontró el enlace de registro asociado al evento.");
+      return;
+    }
+    setRegistrationLoading(true);
+    setRegistrationLoadError("");
     fetch(`/api/public/events/${eventSlug}/registration-form`)
       .then((response) => response.ok ? response.json() as Promise<ResourceRegistrationResponse> : Promise.reject())
       .then(setRegistrationForm)
-      .catch(() => setMessage("No se pudo preparar el formulario de registro del evento."));
+      .catch(() => setRegistrationLoadError("No se pudo preparar el formulario de registro del evento. Intente nuevamente en unos segundos."))
+      .finally(() => setRegistrationLoading(false));
   }, [eventSlug]);
 
   function openUrl(url: string) {
@@ -5846,6 +5854,11 @@ function PrivateResourceModal({
     event.preventDefault();
     if (!validEmail()) {
       setMessage("Ingrese un correo electrónico válido, por ejemplo nombre@dominio.com.");
+      return;
+    }
+
+    if (!eventSlug || !registrationForm) {
+      setMessage("No se pudo preparar el formulario de registro del evento.");
       return;
     }
 
@@ -5906,6 +5919,21 @@ function PrivateResourceModal({
             {submitting ? "Validando..." : "Continuar"}
           </button>
         </form>
+
+        {showRegistration ? (
+          <div className="resource-registration-intro">
+            <strong>Complete su registro para acceder a este recurso.</strong>
+            <span>El registro toma un momento y le permitirá acceder a los contenidos privados del evento.</span>
+          </div>
+        ) : null}
+
+        {showRegistration && registrationLoading ? (
+          <p className="resource-registration-status">Preparando el formulario de registro...</p>
+        ) : null}
+
+        {showRegistration && registrationLoadError ? (
+          <p className="resource-registration-status error">{registrationLoadError}</p>
+        ) : null}
 
         {showRegistration && registrationForm ? (
           <form className="resource-registration-form" onSubmit={register}>

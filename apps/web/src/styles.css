@@ -2242,6 +2242,27 @@ textarea {
   padding-top: 12px;
 }
 
+.resource-registration-intro {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  color: #14532d;
+  display: grid;
+  gap: 4px;
+  margin-top: 16px;
+  padding: 12px 14px;
+}
+
+.resource-registration-status {
+  color: #40516a;
+  font-weight: 700;
+  margin: 12px 0 0;
+}
+
+.resource-registration-status.error {
+  color: #be123c;
+}
+
 .private-register-button {
   background: #16a34a;
 }

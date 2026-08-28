@@ -689,7 +689,7 @@ app.post("/api/public/events/:eventSlug/resource-identify", async (c) => {
   const documentNumber = body?.documentNumber?.trim();
 
   if (!documentType || !documentNumber) {
-    return c.json({ ok: false, message: "Ingrese tipo y numero de documento." }, 400);
+    return c.json({ ok: false, message: "Ingrese tipo y número de documento." }, 400);
   }
 
   const participant = await findParticipantByDocument(c.env.DB, documentType, documentNumber);
@@ -712,7 +712,7 @@ app.post("/api/public/events/:eventSlug/resource-register", async (c) => {
   const documentNumber = body?.documentNumber?.trim();
 
   if (!documentType || !documentNumber) {
-    return c.json({ ok: false, message: "Ingrese tipo y numero de documento." }, 400);
+    return c.json({ ok: false, message: "Ingrese tipo y número de documento." }, 400);
   }
 
   let participant = await findParticipantByDocument(c.env.DB, documentType, documentNumber);
@@ -761,7 +761,7 @@ app.post("/api/public/dashboards/:slug/resources/:itemId/access", async (c) => {
   const documentNumber = body?.documentNumber?.trim();
 
   if (!documentType || !documentNumber) {
-    return c.json({ ok: false, message: "Ingrese tipo y numero de documento." }, 400);
+    return c.json({ ok: false, message: "Ingrese tipo y número de documento." }, 400);
   }
 
   const participant = await findParticipantByDocument(c.env.DB, documentType, documentNumber);

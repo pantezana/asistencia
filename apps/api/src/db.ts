@@ -1080,7 +1080,7 @@ export async function updateSessionDashboardItems(db: D1Database, eventId: strin
 export async function getPublicDashboardBySlug(db: D1Database, slug: string) {
   const dashboard = await db
     .prepare(
-      `SELECT d.*, e.title AS event_title
+      `SELECT d.*, e.title AS event_title, e.short_link_slug AS event_slug
        FROM event_dashboards d
        INNER JOIN events e ON e.id = d.event_id
        WHERE d.short_link_slug = ?`
