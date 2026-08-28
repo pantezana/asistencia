@@ -401,6 +401,18 @@ function stripHtml(value: string) {
   return element.textContent?.replace(/\s+/g, " ").trim() ?? "";
 }
 
+function formatSessionDateTime(sessionDate: string, startTime: string, endTime: string, countryOfSchedule?: string | null) {
+  const datePart = cleanText(sessionDate).trim();
+  const startPart = cleanText(startTime).trim();
+  const endPart = cleanText(endTime).trim();
+  const countryPart = cleanText(countryOfSchedule ?? "").trim();
+
+  const timePart = [startPart, endPart].filter(Boolean).join(" - ");
+  const base = [datePart, timePart].filter(Boolean).join(" ");
+
+  return countryPart ? `${base} (${countryPart})` : base;
+}
+
 function sanitizeClientHtml(value: string) {
   const template = document.createElement("template");
   template.innerHTML = value;
@@ -5715,8 +5727,7 @@ function DashboardPublicView({ slug }: { slug: string }) {
                   <h3>{cleanText(session.title)}</h3>
                   <p>{cleanText(session.theme)}</p>
                   <div className="session-meta">
-                    <span>{session.session_date}</span>
-                    <span>{session.start_time} - {session.end_time}</span>
+                    <span>{formatSessionDateTime(session.session_date, session.start_time, session.end_time, session.country_of_schedule)}</span>
                   </div>
                   {session.items?.length ? <DashboardInfoList dashboard={dashboard} items={session.items} compact onPrivateResource={setPrivateResource} /> : null}
                 </article>
