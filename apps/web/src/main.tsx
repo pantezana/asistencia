@@ -5723,8 +5723,10 @@ function DashboardPublicView({ slug }: { slug: string }) {
               const tone = moduleIds.indexOf(session.module_id) % 6;
               return (
                 <article className={`dashboard-session-card module-tone-${tone}`} key={session.id}>
-                  <span className="session-module">{cleanText(session.module_title)}</span>
-                  <h3>{cleanText(session.title)}</h3>
+                  <div className="session-card-header">
+                    <span className="session-module">{cleanText(session.module_title)}</span>
+                  </div>
+                  <h3 className="session-card-title">{cleanText(session.title)}</h3>
                   <p>{cleanText(session.theme)}</p>
                   <div className="session-meta">
                     <span>{formatSessionDateTime(session.session_date, session.start_time, session.end_time, session.country_of_schedule)}</span>

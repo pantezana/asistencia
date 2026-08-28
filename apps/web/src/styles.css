@@ -2282,11 +2282,23 @@ textarea {
   border-left: 8px solid #2f66ea;
   border-radius: 8px;
   box-shadow: 0 12px 28px rgba(28, 43, 64, 0.06);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
   padding: 18px;
 }
 
-.dashboard-session-card h3 {
-  margin: 8px 0;
+.session-card-header {
+  display: flex;
+  align-items: center;
+  min-height: 62px;
+}
+
+.session-card-title {
+  align-items: center;
+  display: flex;
+  min-height: 42px;
+  margin: 8px 0 0;
 }
 
 .dashboard-session-card p {
@@ -2299,6 +2311,7 @@ textarea {
   display: block;
   font-size: 12px;
   font-weight: 800;
+  line-height: 1.35;
   text-transform: uppercase;
 }
 
