@@ -5781,6 +5781,15 @@ function PrivateResourceModal({
   const [message, setMessage] = React.useState("Este recurso es para personas registradas en la comunidad del evento. Identifíquese para abrirlo.");
   const [needsRegistration, setNeedsRegistration] = React.useState(false);
   const [resourceSectionIndex, setResourceSectionIndex] = React.useState(0);
+  const [departments, setDepartments] = React.useState<LocationOption[]>([]);
+  const [provinces, setProvinces] = React.useState<LocationOption[]>([]);
+  const [districts, setDistricts] = React.useState<LocationOption[]>([]);
+  const [selectedDepartmentId, setSelectedDepartmentId] = React.useState("");
+  const [selectedProvinceId, setSelectedProvinceId] = React.useState("");
+  const [organizationProvinces, setOrganizationProvinces] = React.useState<LocationOption[]>([]);
+  const [organizationDistricts, setOrganizationDistricts] = React.useState<LocationOption[]>([]);
+  const [selectedOrganizationDepartmentId, setSelectedOrganizationDepartmentId] = React.useState("");
+  const [selectedOrganizationProvinceId, setSelectedOrganizationProvinceId] = React.useState("");
   const [registrationLoading, setRegistrationLoading] = React.useState(false);
   const [registrationLoadError, setRegistrationLoadError] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
@@ -5800,6 +5809,13 @@ function PrivateResourceModal({
       .catch(() => setRegistrationLoadError("No se pudo preparar el formulario de registro del evento. Intente nuevamente en unos segundos."))
       .finally(() => setRegistrationLoading(false));
   }, [eventSlug]);
+
+  React.useEffect(() => {
+    fetch("/api/public/location/departments")
+      .then((response) => (response.ok ? response.json() as Promise<{ departments: LocationOption[] }> : Promise.reject()))
+      .then((payload) => setDepartments(payload.departments))
+      .catch(() => setDepartments([]));
+  }, []);
 
   function openUrl(url: string) {
     window.open(url, "_blank", "noopener,noreferrer");
@@ -5840,6 +5856,152 @@ function PrivateResourceModal({
     if (textValidation === "numbers") nextValue = value.replace(/\D/g, "");
     if (textValidation === "letters") nextValue = value.replace(/[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ\s]/g, "");
     setFields((current) => ({ ...current, [fieldKey]: nextValue }));
+  }
+
+  function isResourcePeru(value: string | undefined) {
+    return (value ?? "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim()
+      .toUpperCase() === "PERU";
+  }
+
+  function isResourceOptionalForeignLocationField(fieldKey: string) {
+    return (
+      ["ubicacion_departamento", "ubicacion_provincia", "ubicacion_distrito"].includes(fieldKey) &&
+      !isResourcePeru(fields.ubicacion_pais)
+    );
+  }
+
+  function isResourceOptionalOrganizationLocationField(fieldKey: string) {
+    return (
+      ["organizacion_departamento", "organizacion_provincia", "organizacion_distrito"].includes(fieldKey) &&
+      !isResourcePeru(fields.organizacion_pais)
+    );
+  }
+
+  function updateResourceCountry(fieldKey: string, value: string, field: PublicFormField) {
+    updateField(fieldKey, value, field);
+
+    if (fieldKey === "ubicacion_pais" && !isResourcePeru(value)) {
+      setSelectedDepartmentId("");
+      setSelectedProvinceId("");
+      setProvinces([]);
+      setDistricts([]);
+      setFields((current) => ({
+        ...current,
+        ubicacion_pais: value,
+        ubicacion_departamento: "",
+        ubicacion_provincia: "",
+        ubicacion_distrito: ""
+      }));
+    }
+
+    if (fieldKey === "organizacion_pais" && !isResourcePeru(value)) {
+      setSelectedOrganizationDepartmentId("");
+      setSelectedOrganizationProvinceId("");
+      setOrganizationProvinces([]);
+      setOrganizationDistricts([]);
+      setFields((current) => ({
+        ...current,
+        organizacion_pais: value,
+        organizacion_departamento: "",
+        organizacion_provincia: "",
+        organizacion_distrito: ""
+      }));
+    }
+  }
+
+  async function selectResourceDepartment(departmentId: string) {
+    const department = departments.find((item) => item.id === departmentId);
+    setSelectedDepartmentId(departmentId);
+    setSelectedProvinceId("");
+    setDistricts([]);
+    setFields((current) => ({
+      ...current,
+      ubicacion_departamento: department?.name ?? "",
+      ubicacion_provincia: "",
+      ubicacion_distrito: ""
+    }));
+
+    if (!departmentId) {
+      setProvinces([]);
+      return;
+    }
+
+    const response = await fetch(`/api/public/location/provinces?departmentId=${encodeURIComponent(departmentId)}`);
+    const payload = (await response.json()) as { provinces: LocationOption[] };
+    setProvinces(response.ok ? payload.provinces : []);
+  }
+
+  async function selectResourceProvince(provinceId: string) {
+    const province = provinces.find((item) => item.id === provinceId);
+    setSelectedProvinceId(provinceId);
+    setFields((current) => ({
+      ...current,
+      ubicacion_provincia: province?.name ?? "",
+      ubicacion_distrito: ""
+    }));
+
+    if (!provinceId) {
+      setDistricts([]);
+      return;
+    }
+
+    const response = await fetch(`/api/public/location/districts?provinceId=${encodeURIComponent(provinceId)}`);
+    const payload = (await response.json()) as { districts: LocationOption[] };
+    setDistricts(response.ok ? payload.districts : []);
+  }
+
+  function selectResourceDistrict(districtId: string) {
+    const district = districts.find((item) => item.id === districtId);
+    updateField("ubicacion_distrito", district?.name ?? "");
+  }
+
+  async function selectResourceOrganizationDepartment(departmentId: string) {
+    const department = departments.find((item) => item.id === departmentId);
+    setSelectedOrganizationDepartmentId(departmentId);
+    setSelectedOrganizationProvinceId("");
+    setOrganizationDistricts([]);
+    setFields((current) => ({
+      ...current,
+      organizacion_departamento: department?.name ?? "",
+      organizacion_provincia: "",
+      organizacion_distrito: ""
+    }));
+
+    if (!departmentId) {
+      setOrganizationProvinces([]);
+      return;
+    }
+
+    const response = await fetch(`/api/public/location/provinces?departmentId=${encodeURIComponent(departmentId)}`);
+    const payload = (await response.json()) as { provinces: LocationOption[] };
+    setOrganizationProvinces(response.ok ? payload.provinces : []);
+  }
+
+  async function selectResourceOrganizationProvince(provinceId: string) {
+    const province = organizationProvinces.find((item) => item.id === provinceId);
+    setSelectedOrganizationProvinceId(provinceId);
+    setFields((current) => ({
+      ...current,
+      organizacion_provincia: province?.name ?? "",
+      organizacion_distrito: ""
+    }));
+
+    if (!provinceId) {
+      setOrganizationDistricts([]);
+      return;
+    }
+
+    const response = await fetch(`/api/public/location/districts?provinceId=${encodeURIComponent(provinceId)}`);
+    const payload = (await response.json()) as { districts: LocationOption[] };
+    setOrganizationDistricts(response.ok ? payload.districts : []);
+  }
+
+  function selectResourceOrganizationDistrict(districtId: string) {
+    const district = organizationDistricts.find((item) => item.id === districtId);
+    updateField("organizacion_distrito", district?.name ?? "");
   }
 
   function validEmail() {
@@ -5998,6 +6160,146 @@ function PrivateResourceModal({
                 <legend>{cleanText(currentRegistrationSection.title)}</legend>
                 {currentRegistrationSection.fields.map((field) => {
                   if (field.field_key === "datos_generales_tipo_docidentidad" || field.field_key === "datos_generales_numero_documento") return null;
+                  if (isResourceOptionalForeignLocationField(field.field_key) || isResourceOptionalOrganizationLocationField(field.field_key)) return null;
+
+                  if (field.field_key === "ubicacion_pais" && fields.ubicacion_pais && !isResourcePeru(fields.ubicacion_pais)) {
+                    return (
+                      <React.Fragment key={field.id}>
+                        <p className="field-note">Para países distintos de Perú no se requiere departamento, provincia ni distrito.</p>
+                        <label>
+                          {publicFieldLabel(field)}
+                          <SearchableSelect
+                            options={registrationForm.catalogs?.[field.catalog_key ?? ""] ?? []}
+                            value={fields[field.field_key] ?? ""}
+                            onChange={(value) => {
+                              const options = registrationForm.catalogs?.[field.catalog_key ?? ""] ?? [];
+                              const selectedOption = options.find((option) => option.id === value);
+                              updateResourceCountry(field.field_key, cleanText(selectedOption?.name ?? value), field);
+                            }}
+                            placeholder="Buscar país"
+                            required={Boolean(field.is_required)}
+                          />
+                        </label>
+                      </React.Fragment>
+                    );
+                  }
+
+                  if (field.field_key === "ubicacion_departamento") {
+                    return (
+                      <label key={field.id}>
+                        {publicFieldLabel(field)}
+                        <SearchableSelect
+                          options={departments}
+                          value={selectedDepartmentId}
+                          onChange={(value) => void selectResourceDepartment(value)}
+                          placeholder="Buscar departamento"
+                          required={isResourcePeru(fields.ubicacion_pais)}
+                        />
+                      </label>
+                    );
+                  }
+
+                  if (field.field_key === "ubicacion_provincia") {
+                    return (
+                      <label key={field.id}>
+                        {publicFieldLabel(field)}
+                        <SearchableSelect
+                          options={provinces}
+                          value={selectedProvinceId}
+                          onChange={(value) => void selectResourceProvince(value)}
+                          placeholder="Buscar provincia"
+                          required={isResourcePeru(fields.ubicacion_pais)}
+                          disabled={!selectedDepartmentId}
+                        />
+                      </label>
+                    );
+                  }
+
+                  if (field.field_key === "ubicacion_distrito") {
+                    return (
+                      <label key={field.id}>
+                        {publicFieldLabel(field)}
+                        <SearchableSelect
+                          options={districts}
+                          value={districts.find((item) => item.name === fields.ubicacion_distrito)?.id ?? ""}
+                          onChange={selectResourceDistrict}
+                          placeholder="Buscar distrito"
+                          required={isResourcePeru(fields.ubicacion_pais)}
+                          disabled={!selectedProvinceId}
+                        />
+                      </label>
+                    );
+                  }
+
+                  if (field.field_key === "organizacion_pais" && fields.organizacion_pais && !isResourcePeru(fields.organizacion_pais)) {
+                    return (
+                      <React.Fragment key={field.id}>
+                        <p className="field-note">Para sedes fuera de Perú no se requiere departamento, provincia ni distrito.</p>
+                        <label>
+                          {publicFieldLabel(field)}
+                          <SearchableSelect
+                            options={registrationForm.catalogs?.[field.catalog_key ?? ""] ?? []}
+                            value={fields[field.field_key] ?? ""}
+                            onChange={(value) => {
+                              const options = registrationForm.catalogs?.[field.catalog_key ?? ""] ?? [];
+                              const selectedOption = options.find((option) => option.id === value);
+                              updateResourceCountry(field.field_key, cleanText(selectedOption?.name ?? value), field);
+                            }}
+                            placeholder="Buscar país"
+                            required={Boolean(field.is_required)}
+                          />
+                        </label>
+                      </React.Fragment>
+                    );
+                  }
+
+                  if (field.field_key === "organizacion_departamento") {
+                    return (
+                      <label key={field.id}>
+                        {publicFieldLabel(field)}
+                        <SearchableSelect
+                          options={departments}
+                          value={selectedOrganizationDepartmentId}
+                          onChange={(value) => void selectResourceOrganizationDepartment(value)}
+                          placeholder="Buscar departamento"
+                          required={isResourcePeru(fields.organizacion_pais)}
+                        />
+                      </label>
+                    );
+                  }
+
+                  if (field.field_key === "organizacion_provincia") {
+                    return (
+                      <label key={field.id}>
+                        {publicFieldLabel(field)}
+                        <SearchableSelect
+                          options={organizationProvinces}
+                          value={selectedOrganizationProvinceId}
+                          onChange={(value) => void selectResourceOrganizationProvince(value)}
+                          placeholder="Buscar provincia"
+                          required={isResourcePeru(fields.organizacion_pais)}
+                          disabled={!selectedOrganizationDepartmentId}
+                        />
+                      </label>
+                    );
+                  }
+
+                  if (field.field_key === "organizacion_distrito") {
+                    return (
+                      <label key={field.id}>
+                        {publicFieldLabel(field)}
+                        <SearchableSelect
+                          options={organizationDistricts}
+                          value={organizationDistricts.find((item) => item.name === fields.organizacion_distrito)?.id ?? ""}
+                          onChange={selectResourceOrganizationDistrict}
+                          placeholder="Buscar distrito"
+                          required={isResourcePeru(fields.organizacion_pais)}
+                          disabled={!selectedOrganizationProvinceId}
+                        />
+                      </label>
+                    );
+                  }
+
                   if (field.field_type === "select" || field.field_type === "radio") {
                     const options = field.field_type === "radio"
                       ? [{ id: "si", name: "SI" }, { id: "no", name: "NO" }]
@@ -6005,12 +6307,25 @@ function PrivateResourceModal({
                     return (
                       <label key={field.id}>
                         {publicFieldLabel(field)}
-                        <select value={fields[field.field_key] ?? ""} onChange={(event) => updateField(field.field_key, event.target.value, field)} required={Boolean(field.is_required) && field.field_key !== "organizacion_ruc"}>
-                          <option value="">Seleccione</option>
-                          {options.map((option) => (
-                            <option key={option.id} value={cleanText(option.name)}>{cleanText(option.name)}</option>
-                          ))}
-                        </select>
+                        {field.catalog_key === "pais" ? (
+                          <SearchableSelect
+                            options={options}
+                            value={fields[field.field_key] ?? ""}
+                            onChange={(value) => {
+                              const selectedOption = options.find((option) => option.id === value);
+                              updateResourceCountry(field.field_key, cleanText(selectedOption?.name ?? value), field);
+                            }}
+                            placeholder="Buscar país"
+                            required={Boolean(field.is_required)}
+                          />
+                        ) : (
+                          <select value={fields[field.field_key] ?? ""} onChange={(event) => updateField(field.field_key, event.target.value, field)} required={Boolean(field.is_required) && field.field_key !== "organizacion_ruc"}>
+                            <option value="">Seleccione</option>
+                            {options.map((option) => (
+                              <option key={option.id} value={cleanText(option.name)}>{cleanText(option.name)}</option>
+                            ))}
+                          </select>
+                        )}
                       </label>
                     );
                   }
