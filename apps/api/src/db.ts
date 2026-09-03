@@ -17,6 +17,9 @@ import type {
   EventQuestionSelectionGroup,
   EventQuestionSelectionItem,
   EventQuestionSummaryItem,
+  EventSurvey,
+  EventSurveyOption,
+  EventSurveyQuestion,
   FormControlDefinition,
   FormField,
   FormSectionDefinition,
@@ -125,6 +128,23 @@ async function uniqueDashboardSlug(db: D1Database, base: string, currentId?: str
   while (
     await db
       .prepare(`SELECT id FROM event_dashboards WHERE short_link_slug = ?${currentId ? " AND id <> ?" : ""}`)
+      .bind(...(currentId ? [finalSlug, currentId] : [finalSlug]))
+      .first()
+  ) {
+    finalSlug = `${slug}-${counter}`;
+    counter += 1;
+  }
+  return finalSlug;
+}
+
+async function uniqueSurveySlug(db: D1Database, base: string, currentId?: string) {
+  let slug = normalizePublicSlug(base);
+  if (!slug) slug = crypto.randomUUID().slice(0, 10);
+  let finalSlug = slug;
+  let counter = 2;
+  while (
+    await db
+      .prepare(`SELECT id FROM event_surveys WHERE participant_slug = ?${currentId ? " AND id <> ?" : ""}`)
       .bind(...(currentId ? [finalSlug, currentId] : [finalSlug]))
       .first()
   ) {
@@ -604,6 +624,398 @@ export async function updateEventQuestionParticipantCloud(db: D1Database, eventI
     .bind(show ? 1 : 0, questionId, eventId)
     .run();
   return result.meta.changes > 0;
+}
+
+type SurveyOptionInput = {
+  id?: string;
+  optionText?: string;
+  sortOrder?: number;
+  status?: string;
+};
+
+type SurveyQuestionInput = {
+  id?: string;
+  questionText?: string;
+  description?: string | null;
+  allowMultipleAnswers?: boolean;
+  maxAnswersPerParticipant?: number;
+  chartType?: string;
+  sortOrder?: number;
+  status?: string;
+  options?: SurveyOptionInput[];
+};
+
+function normalizeSurveyQuestions(questions: SurveyQuestionInput[] | undefined) {
+  return (questions ?? [])
+    .map((question, index) => {
+      const allowMultipleAnswers = Boolean(question.allowMultipleAnswers);
+      const options = (question.options ?? [])
+        .map((option, optionIndex) => ({
+          id: option.id?.trim() || undefined,
+          optionText: option.optionText?.replace(/\s+/g, " ").trim() ?? "",
+          sortOrder: Math.max(Math.floor(option.sortOrder || optionIndex + 1), 1),
+          status: option.status === "inactive" ? "inactive" : "active"
+        }))
+        .filter((option) => option.optionText);
+      const activeOptionCount = options.filter((option) => option.status === "active").length;
+      const maxAnswers = allowMultipleAnswers
+        ? Math.min(Math.max(Math.floor(question.maxAnswersPerParticipant || 2), 1), Math.max(activeOptionCount, 1))
+        : 1;
+      return {
+        id: question.id?.trim() || undefined,
+        questionText: question.questionText?.replace(/\s+/g, " ").trim() ?? "",
+        description: question.description?.trim() || null,
+        allowMultipleAnswers,
+        maxAnswersPerParticipant: maxAnswers,
+        chartType: question.chartType === "pie" ? "pie" : "bar",
+        sortOrder: Math.max(Math.floor(question.sortOrder || index + 1), 1),
+        status: question.status === "inactive" ? "inactive" : "active",
+        options
+      };
+    })
+    .filter((question) => question.questionText);
+}
+
+export async function listEventSurveys(db: D1Database, eventId: string) {
+  const surveys = await db
+    .prepare(
+      `SELECT
+        s.*,
+        COUNT(DISTINCT q.id) AS question_count,
+        COUNT(v.id) AS vote_count,
+        COUNT(DISTINCT v.anonymous_participant_key) AS participant_count
+       FROM event_surveys s
+       LEFT JOIN event_survey_questions q ON q.survey_id = s.id AND q.status = 'active'
+       LEFT JOIN event_survey_votes v ON v.survey_id = s.id AND v.status = 'active'
+       WHERE s.event_id = ?
+       GROUP BY s.id
+       ORDER BY s.created_at DESC`
+    )
+    .bind(eventId)
+    .all<EventSurvey>();
+
+  const results = await Promise.all(surveys.results.map((survey) => getEventSurveyById(db, survey.id)));
+  return { ...surveys, results: results.filter(Boolean) as EventSurvey[] };
+}
+
+export async function getEventSurveyById(db: D1Database, surveyId: string) {
+  const survey = await db
+    .prepare(
+      `SELECT
+        s.*,
+        COUNT(DISTINCT q.id) AS question_count,
+        COUNT(v.id) AS vote_count,
+        COUNT(DISTINCT v.anonymous_participant_key) AS participant_count
+       FROM event_surveys s
+       LEFT JOIN event_survey_questions q ON q.survey_id = s.id AND q.status = 'active'
+       LEFT JOIN event_survey_votes v ON v.survey_id = s.id AND v.status = 'active'
+       WHERE s.id = ?
+       GROUP BY s.id`
+    )
+    .bind(surveyId)
+    .first<EventSurvey>();
+
+  if (!survey) return null;
+  const questions = await listSurveyQuestions(db, survey.id, false);
+  return { ...survey, questions };
+}
+
+async function listSurveyQuestions(db: D1Database, surveyId: string, onlyActive: boolean) {
+  const questions = await db
+    .prepare(
+      `SELECT
+        q.*,
+        COUNT(v.id) AS vote_count,
+        COUNT(DISTINCT v.anonymous_participant_key) AS participant_count
+       FROM event_survey_questions q
+       LEFT JOIN event_survey_votes v ON v.question_id = q.id AND v.status = 'active'
+       WHERE q.survey_id = ?${onlyActive ? " AND q.status = 'active'" : ""}
+       GROUP BY q.id
+       ORDER BY q.sort_order ASC, q.created_at ASC`
+    )
+    .bind(surveyId)
+    .all<EventSurveyQuestion>();
+
+  return Promise.all(
+    questions.results.map(async (question) => {
+      const options = await db
+        .prepare(
+          `SELECT
+            o.*,
+            COUNT(v.id) AS vote_count
+           FROM event_survey_options o
+           LEFT JOIN event_survey_votes v ON v.option_id = o.id AND v.status = 'active'
+           WHERE o.question_id = ?${onlyActive ? " AND o.status = 'active'" : ""}
+           GROUP BY o.id
+           ORDER BY o.sort_order ASC, o.created_at ASC`
+        )
+        .bind(question.id)
+        .all<EventSurveyOption>();
+      return { ...question, options: options.results };
+    })
+  );
+}
+
+export async function createEventSurvey(db: D1Database, eventId: string, user: SessionUser, input: {
+  title: string;
+  browserTitle?: string;
+  sessionId?: string | null;
+  participantSlug?: string;
+  questions?: SurveyQuestionInput[];
+}) {
+  const title = input.title.trim();
+  if (!title) return { ok: false, message: "Ingrese el titulo de la encuesta." };
+  const event = await db.prepare("SELECT id, short_link_slug FROM events WHERE id = ?").bind(eventId).first<{ id: string; short_link_slug: string }>();
+  if (!event) return { ok: false, message: "Evento no encontrado." };
+
+  if (input.sessionId) {
+    const session = await db.prepare("SELECT id FROM event_sessions WHERE id = ? AND event_id = ?").bind(input.sessionId, eventId).first<{ id: string }>();
+    if (!session) return { ok: false, message: "Seleccione una sesion valida." };
+  }
+
+  const questions = normalizeSurveyQuestions(input.questions);
+  const invalidQuestion = questions.find((question) => question.options.filter((option) => option.status === "active").length < 2);
+  if (invalidQuestion) return { ok: false, message: "Cada pregunta debe tener al menos dos opciones activas." };
+
+  const surveyId = `survey_${crypto.randomUUID().slice(0, 12)}`;
+  const participantSlug = await uniqueSurveySlug(db, input.participantSlug || `${event.short_link_slug}-encuesta-${crypto.randomUUID().slice(0, 6)}`);
+  const statements: D1PreparedStatement[] = [
+    db
+      .prepare(
+        `INSERT INTO event_surveys (id, event_id, session_id, title, browser_title, participant_slug, status, created_by_user_id)
+         VALUES (?, ?, ?, ?, ?, ?, 'draft', ?)`
+      )
+      .bind(surveyId, eventId, input.sessionId || null, title, input.browserTitle?.trim() || title, participantSlug, user.id)
+  ];
+
+  for (const question of questions) {
+    const questionId = `survey_question_${crypto.randomUUID().slice(0, 12)}`;
+    statements.push(
+      db
+        .prepare(
+          `INSERT INTO event_survey_questions (
+            id, survey_id, question_text, description, allow_multiple_answers,
+            max_answers_per_participant, chart_type, sort_order, status
+           )
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .bind(questionId, surveyId, question.questionText, question.description, question.allowMultipleAnswers ? 1 : 0, question.maxAnswersPerParticipant, question.chartType, question.sortOrder, question.status)
+    );
+    for (const option of question.options) {
+      statements.push(
+        db
+          .prepare(
+            `INSERT INTO event_survey_options (id, question_id, option_text, sort_order, status)
+             VALUES (?, ?, ?, ?, ?)`
+          )
+          .bind(`survey_option_${crypto.randomUUID().slice(0, 12)}`, questionId, option.optionText, option.sortOrder, option.status)
+      );
+    }
+  }
+
+  await db.batch(statements);
+  return { ok: true, survey: await getEventSurveyById(db, surveyId) };
+}
+
+export async function updateEventSurvey(db: D1Database, eventId: string, surveyId: string, input: {
+  title: string;
+  browserTitle?: string;
+  sessionId?: string | null;
+  participantSlug?: string;
+  status?: string;
+  questions?: SurveyQuestionInput[];
+}) {
+  const current = await getEventSurveyById(db, surveyId);
+  if (!current || current.event_id !== eventId) return { ok: false, message: "Encuesta no encontrada." };
+  const title = input.title.trim();
+  if (!title) return { ok: false, message: "Ingrese el titulo de la encuesta." };
+  const voteCount = Number(current.vote_count || 0);
+  const slug = normalizePublicSlug(input.participantSlug || current.participant_slug);
+  if (!slug) return { ok: false, message: "Ingrese un enlace corto valido." };
+  if (voteCount > 0 && slug !== current.participant_slug) return { ok: false, message: "No se puede modificar el enlace corto porque ya existen votos." };
+
+  if (slug !== current.participant_slug) {
+    const duplicated = await db.prepare("SELECT id FROM event_surveys WHERE participant_slug = ? AND id <> ?").bind(slug, surveyId).first<{ id: string }>();
+    if (duplicated) return { ok: false, message: "El enlace corto de encuesta ya existe." };
+  }
+
+  if (input.sessionId) {
+    const session = await db.prepare("SELECT id FROM event_sessions WHERE id = ? AND event_id = ?").bind(input.sessionId, eventId).first<{ id: string }>();
+    if (!session) return { ok: false, message: "Seleccione una sesion valida." };
+  }
+
+  const questions = normalizeSurveyQuestions(input.questions);
+  const invalidQuestion = questions.find((question) => question.options.filter((option) => option.status === "active").length < 2);
+  if (invalidQuestion) return { ok: false, message: "Cada pregunta debe tener al menos dos opciones activas." };
+
+  const status = input.status && ["draft", "open", "closed", "archived"].includes(input.status) ? input.status : current.status;
+  const statements: D1PreparedStatement[] = [
+    db
+      .prepare(
+        `UPDATE event_surveys
+         SET title = ?, browser_title = ?, session_id = ?, participant_slug = ?, status = ?, updated_at = CURRENT_TIMESTAMP
+         WHERE id = ? AND event_id = ?`
+      )
+      .bind(title, input.browserTitle?.trim() || title, input.sessionId || null, slug, status, surveyId, eventId)
+  ];
+
+  const keptQuestionIds = new Set<string>();
+  for (const question of questions) {
+    const existingQuestion = current.questions?.find((item) => item.id === question.id);
+    const questionVotes = Number(existingQuestion?.vote_count ?? 0);
+    const questionId = existingQuestion?.id ?? `survey_question_${crypto.randomUUID().slice(0, 12)}`;
+    keptQuestionIds.add(questionId);
+
+    if (existingQuestion) {
+      statements.push(
+        db
+          .prepare(
+            `UPDATE event_survey_questions
+             SET question_text = ?, description = ?, allow_multiple_answers = ?, max_answers_per_participant = ?,
+                 chart_type = ?, sort_order = ?, status = ?, updated_at = CURRENT_TIMESTAMP
+             WHERE id = ? AND survey_id = ?`
+          )
+          .bind(
+            question.questionText,
+            question.description,
+            questionVotes > 0 ? existingQuestion.allow_multiple_answers : question.allowMultipleAnswers ? 1 : 0,
+            questionVotes > 0 ? existingQuestion.max_answers_per_participant : question.maxAnswersPerParticipant,
+            question.chartType,
+            question.sortOrder,
+            question.status,
+            questionId,
+            surveyId
+          )
+      );
+    } else {
+      statements.push(
+        db
+          .prepare(
+            `INSERT INTO event_survey_questions (
+              id, survey_id, question_text, description, allow_multiple_answers,
+              max_answers_per_participant, chart_type, sort_order, status
+             )
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          )
+          .bind(questionId, surveyId, question.questionText, question.description, question.allowMultipleAnswers ? 1 : 0, question.maxAnswersPerParticipant, question.chartType, question.sortOrder, question.status)
+      );
+    }
+
+    const currentOptions = existingQuestion?.options ?? [];
+    const keptOptionIds = new Set<string>();
+    for (const option of question.options) {
+      const existingOption = currentOptions.find((item) => item.id === option.id);
+      const optionId = existingOption?.id ?? `survey_option_${crypto.randomUUID().slice(0, 12)}`;
+      keptOptionIds.add(optionId);
+      if (existingOption) {
+        statements.push(
+          db
+            .prepare(
+              `UPDATE event_survey_options
+               SET option_text = ?, sort_order = ?, status = ?, updated_at = CURRENT_TIMESTAMP
+               WHERE id = ? AND question_id = ?`
+            )
+            .bind(option.optionText, option.sortOrder, option.status, optionId, questionId)
+        );
+      } else {
+        statements.push(
+          db
+            .prepare(
+              `INSERT INTO event_survey_options (id, question_id, option_text, sort_order, status)
+               VALUES (?, ?, ?, ?, ?)`
+            )
+            .bind(optionId, questionId, option.optionText, option.sortOrder, option.status)
+        );
+      }
+    }
+
+    for (const staleOption of currentOptions.filter((option) => !keptOptionIds.has(option.id))) {
+      statements.push(db.prepare("UPDATE event_survey_options SET status = 'inactive', updated_at = CURRENT_TIMESTAMP WHERE id = ?").bind(staleOption.id));
+    }
+  }
+
+  for (const staleQuestion of (current.questions ?? []).filter((question) => !keptQuestionIds.has(question.id))) {
+    statements.push(db.prepare("UPDATE event_survey_questions SET status = 'inactive', updated_at = CURRENT_TIMESTAMP WHERE id = ?").bind(staleQuestion.id));
+  }
+
+  await db.batch(statements);
+  return { ok: true, survey: await getEventSurveyById(db, surveyId) };
+}
+
+export async function updateEventSurveyStatus(db: D1Database, eventId: string, surveyId: string, status: string) {
+  const nextStatus = ["draft", "open", "closed", "archived"].includes(status) ? status : "draft";
+  const result = await db
+    .prepare("UPDATE event_surveys SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND event_id = ?")
+    .bind(nextStatus, surveyId, eventId)
+    .run();
+  return result.meta.changes > 0;
+}
+
+export async function getPublicSurveyBySlug(db: D1Database, slug: string) {
+  const survey = await db
+    .prepare(
+      `SELECT
+        s.*,
+        e.title AS event_title,
+        e.short_link_slug AS event_slug,
+        COUNT(DISTINCT q.id) AS question_count,
+        COUNT(v.id) AS vote_count,
+        COUNT(DISTINCT v.anonymous_participant_key) AS participant_count
+       FROM event_surveys s
+       INNER JOIN events e ON e.id = s.event_id
+       LEFT JOIN event_survey_questions q ON q.survey_id = s.id AND q.status = 'active'
+       LEFT JOIN event_survey_votes v ON v.survey_id = s.id AND v.status = 'active'
+       WHERE s.participant_slug = ?
+       GROUP BY s.id`
+    )
+    .bind(normalizePublicSlug(slug))
+    .first<EventSurvey>();
+
+  if (!survey) return null;
+  const questions = await listSurveyQuestions(db, survey.id, true);
+  return { ...survey, questions };
+}
+
+export async function registerSurveyVote(db: D1Database, surveySlug: string, questionId: string, input: {
+  optionIds?: string[];
+  participantKey?: string;
+}) {
+  const survey = await getPublicSurveyBySlug(db, surveySlug);
+  if (!survey || survey.status === "draft" || survey.status === "archived") return { ok: false, message: "Encuesta no disponible." };
+  if (survey.status !== "open") return { ok: false, message: "La encuesta ya no recibe respuestas." };
+  const question = survey.questions?.find((item) => item.id === questionId && item.status === "active");
+  if (!question) return { ok: false, message: "Pregunta no disponible." };
+  const participantKey = input.participantKey?.trim() || crypto.randomUUID();
+  const activeOptions = question.options?.filter((option) => option.status === "active") ?? [];
+  const selectedOptionIds = [...new Set(input.optionIds ?? [])].filter((optionId) => activeOptions.some((option) => option.id === optionId));
+  const maxAnswers = question.allow_multiple_answers ? Math.max(question.max_answers_per_participant, 1) : 1;
+
+  if (selectedOptionIds.length === 0) return { ok: false, message: "Seleccione una alternativa." };
+  if (selectedOptionIds.length > maxAnswers) return { ok: false, message: `Seleccione maximo ${maxAnswers} alternativas.` };
+
+  const statements: D1PreparedStatement[] = [
+    db
+      .prepare(
+        `UPDATE event_survey_votes
+         SET status = 'replaced', updated_at = CURRENT_TIMESTAMP
+         WHERE question_id = ? AND anonymous_participant_key = ? AND status = 'active'`
+      )
+      .bind(question.id, participantKey)
+  ];
+
+  for (const optionId of selectedOptionIds) {
+    statements.push(
+      db
+        .prepare(
+          `INSERT INTO event_survey_votes (id, survey_id, question_id, option_id, anonymous_participant_key)
+           VALUES (?, ?, ?, ?, ?)`
+        )
+        .bind(`survey_vote_${crypto.randomUUID().slice(0, 12)}`, survey.id, question.id, optionId, participantKey)
+    );
+  }
+
+  await db.batch(statements);
+  return { ok: true, survey: await getPublicSurveyBySlug(db, surveySlug) };
 }
 
 export async function listEventBoards(db: D1Database, eventId: string) {

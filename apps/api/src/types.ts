@@ -314,6 +314,53 @@ export type EventDashboardSession = {
   items?: EventDashboardItem[];
 };
 
+export type EventSurvey = {
+  id: string;
+  event_id: string;
+  session_id: string | null;
+  title: string;
+  browser_title: string | null;
+  participant_slug: string;
+  status: string;
+  created_by_user_id: string;
+  question_count: number;
+  vote_count: number;
+  participant_count: number;
+  created_at: string;
+  updated_at: string;
+  event_title?: string;
+  event_slug?: string;
+  questions?: EventSurveyQuestion[];
+};
+
+export type EventSurveyQuestion = {
+  id: string;
+  survey_id: string;
+  question_text: string;
+  description: string | null;
+  allow_multiple_answers: number;
+  max_answers_per_participant: number;
+  chart_type: string;
+  sort_order: number;
+  status: string;
+  vote_count?: number;
+  participant_count?: number;
+  created_at: string;
+  updated_at: string;
+  options?: EventSurveyOption[];
+};
+
+export type EventSurveyOption = {
+  id: string;
+  question_id: string;
+  option_text: string;
+  sort_order: number;
+  status: string;
+  vote_count?: number;
+  created_at: string;
+  updated_at: string;
+};
+
 export type Participant = {
   id: string;
   document_type: string;

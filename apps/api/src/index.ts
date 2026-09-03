@@ -14,6 +14,7 @@ import {
   createCatalogWithControl,
   createEventBoard,
   createEventQuestion,
+  createEventSurvey,
   createEventWithSchedule,
   createParticipant,
   ensureEventParticipantRegistration,
@@ -33,6 +34,7 @@ import {
   getDashboardPrivateResource,
   getPublicQuestionByParticipantSlug,
   getPublicQuestionByPresenterSlug,
+  getPublicSurveyBySlug,
   getQuestionSelectionGroups,
   getQuestionSummary,
   getUserForLogin,
@@ -48,6 +50,7 @@ import {
   getEventDashboard,
   listBoardNotes,
   listEventQuestions,
+  listEventSurveys,
   listQuestionResponsesByParticipant,
   listQuestionSelectionsByParticipant,
   listEventSessions,
@@ -65,6 +68,7 @@ import {
   registerAttendance,
   registerBoardNote,
   registerQuestionResponse,
+  registerSurveyVote,
   removeQuestionSelection,
   removeTemplateField,
   removeTemplateSection,
@@ -78,6 +82,8 @@ import {
   updateEventQuestion,
   updateEventQuestionParticipantCloud,
   updateEventQuestionStatus,
+  updateEventSurvey,
+  updateEventSurveyStatus,
   updateEventSessionDetails,
   updateSessionDashboardItems,
   updateFormDetails,
@@ -655,6 +661,23 @@ app.delete("/api/public/board-presenter/:slug/notes/:noteId", async (c) => {
   return c.json(result, result.ok ? 200 : 404);
 });
 
+app.get("/api/public/surveys/:slug", async (c) => {
+  const survey = await getPublicSurveyBySlug(c.env.DB, c.req.param("slug"));
+  if (!survey || survey.status === "draft" || survey.status === "archived") {
+    return c.json({ ok: false, message: "Encuesta no disponible." }, 404);
+  }
+  return c.json({ ok: true, survey });
+});
+
+app.post("/api/public/surveys/:slug/questions/:questionId/votes", async (c) => {
+  const body = await c.req.json<{ optionIds?: string[]; participantKey?: string }>().catch(() => null);
+  const result = await registerSurveyVote(c.env.DB, c.req.param("slug"), c.req.param("questionId"), {
+    optionIds: body?.optionIds ?? [],
+    participantKey: body?.participantKey
+  });
+  return c.json(result, result.ok ? 201 : 400);
+});
+
 app.get("/api/public/dashboards/:slug", async (c) => {
   const dashboard = await getPublicDashboardBySlug(c.env.DB, c.req.param("slug"));
   if (!dashboard || dashboard.status === "archived" || dashboard.status === "draft" || dashboard.status === "inactive") {
@@ -1176,6 +1199,94 @@ app.post("/api/admin/events/:eventId/boards/:boardId/status", async (c) => {
   const body = await c.req.json<{ status?: string }>().catch(() => null);
   const ok = await updateEventBoardStatus(c.env.DB, eventId, c.req.param("boardId"), body?.status ?? "draft");
   if (!ok) return c.json({ ok: false, message: "Pizarra no encontrada." }, 404);
+  return c.json({ ok: true });
+});
+
+app.get("/api/admin/events/:eventId/surveys", async (c) => {
+  const eventId = c.req.param("eventId");
+  const canManage = await userCanManageEvent(c.env.DB, eventId, c.get("user"));
+  if (!canManage) return c.json({ ok: false, message: "Evento no encontrado o no autorizado." }, 404);
+
+  const surveys = await listEventSurveys(c.env.DB, eventId);
+  return c.json({ ok: true, surveys: surveys.results });
+});
+
+app.post("/api/admin/events/:eventId/surveys", async (c) => {
+  const eventId = c.req.param("eventId");
+  const canManage = await userCanManageEvent(c.env.DB, eventId, c.get("user"));
+  if (!canManage) return c.json({ ok: false, message: "Evento no encontrado o no autorizado." }, 404);
+
+  const body = await c.req.json<{
+    title?: string;
+    browserTitle?: string;
+    sessionId?: string | null;
+    participantSlug?: string;
+    questions?: Array<{
+      id?: string;
+      questionText?: string;
+      description?: string | null;
+      allowMultipleAnswers?: boolean;
+      maxAnswersPerParticipant?: number;
+      chartType?: string;
+      sortOrder?: number;
+      status?: string;
+      options?: Array<{ id?: string; optionText?: string; sortOrder?: number; status?: string }>;
+    }>;
+  }>().catch(() => null);
+
+  const result = await createEventSurvey(c.env.DB, eventId, c.get("user"), {
+    title: body?.title ?? "",
+    browserTitle: body?.browserTitle,
+    sessionId: body?.sessionId || null,
+    participantSlug: body?.participantSlug,
+    questions: body?.questions
+  });
+  return c.json(result, result.ok ? 201 : 400);
+});
+
+app.put("/api/admin/events/:eventId/surveys/:surveyId", async (c) => {
+  const eventId = c.req.param("eventId");
+  const canManage = await userCanManageEvent(c.env.DB, eventId, c.get("user"));
+  if (!canManage) return c.json({ ok: false, message: "Evento no encontrado o no autorizado." }, 404);
+
+  const body = await c.req.json<{
+    title?: string;
+    browserTitle?: string;
+    sessionId?: string | null;
+    participantSlug?: string;
+    status?: string;
+    questions?: Array<{
+      id?: string;
+      questionText?: string;
+      description?: string | null;
+      allowMultipleAnswers?: boolean;
+      maxAnswersPerParticipant?: number;
+      chartType?: string;
+      sortOrder?: number;
+      status?: string;
+      options?: Array<{ id?: string; optionText?: string; sortOrder?: number; status?: string }>;
+    }>;
+  }>().catch(() => null);
+
+  const result = await updateEventSurvey(c.env.DB, eventId, c.req.param("surveyId"), {
+    title: body?.title ?? "",
+    browserTitle: body?.browserTitle,
+    sessionId: body?.sessionId || null,
+    participantSlug: body?.participantSlug,
+    status: body?.status,
+    questions: body?.questions
+  });
+  return c.json(result, result.ok ? 200 : 400);
+});
+
+app.post("/api/admin/events/:eventId/surveys/:surveyId/status", async (c) => {
+  const eventId = c.req.param("eventId");
+  const canManage = await userCanManageEvent(c.env.DB, eventId, c.get("user"));
+  if (!canManage) return c.json({ ok: false, message: "Evento no encontrado o no autorizado." }, 404);
+
+  const body = await c.req.json<{ status?: string }>().catch(() => null);
+  const ok = await updateEventSurveyStatus(c.env.DB, eventId, c.req.param("surveyId"), body?.status ?? "draft");
+  if (!ok) return c.json({ ok: false, message: "Encuesta no encontrada." }, 404);
   return c.json({ ok: true });
 });
 

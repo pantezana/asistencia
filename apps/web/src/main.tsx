@@ -290,6 +290,65 @@ type EventBoardNote = {
   created_at: string;
 };
 
+type EventSurveyOption = {
+  id?: string;
+  question_id?: string;
+  option_text: string;
+  sort_order: number;
+  status: string;
+  vote_count?: number;
+};
+
+type EventSurveyQuestion = {
+  id?: string;
+  survey_id?: string;
+  question_text: string;
+  description: string | null;
+  allow_multiple_answers: number;
+  max_answers_per_participant: number;
+  chart_type: string;
+  sort_order: number;
+  status: string;
+  vote_count?: number;
+  participant_count?: number;
+  options?: EventSurveyOption[];
+};
+
+type EventSurvey = {
+  id: string;
+  event_id: string;
+  session_id: string | null;
+  title: string;
+  browser_title: string | null;
+  participant_slug: string;
+  status: string;
+  question_count: number;
+  vote_count: number;
+  participant_count: number;
+  event_title?: string;
+  event_slug?: string;
+  questions?: EventSurveyQuestion[];
+};
+
+type SurveyOptionDraft = {
+  id?: string;
+  optionText: string;
+  sortOrder: number;
+  status: string;
+};
+
+type SurveyQuestionDraft = {
+  id?: string;
+  questionText: string;
+  description: string;
+  allowMultipleAnswers: boolean;
+  maxAnswersPerParticipant: string;
+  chartType: string;
+  sortOrder: number;
+  status: string;
+  options: SurveyOptionDraft[];
+};
+
 type EventDashboardInstruction = {
   id?: string;
   language_label: string | null;
@@ -690,6 +749,10 @@ function App() {
     return <BoardParticipantView slug={path.replace("/b/", "")} />;
   }
 
+  if (path.startsWith("/s/")) {
+    return <SurveyPublicView slug={path.replace("/s/", "")} />;
+  }
+
   if (path.startsWith("/t/")) {
     return <DashboardPublicView slug={path.replace("/t/", "")} />;
   }
@@ -708,6 +771,7 @@ function AdminShell() {
   const [sessions, setSessions] = React.useState<AdminSession[]>([]);
   const [eventQuestions, setEventQuestions] = React.useState<EventQuestion[]>([]);
   const [eventBoards, setEventBoards] = React.useState<EventBoard[]>([]);
+  const [eventSurveys, setEventSurveys] = React.useState<EventSurvey[]>([]);
   const [eventDashboard, setEventDashboard] = React.useState<EventDashboard | null>(null);
   const [selectedSessionId, setSelectedSessionId] = React.useState<string | null>(null);
   const [savingSession, setSavingSession] = React.useState(false);
@@ -851,6 +915,35 @@ function AdminShell() {
     maxNotesPerParticipant: "1",
     instructions: [emptyBoardInstruction]
   });
+  const emptySurveyQuestion = (): SurveyQuestionDraft => ({
+    questionText: "",
+    description: "",
+    allowMultipleAnswers: false,
+    maxAnswersPerParticipant: "1",
+    chartType: "bar",
+    sortOrder: 1,
+    status: "active",
+    options: [
+      { optionText: "", sortOrder: 1, status: "active" },
+      { optionText: "", sortOrder: 2, status: "active" }
+    ]
+  });
+  const [surveyDraft, setSurveyDraft] = React.useState({
+    title: "",
+    browserTitle: "",
+    sessionId: "",
+    participantSlug: "",
+    questions: [emptySurveyQuestion()]
+  });
+  const [editingSurveyId, setEditingSurveyId] = React.useState<string | null>(null);
+  const [surveyEditDraft, setSurveyEditDraft] = React.useState({
+    title: "",
+    browserTitle: "",
+    sessionId: "",
+    participantSlug: "",
+    status: "draft",
+    questions: [emptySurveyQuestion()]
+  });
   const emptyDashboardInstruction = { languageLabel: "", contentHtml: "<p></p>", sortOrder: 1, status: "active" };
   const emptyDashboardItem: DashboardItemDraft = { sessionId: "", name: "", iconKey: "none", valueType: "text", value: "", visibility: "public", sortOrder: 1, status: "active" };
   const [dashboardDraft, setDashboardDraft] = React.useState({
@@ -885,9 +978,11 @@ function AdminShell() {
     if (selectedEventId) {
       setEditingQuestionId(null);
       setEditingBoardId(null);
+      setEditingSurveyId(null);
       void loadSessions(selectedEventId);
       void loadEventQuestions(selectedEventId);
       void loadEventBoards(selectedEventId);
+      void loadEventSurveys(selectedEventId);
       void loadEventDashboard(selectedEventId);
     }
   }, [selectedEventId]);
@@ -1045,6 +1140,13 @@ function AdminShell() {
     if (!response.ok) return;
     const payload = (await response.json()) as { boards: EventBoard[] };
     setEventBoards(payload.boards);
+  }
+
+  async function loadEventSurveys(eventId: string) {
+    const response = await fetch(`/api/admin/events/${eventId}/surveys`, { credentials: "include" });
+    if (!response.ok) return;
+    const payload = (await response.json()) as { surveys: EventSurvey[] };
+    setEventSurveys(payload.surveys);
   }
 
   async function loadEventDashboard(eventId: string) {
@@ -1844,6 +1946,211 @@ function AdminShell() {
     }
     await loadEventBoards(selectedEventId);
     setActionMessage("Estado de pizarra actualizado.");
+  }
+
+  function surveyPayload(draft: typeof surveyDraft | typeof surveyEditDraft) {
+    return {
+      title: draft.title,
+      browserTitle: draft.browserTitle || draft.title,
+      sessionId: draft.sessionId || null,
+      participantSlug: draft.participantSlug,
+      status: "status" in draft ? draft.status : undefined,
+      questions: draft.questions.map((question, questionIndex) => ({
+        id: question.id,
+        questionText: question.questionText,
+        description: question.description,
+        allowMultipleAnswers: question.allowMultipleAnswers,
+        maxAnswersPerParticipant: question.allowMultipleAnswers ? Number(question.maxAnswersPerParticipant) || 2 : 1,
+        chartType: question.chartType,
+        sortOrder: questionIndex + 1,
+        status: question.status,
+        options: question.options.map((option, optionIndex) => ({
+          id: option.id,
+          optionText: option.optionText,
+          sortOrder: optionIndex + 1,
+          status: option.status
+        }))
+      }))
+    };
+  }
+
+  function resetSurveyDraft() {
+    setSurveyDraft({
+      title: "",
+      browserTitle: "",
+      sessionId: "",
+      participantSlug: "",
+      questions: [emptySurveyQuestion()]
+    });
+  }
+
+  function surveyQuestionFromApi(question: EventSurveyQuestion, index: number): SurveyQuestionDraft {
+    return {
+      id: question.id,
+      questionText: question.question_text,
+      description: question.description ?? "",
+      allowMultipleAnswers: Boolean(question.allow_multiple_answers),
+      maxAnswersPerParticipant: question.max_answers_per_participant?.toString() ?? "1",
+      chartType: question.chart_type || "bar",
+      sortOrder: question.sort_order || index + 1,
+      status: question.status || "active",
+      options: question.options?.length
+        ? question.options.map((option, optionIndex) => ({
+          id: option.id,
+          optionText: option.option_text,
+          sortOrder: option.sort_order || optionIndex + 1,
+          status: option.status || "active"
+        }))
+        : [
+          { optionText: "", sortOrder: 1, status: "active" },
+          { optionText: "", sortOrder: 2, status: "active" }
+        ]
+    };
+  }
+
+  async function createSurvey(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedEventId || !surveyDraft.title.trim()) return;
+    const response = await fetch(`/api/admin/events/${selectedEventId}/surveys`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(surveyPayload(surveyDraft))
+    });
+    const payload = (await response.json()) as { ok: boolean; message?: string };
+    if (!response.ok || !payload.ok) {
+      setActionMessage(payload.message ?? "No se pudo crear la encuesta.");
+      return;
+    }
+    resetSurveyDraft();
+    await loadEventSurveys(selectedEventId);
+    setActionMessage("Encuesta interactiva creada correctamente.");
+  }
+
+  function startSurveyEdit(survey: EventSurvey) {
+    setEditingSurveyId(survey.id);
+    setSurveyEditDraft({
+      title: survey.title,
+      browserTitle: survey.browser_title ?? survey.title,
+      sessionId: survey.session_id ?? "",
+      participantSlug: survey.participant_slug,
+      status: survey.status,
+      questions: survey.questions?.length ? survey.questions.map(surveyQuestionFromApi) : [emptySurveyQuestion()]
+    });
+    setActionMessage(null);
+  }
+
+  function cancelSurveyEdit() {
+    setEditingSurveyId(null);
+    setSurveyEditDraft({
+      title: "",
+      browserTitle: "",
+      sessionId: "",
+      participantSlug: "",
+      status: "draft",
+      questions: [emptySurveyQuestion()]
+    });
+  }
+
+  async function saveSurveyEdit(survey: EventSurvey, event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedEventId) return;
+    const response = await fetch(`/api/admin/events/${selectedEventId}/surveys/${survey.id}`, {
+      method: "PUT",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(surveyPayload(surveyEditDraft))
+    });
+    const payload = (await response.json()) as { ok: boolean; message?: string };
+    if (!response.ok || !payload.ok) {
+      setActionMessage(payload.message ?? "No se pudo actualizar la encuesta.");
+      return;
+    }
+    await loadEventSurveys(selectedEventId);
+    cancelSurveyEdit();
+    setActionMessage("Encuesta actualizada correctamente.");
+  }
+
+  async function changeSurveyStatus(survey: EventSurvey, status: string) {
+    if (!selectedEventId) return;
+    const response = await fetch(`/api/admin/events/${selectedEventId}/surveys/${survey.id}/status`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status })
+    });
+    const payload = (await response.json()) as { ok: boolean; message?: string };
+    if (!response.ok || !payload.ok) {
+      setActionMessage(payload.message ?? "No se pudo actualizar la encuesta.");
+      return;
+    }
+    await loadEventSurveys(selectedEventId);
+    setActionMessage("Estado de encuesta actualizado.");
+  }
+
+  function updateSurveyQuestion(mode: "create" | "edit", index: number, field: keyof SurveyQuestionDraft, value: string | boolean) {
+    const update = <T extends { questions: SurveyQuestionDraft[] }>(current: T): T => ({
+      ...current,
+      questions: current.questions.map((question, itemIndex) =>
+        itemIndex === index ? { ...question, [field]: value } : question
+      )
+    });
+    if (mode === "create") setSurveyDraft(update);
+    else setSurveyEditDraft(update);
+  }
+
+  function updateSurveyOption(mode: "create" | "edit", questionIndex: number, optionIndex: number, field: keyof SurveyOptionDraft, value: string) {
+    const update = <T extends { questions: SurveyQuestionDraft[] }>(current: T): T => ({
+      ...current,
+      questions: current.questions.map((question, itemIndex) => itemIndex === questionIndex
+        ? {
+          ...question,
+          options: question.options.map((option, nestedIndex) => nestedIndex === optionIndex ? { ...option, [field]: value } : option)
+        }
+        : question)
+    });
+    if (mode === "create") setSurveyDraft(update);
+    else setSurveyEditDraft(update);
+  }
+
+  function addSurveyQuestion(mode: "create" | "edit") {
+    const update = <T extends { questions: SurveyQuestionDraft[] }>(current: T): T => ({
+      ...current,
+      questions: [...current.questions, { ...emptySurveyQuestion(), sortOrder: current.questions.length + 1 }]
+    });
+    if (mode === "create") setSurveyDraft(update);
+    else setSurveyEditDraft(update);
+  }
+
+  function removeSurveyQuestion(mode: "create" | "edit", index: number) {
+    const update = <T extends { questions: SurveyQuestionDraft[] }>(current: T): T => ({
+      ...current,
+      questions: current.questions.length > 1 ? current.questions.filter((_, itemIndex) => itemIndex !== index) : current.questions
+    });
+    if (mode === "create") setSurveyDraft(update);
+    else setSurveyEditDraft(update);
+  }
+
+  function addSurveyOption(mode: "create" | "edit", questionIndex: number) {
+    const update = <T extends { questions: SurveyQuestionDraft[] }>(current: T): T => ({
+      ...current,
+      questions: current.questions.map((question, itemIndex) => itemIndex === questionIndex
+        ? { ...question, options: [...question.options, { optionText: "", sortOrder: question.options.length + 1, status: "active" }] }
+        : question)
+    });
+    if (mode === "create") setSurveyDraft(update);
+    else setSurveyEditDraft(update);
+  }
+
+  function removeSurveyOption(mode: "create" | "edit", questionIndex: number, optionIndex: number) {
+    const update = <T extends { questions: SurveyQuestionDraft[] }>(current: T): T => ({
+      ...current,
+      questions: current.questions.map((question, itemIndex) => itemIndex === questionIndex
+        ? { ...question, options: question.options.length > 2 ? question.options.filter((_, nestedIndex) => nestedIndex !== optionIndex) : question.options }
+        : question)
+    });
+    if (mode === "create") setSurveyDraft(update);
+    else setSurveyEditDraft(update);
   }
 
   function updateInstruction(
@@ -2935,6 +3242,220 @@ function AdminShell() {
                   );
                 })}
                 {eventBoards.length === 0 ? <p className="blocked-message">No hay pizarras interactivas para este evento.</p> : null}
+              </div>
+            </div>
+          ) : null}
+
+          {selectedEvent ? (
+            <div className="admin-form-panel">
+              <div className="detail-heading">
+                <div>
+                  <p className="eyebrow">Votación en vivo</p>
+                  <h3>Encuestas interactivas</h3>
+                  <p>Configure preguntas cerradas y publique resultados dinámicos con gráficos.</p>
+                </div>
+              </div>
+
+              <form className="builder-card" onSubmit={createSurvey}>
+                <div className="builder-grid">
+                  <label>
+                    Título de la encuesta
+                    <input value={surveyDraft.title} onChange={(event) => setSurveyDraft((current) => ({ ...current, title: event.target.value }))} required />
+                  </label>
+                  <label>
+                    Nombre Navegador
+                    <input value={surveyDraft.browserTitle} onChange={(event) => setSurveyDraft((current) => ({ ...current, browserTitle: event.target.value }))} />
+                  </label>
+                  <label>
+                    Sesión asociada
+                    <select value={surveyDraft.sessionId} onChange={(event) => setSurveyDraft((current) => ({ ...current, sessionId: event.target.value }))}>
+                      <option value="">Todo el evento</option>
+                      {sessions.map((session) => <option key={session.id} value={session.id}>{session.title}</option>)}
+                    </select>
+                  </label>
+                  <label>
+                    Enlace corto de encuesta
+                    <input value={surveyDraft.participantSlug} onChange={(event) => setSurveyDraft((current) => ({ ...current, participantSlug: event.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-") }))} placeholder="opcional" />
+                    <span className="field-hint">{window.location.origin}/s/{surveyDraft.participantSlug || "enlace-encuesta"}</span>
+                  </label>
+                </div>
+                <div className="survey-question-editor-list">
+                  {surveyDraft.questions.map((question, questionIndex) => (
+                    <div className="survey-question-editor" key={`survey-new-${questionIndex}`}>
+                      <div className="mini-section-heading">
+                        <strong>Pregunta {questionIndex + 1}</strong>
+                        <button className="text-button danger" type="button" onClick={() => removeSurveyQuestion("create", questionIndex)}>Quitar pregunta</button>
+                      </div>
+                      <div className="builder-grid">
+                        <label>
+                          Pregunta
+                          <input value={question.questionText} onChange={(event) => updateSurveyQuestion("create", questionIndex, "questionText", event.target.value)} required />
+                        </label>
+                        <label>
+                          Descripción
+                          <input value={question.description} onChange={(event) => updateSurveyQuestion("create", questionIndex, "description", event.target.value)} />
+                        </label>
+                        <label>
+                          Tipo de gráfico
+                          <select value={question.chartType} onChange={(event) => updateSurveyQuestion("create", questionIndex, "chartType", event.target.value)}>
+                            <option value="bar">Barras</option>
+                            <option value="pie">Círculo</option>
+                          </select>
+                        </label>
+                        <label>
+                          Máximo de respuestas
+                          <input type="number" min="1" value={question.maxAnswersPerParticipant} onChange={(event) => updateSurveyQuestion("create", questionIndex, "maxAnswersPerParticipant", event.target.value)} disabled={!question.allowMultipleAnswers} />
+                        </label>
+                        <label className="check-field">
+                          <input checked={question.allowMultipleAnswers} onChange={(event) => updateSurveyQuestion("create", questionIndex, "allowMultipleAnswers", event.target.checked)} type="checkbox" />
+                          Permitir más de una respuesta
+                        </label>
+                      </div>
+                      <div className="survey-option-list">
+                        {question.options.map((option, optionIndex) => (
+                          <div className="survey-option-editor" key={`survey-new-${questionIndex}-${optionIndex}`}>
+                            <input value={option.optionText} onChange={(event) => updateSurveyOption("create", questionIndex, optionIndex, "optionText", event.target.value)} placeholder={`Alternativa ${optionIndex + 1}`} required />
+                            <select value={option.status} onChange={(event) => updateSurveyOption("create", questionIndex, optionIndex, "status", event.target.value)}>
+                              <option value="active">Activa</option>
+                              <option value="inactive">Inactiva</option>
+                            </select>
+                            <button className="text-button danger" type="button" onClick={() => removeSurveyOption("create", questionIndex, optionIndex)}>Quitar</button>
+                          </div>
+                        ))}
+                      </div>
+                      <button className="button secondary table-action" type="button" onClick={() => addSurveyOption("create", questionIndex)}>Agregar alternativa</button>
+                    </div>
+                  ))}
+                </div>
+                <div className="actions">
+                  <button className="button secondary" type="button" onClick={() => addSurveyQuestion("create")}>Agregar pregunta</button>
+                  <button className="button" type="submit">Crear encuesta</button>
+                </div>
+              </form>
+
+              <div className="question-list">
+                {eventSurveys.map((survey) => {
+                  const surveyUrl = `${window.location.origin}/s/${survey.participant_slug}`;
+                  const isEditingSurvey = editingSurveyId === survey.id;
+                  const hasVotes = survey.vote_count > 0;
+                  return (
+                    <div className={`question-card${isEditingSurvey ? " editing" : ""}`} key={survey.id}>
+                      {!isEditingSurvey ? (
+                        <>
+                          <div>
+                            <strong>{survey.title}</strong>
+                            <span>{survey.question_count} preguntas · {survey.vote_count} votos · {survey.status}</span>
+                            <a href={surveyUrl}>{surveyUrl}</a>
+                          </div>
+                          <div className="row-actions">
+                            <button className="button secondary table-action" type="button" onClick={() => startSurveyEdit(survey)}>Editar</button>
+                            <button className="button secondary table-action" type="button" onClick={() => void changeSurveyStatus(survey, "open")}>Abrir</button>
+                            <button className="button secondary table-action" type="button" onClick={() => void changeSurveyStatus(survey, "closed")}>Cerrar</button>
+                            <button className="button secondary table-action" type="button" onClick={() => void changeSurveyStatus(survey, "archived")}>Archivar</button>
+                          </div>
+                        </>
+                      ) : (
+                        <form className="question-edit-form" onSubmit={(event) => void saveSurveyEdit(survey, event)}>
+                          <div className="builder-grid">
+                            <label>
+                              Título de la encuesta
+                              <input value={surveyEditDraft.title} onChange={(event) => setSurveyEditDraft((current) => ({ ...current, title: event.target.value }))} required />
+                            </label>
+                            <label>
+                              Nombre Navegador
+                              <input value={surveyEditDraft.browserTitle} onChange={(event) => setSurveyEditDraft((current) => ({ ...current, browserTitle: event.target.value }))} />
+                            </label>
+                            <label>
+                              Sesión asociada
+                              <select value={surveyEditDraft.sessionId} onChange={(event) => setSurveyEditDraft((current) => ({ ...current, sessionId: event.target.value }))}>
+                                <option value="">Todo el evento</option>
+                                {sessions.map((session) => <option key={session.id} value={session.id}>{session.title}</option>)}
+                              </select>
+                            </label>
+                            <label>
+                              Enlace corto
+                              <input value={surveyEditDraft.participantSlug} onChange={(event) => setSurveyEditDraft((current) => ({ ...current, participantSlug: event.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-") }))} disabled={hasVotes} required />
+                            </label>
+                            <label>
+                              Estado
+                              <select value={surveyEditDraft.status} onChange={(event) => setSurveyEditDraft((current) => ({ ...current, status: event.target.value }))}>
+                                <option value="draft">Borrador</option>
+                                <option value="open">Abierta</option>
+                                <option value="closed">Cerrada</option>
+                                <option value="archived">Archivada</option>
+                              </select>
+                            </label>
+                          </div>
+                          <div className="survey-question-editor-list">
+                            {surveyEditDraft.questions.map((question, questionIndex) => (
+                              <div className="survey-question-editor" key={`survey-edit-${question.id ?? questionIndex}`}>
+                                <div className="mini-section-heading">
+                                  <strong>Pregunta {questionIndex + 1}</strong>
+                                  <button className="text-button danger" type="button" onClick={() => removeSurveyQuestion("edit", questionIndex)}>Quitar pregunta</button>
+                                </div>
+                                <div className="builder-grid">
+                                  <label>
+                                    Pregunta
+                                    <input value={question.questionText} onChange={(event) => updateSurveyQuestion("edit", questionIndex, "questionText", event.target.value)} required />
+                                  </label>
+                                  <label>
+                                    Descripción
+                                    <input value={question.description} onChange={(event) => updateSurveyQuestion("edit", questionIndex, "description", event.target.value)} />
+                                  </label>
+                                  <label>
+                                    Tipo de gráfico
+                                    <select value={question.chartType} onChange={(event) => updateSurveyQuestion("edit", questionIndex, "chartType", event.target.value)}>
+                                      <option value="bar">Barras</option>
+                                      <option value="pie">Círculo</option>
+                                    </select>
+                                  </label>
+                                  <label>
+                                    Estado
+                                    <select value={question.status} onChange={(event) => updateSurveyQuestion("edit", questionIndex, "status", event.target.value)}>
+                                      <option value="active">Activa</option>
+                                      <option value="inactive">Inactiva</option>
+                                    </select>
+                                  </label>
+                                  <label>
+                                    Máximo de respuestas
+                                    <input type="number" min="1" value={question.maxAnswersPerParticipant} onChange={(event) => updateSurveyQuestion("edit", questionIndex, "maxAnswersPerParticipant", event.target.value)} disabled={!question.allowMultipleAnswers} />
+                                  </label>
+                                  <label className="check-field">
+                                    <input checked={question.allowMultipleAnswers} onChange={(event) => updateSurveyQuestion("edit", questionIndex, "allowMultipleAnswers", event.target.checked)} type="checkbox" />
+                                    Permitir más de una respuesta
+                                  </label>
+                                </div>
+                                <div className="survey-option-list">
+                                  {question.options.map((option, optionIndex) => (
+                                    <div className="survey-option-editor" key={`survey-edit-${questionIndex}-${option.id ?? optionIndex}`}>
+                                      <input value={option.optionText} onChange={(event) => updateSurveyOption("edit", questionIndex, optionIndex, "optionText", event.target.value)} placeholder={`Alternativa ${optionIndex + 1}`} required />
+                                      <select value={option.status} onChange={(event) => updateSurveyOption("edit", questionIndex, optionIndex, "status", event.target.value)}>
+                                        <option value="active">Activa</option>
+                                        <option value="inactive">Inactiva</option>
+                                      </select>
+                                      <button className="text-button danger" type="button" onClick={() => removeSurveyOption("edit", questionIndex, optionIndex)}>Quitar</button>
+                                    </div>
+                                  ))}
+                                </div>
+                                <button className="button secondary table-action" type="button" onClick={() => addSurveyOption("edit", questionIndex)}>Agregar alternativa</button>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="question-edit-note">
+                            <span>{survey.vote_count} votos registrados</span>
+                            {hasVotes ? <span>El enlace corto está bloqueado por trazabilidad.</span> : <span>El enlace corto aún puede modificarse.</span>}
+                          </div>
+                          <div className="actions">
+                            <button className="button secondary" type="button" onClick={() => addSurveyQuestion("edit")}>Agregar pregunta</button>
+                            <button className="button" type="submit">Guardar encuesta</button>
+                            <button className="button secondary" type="button" onClick={cancelSurveyEdit}>Cancelar</button>
+                          </div>
+                        </form>
+                      )}
+                    </div>
+                  );
+                })}
+                {eventSurveys.length === 0 ? <p className="blocked-message">No hay encuestas interactivas para este evento.</p> : null}
               </div>
             </div>
           ) : null}
@@ -5674,6 +6195,212 @@ function BoardPresenterView({ slug }: { slug: string }) {
         ) : null}
       </section>
     </main>
+  );
+}
+
+function SurveyPublicView({ slug }: { slug: string }) {
+  const [survey, setSurvey] = React.useState<EventSurvey | null>(null);
+  const [message, setMessage] = React.useState("Cargando encuesta.");
+  const [currentIndex, setCurrentIndex] = React.useState(0);
+  const [showForm, setShowForm] = React.useState(false);
+  const [selectedOptions, setSelectedOptions] = React.useState<string[]>([]);
+  const [submitting, setSubmitting] = React.useState(false);
+
+  const loadSurvey = React.useCallback(async () => {
+    const response = await fetch(`/api/public/surveys/${slug}`);
+    const payload = (await response.json().catch(() => null)) as { ok?: boolean; survey?: EventSurvey; message?: string } | null;
+    if (!response.ok || !payload?.ok || !payload.survey) {
+      setMessage(payload?.message ?? "Encuesta no disponible.");
+      return;
+    }
+    setSurvey(payload.survey);
+  }, [slug]);
+
+  React.useEffect(() => {
+    void loadSurvey();
+  }, [loadSurvey]);
+
+  React.useEffect(() => {
+    const timer = window.setInterval(() => void loadSurvey(), 4000);
+    return () => window.clearInterval(timer);
+  }, [loadSurvey]);
+
+  React.useEffect(() => {
+    if (!survey) return;
+    document.title = cleanText(survey.browser_title ?? survey.title);
+  }, [survey]);
+
+  const questions = survey?.questions ?? [];
+  const question = questions[currentIndex] ?? questions[0];
+  const totalVotes = Number(question?.vote_count ?? 0);
+  const canVote = survey?.status === "open";
+
+  React.useEffect(() => {
+    setSelectedOptions([]);
+    setShowForm(false);
+  }, [currentIndex]);
+
+  if (!survey) return <PublicMessage title="Encuesta interactiva" message={message} />;
+  if (!question) return <PublicMessage title={survey.title} message="La encuesta aun no tiene preguntas activas." />;
+
+  function getParticipantKey() {
+    const storageKey = `survey-participant-${slug}`;
+    let value = window.localStorage.getItem(storageKey);
+    if (!value) {
+      value = crypto.randomUUID();
+      window.localStorage.setItem(storageKey, value);
+    }
+    return value;
+  }
+
+  function toggleOption(optionId: string) {
+    if (!question) return;
+    const maxAnswers = question.allow_multiple_answers ? Math.max(question.max_answers_per_participant, 1) : 1;
+    setSelectedOptions((current) => {
+      if (!question.allow_multiple_answers) return [optionId];
+      if (current.includes(optionId)) return current.filter((item) => item !== optionId);
+      if (current.length >= maxAnswers) return current;
+      return [...current, optionId];
+    });
+  }
+
+  async function submitVote(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!question || selectedOptions.length === 0) return;
+    setSubmitting(true);
+    const response = await fetch(`/api/public/surveys/${slug}/questions/${question.id}/votes`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ optionIds: selectedOptions, participantKey: getParticipantKey() })
+    });
+    const payload = (await response.json().catch(() => null)) as { ok?: boolean; message?: string; survey?: EventSurvey } | null;
+    setSubmitting(false);
+    if (!response.ok || !payload?.ok) {
+      setMessage(payload?.message ?? "No se pudo registrar la respuesta.");
+      return;
+    }
+    if (payload.survey) setSurvey(payload.survey);
+    setMessage("Respuesta registrada correctamente.");
+    setShowForm(false);
+  }
+
+  const optionRows = question.options ?? [];
+
+  return (
+    <main className="survey-public-page">
+      <section className="survey-public-stage">
+        <p className="eyebrow">{cleanText(survey.event_title)}</p>
+        <h1>{cleanText(survey.title)}</h1>
+        <div className="survey-progress">
+          <span>Pregunta {currentIndex + 1} de {questions.length}</span>
+          <span className={`status ${survey.status === "open" ? "open" : "closed"}`}>{survey.status}</span>
+        </div>
+
+        {!showForm ? (
+          <section className="survey-results-panel">
+            <h2>{cleanText(question.question_text)}</h2>
+            {question.description ? <p>{cleanText(question.description)}</p> : null}
+            <div className="actions centered-actions">
+              <button className="button survey-register-button" type="button" onClick={() => setShowForm(true)} disabled={!canVote}>
+                Registrar Respuesta
+              </button>
+            </div>
+            {!canVote ? <p className="blocked-message">La encuesta ya no recibe respuestas.</p> : null}
+            <SurveyChart question={question} />
+            <p className="survey-total">{totalVotes} voto{totalVotes === 1 ? "" : "s"} registrados</p>
+          </section>
+        ) : (
+          <form className="survey-vote-form" onSubmit={submitVote}>
+            <h2>{cleanText(question.question_text)}</h2>
+            {question.description ? <p>{cleanText(question.description)}</p> : null}
+            <div className="survey-option-choice-list">
+              {optionRows.map((option) => {
+                const selected = selectedOptions.includes(option.id ?? "");
+                return (
+                  <label className={`survey-option-choice${selected ? " selected" : ""}`} key={option.id}>
+                    <input
+                      checked={selected}
+                      name="survey-option"
+                      onChange={() => option.id && toggleOption(option.id)}
+                      type={question.allow_multiple_answers ? "checkbox" : "radio"}
+                    />
+                    <span>{cleanText(option.option_text)}</span>
+                  </label>
+                );
+              })}
+            </div>
+            {question.allow_multiple_answers ? <span className="field-hint">Seleccionadas {selectedOptions.length} / {question.max_answers_per_participant}</span> : null}
+            <div className="actions centered-actions">
+              <button className="button" disabled={submitting || selectedOptions.length === 0} type="submit">Registrar respuesta</button>
+              <button className="secondary-button" type="button" onClick={() => setShowForm(false)}>Regresar a resultados</button>
+            </div>
+          </form>
+        )}
+
+        <div className="survey-navigation">
+          <button className="secondary-button" type="button" disabled={currentIndex === 0} onClick={() => setCurrentIndex((value) => Math.max(value - 1, 0))}>
+            Pregunta anterior
+          </button>
+          <button className="button secondary" type="button" disabled={currentIndex >= questions.length - 1} onClick={() => setCurrentIndex((value) => Math.min(value + 1, questions.length - 1))}>
+            Siguiente pregunta
+          </button>
+        </div>
+      </section>
+    </main>
+  );
+}
+
+function SurveyChart({ question }: { question: EventSurveyQuestion }) {
+  const options = question.options ?? [];
+  const total = options.reduce((sum, option) => sum + Number(option.vote_count ?? 0), 0);
+  const colors = ["#2563eb", "#16a34a", "#d97706", "#dc2626", "#7c3aed", "#0891b2", "#be185d", "#4b5563"];
+
+  if (question.chart_type === "pie") {
+    let cumulative = 0;
+    const gradient = options.map((option, index) => {
+      const percentage = total ? (Number(option.vote_count ?? 0) / total) * 100 : 0;
+      const start = cumulative;
+      cumulative += percentage;
+      return `${colors[index % colors.length]} ${start}% ${cumulative}%`;
+    }).join(", ");
+    return (
+      <div className="survey-pie-layout">
+        <div className="survey-pie" style={{ background: total ? `conic-gradient(${gradient})` : "#e2e8f0" }} />
+        <div className="survey-legend">
+          {options.map((option, index) => {
+            const votes = Number(option.vote_count ?? 0);
+            const percentage = total ? Math.round((votes / total) * 100) : 0;
+            return (
+              <div className="survey-legend-row" key={option.id ?? option.option_text}>
+                <span className="survey-color-dot" style={{ background: colors[index % colors.length] }} />
+                <strong>{cleanText(option.option_text)}</strong>
+                <span>{votes} · {percentage}%</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="survey-bar-chart">
+      {options.map((option, index) => {
+        const votes = Number(option.vote_count ?? 0);
+        const percentage = total ? Math.round((votes / total) * 100) : 0;
+        return (
+          <div className="survey-bar-row" key={option.id ?? option.option_text}>
+            <div className="survey-bar-label">
+              <strong>{cleanText(option.option_text)}</strong>
+              <span>{votes} · {percentage}%</span>
+            </div>
+            <div className="survey-bar-track">
+              <span className="survey-bar-fill" style={{ width: `${percentage}%`, background: colors[index % colors.length] }} />
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
