@@ -6359,24 +6359,44 @@ function SurveyChart({ question }: { question: EventSurveyQuestion }) {
 
   if (question.chart_type === "pie") {
     let cumulative = 0;
-    const gradient = options.map((option, index) => {
+    const pieSegments = options.map((option, index) => {
       const percentage = total ? (Number(option.vote_count ?? 0) / total) * 100 : 0;
       const start = cumulative;
       cumulative += percentage;
-      return `${colors[index % colors.length]} ${start}% ${cumulative}%`;
-    }).join(", ");
+      const middle = start + percentage / 2;
+      const radians = ((middle - 25) / 100) * Math.PI * 2;
+      return {
+        option,
+        votes: Number(option.vote_count ?? 0),
+        percentage: Math.round(percentage),
+        color: colors[index % colors.length],
+        gradientPart: `${colors[index % colors.length]} ${start}% ${cumulative}%`,
+        left: 50 + Math.cos(radians) * 28,
+        top: 50 + Math.sin(radians) * 28
+      };
+    });
+    const gradient = pieSegments.map((segment) => segment.gradientPart).join(", ");
     return (
       <div className="survey-pie-layout">
-        <div className="survey-pie" style={{ background: total ? `conic-gradient(${gradient})` : "#e2e8f0" }} />
+        <div className="survey-pie" style={{ background: total ? `conic-gradient(${gradient})` : "#e2e8f0" }}>
+          {total ? pieSegments.filter((segment) => segment.votes > 0).map((segment) => (
+            <span
+              className="survey-pie-label"
+              key={segment.option.id ?? segment.option.option_text}
+              style={{ left: `${segment.left}%`, top: `${segment.top}%` }}
+            >
+              <strong>{segment.percentage}%</strong>
+              <span>{segment.votes} resp.</span>
+            </span>
+          )) : null}
+        </div>
         <div className="survey-legend">
-          {options.map((option, index) => {
-            const votes = Number(option.vote_count ?? 0);
-            const percentage = total ? Math.round((votes / total) * 100) : 0;
+          {pieSegments.map((segment) => {
             return (
-              <div className="survey-legend-row" key={option.id ?? option.option_text}>
-                <span className="survey-color-dot" style={{ background: colors[index % colors.length] }} />
-                <strong>{cleanText(option.option_text)}</strong>
-                <span>{votes} · {percentage}%</span>
+              <div className="survey-legend-row" key={segment.option.id ?? segment.option.option_text}>
+                <span className="survey-color-dot" style={{ background: segment.color }} />
+                <strong>{cleanText(segment.option.option_text)}</strong>
+                <span>{segment.votes} · {segment.percentage}%</span>
               </div>
             );
           })}

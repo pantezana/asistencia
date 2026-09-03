@@ -2583,7 +2583,38 @@ textarea {
   border-radius: 50%;
   box-shadow: 0 22px 48px rgba(28, 43, 64, 0.16);
   max-width: 620px;
+  position: relative;
   width: 100%;
+}
+
+.survey-pie-label {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(226, 232, 240, 0.92);
+  border-radius: 8px;
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.14);
+  color: #0f172a;
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 74px;
+  padding: 8px 10px;
+  pointer-events: none;
+  position: absolute;
+  text-align: center;
+  transform: translate(-50%, -50%);
+}
+
+.survey-pie-label strong {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.survey-pie-label span {
+  color: #475569;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.1;
 }
 
 .survey-legend {
@@ -2720,6 +2751,19 @@ textarea {
   .survey-pie {
     margin: 0 auto;
     max-width: min(520px, 90vw);
+  }
+
+  .survey-pie-label {
+    min-width: 60px;
+    padding: 6px 8px;
+  }
+
+  .survey-pie-label strong {
+    font-size: 19px;
+  }
+
+  .survey-pie-label span {
+    font-size: 10px;
   }
 
   .survey-option-choice {
