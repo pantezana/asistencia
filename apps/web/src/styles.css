@@ -2673,10 +2673,14 @@ textarea {
 
 .survey-submit-button,
 .survey-return-button {
+  align-items: center;
+  display: inline-flex;
   font-size: 19px;
+  justify-content: center;
   min-height: 58px;
   min-width: 230px;
   padding: 0 32px;
+  text-align: center;
 }
 
 .survey-submit-button {
@@ -2812,12 +2816,24 @@ textarea {
 
   .survey-submit-button,
   .survey-return-button {
+    display: flex;
+    justify-content: center;
     min-width: 100%;
+    text-align: center;
   }
 
   .survey-navigation {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .survey-navigation .button,
+  .survey-navigation .secondary-button {
+    align-items: center;
+    display: flex;
+    justify-content: center;
+    text-align: center;
+    width: 100%;
   }
 
   .dashboard-public-page {
