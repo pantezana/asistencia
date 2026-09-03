@@ -669,11 +669,36 @@ app.get("/api/public/surveys/:slug", async (c) => {
   return c.json({ ok: true, survey });
 });
 
+app.post("/api/public/surveys/:slug/identify", async (c) => {
+  const survey = await getPublicSurveyBySlug(c.env.DB, c.req.param("slug"));
+  if (!survey || survey.status === "draft" || survey.status === "archived") {
+    return c.json({ ok: false, message: "Encuesta no disponible." }, 404);
+  }
+
+  const body = await c.req.json<{ documentType?: string; documentNumber?: string }>().catch(() => null);
+  const documentType = body?.documentType?.trim();
+  const documentNumber = body?.documentNumber?.trim();
+  if (!documentType || !documentNumber) return c.json({ ok: false, message: "Ingrese tipo y numero de documento." }, 400);
+
+  const participant = await findParticipantByDocument(c.env.DB, documentType, documentNumber);
+  const canParticipate = participant ? await participantIsRegisteredForEvent(c.env.DB, survey.event_id, participant.id) : false;
+
+  return c.json({
+    ok: true,
+    canParticipate,
+    participant: canParticipate ? participant : null,
+    attendanceUrl: `/f/${survey.event_slug}`,
+    registrationUrl: `/f/${survey.event_slug}`
+  });
+});
+
 app.post("/api/public/surveys/:slug/questions/:questionId/votes", async (c) => {
-  const body = await c.req.json<{ optionIds?: string[]; participantKey?: string }>().catch(() => null);
+  const body = await c.req.json<{ optionIds?: string[]; participantKey?: string; documentType?: string; documentNumber?: string }>().catch(() => null);
   const result = await registerSurveyVote(c.env.DB, c.req.param("slug"), c.req.param("questionId"), {
     optionIds: body?.optionIds ?? [],
-    participantKey: body?.participantKey
+    participantKey: body?.participantKey,
+    documentType: body?.documentType,
+    documentNumber: body?.documentNumber
   });
   return c.json(result, result.ok ? 201 : 400);
 });

@@ -979,13 +979,23 @@ export async function getPublicSurveyBySlug(db: D1Database, slug: string) {
 export async function registerSurveyVote(db: D1Database, surveySlug: string, questionId: string, input: {
   optionIds?: string[];
   participantKey?: string;
+  documentType?: string;
+  documentNumber?: string;
 }) {
   const survey = await getPublicSurveyBySlug(db, surveySlug);
   if (!survey || survey.status === "draft" || survey.status === "archived") return { ok: false, message: "Encuesta no disponible." };
   if (survey.status !== "open") return { ok: false, message: "La encuesta ya no recibe respuestas." };
   const question = survey.questions?.find((item) => item.id === questionId && item.status === "active");
   if (!question) return { ok: false, message: "Pregunta no disponible." };
-  const participantKey = input.participantKey?.trim() || crypto.randomUUID();
+  const documentType = input.documentType?.trim();
+  const documentNumber = input.documentNumber?.trim();
+  if (!documentType || !documentNumber) return { ok: false, message: "Identifique su documento para responder." };
+
+  const participant = await findParticipantByDocument(db, documentType, documentNumber);
+  if (!participant || !(await participantIsRegisteredForEvent(db, survey.event_id, participant.id))) {
+    return { ok: false, message: "Para responder primero debe registrarse en el evento.", attendanceUrl: `/f/${survey.event_slug}` };
+  }
+  const participantKey = participant.id;
   const activeOptions = question.options?.filter((option) => option.status === "active") ?? [];
   const selectedOptionIds = [...new Set(input.optionIds ?? [])].filter((optionId) => activeOptions.some((option) => option.id === optionId));
   const maxAnswers = question.allow_multiple_answers ? Math.max(question.max_answers_per_participant, 1) : 1;

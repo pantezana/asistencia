@@ -6201,6 +6201,11 @@ function BoardPresenterView({ slug }: { slug: string }) {
 function SurveyPublicView({ slug }: { slug: string }) {
   const [survey, setSurvey] = React.useState<EventSurvey | null>(null);
   const [message, setMessage] = React.useState("Cargando encuesta.");
+  const [documentType, setDocumentType] = React.useState("DNI");
+  const [documentTypeOptions, setDocumentTypeOptions] = React.useState<CatalogItem[]>(fallbackDocumentTypeOptions);
+  const [documentNumber, setDocumentNumber] = React.useState("");
+  const [participant, setParticipant] = React.useState<PublicParticipant | null>(null);
+  const [registrationUrl, setRegistrationUrl] = React.useState("");
   const [currentIndex, setCurrentIndex] = React.useState(0);
   const [showForm, setShowForm] = React.useState(false);
   const [selectedOptions, setSelectedOptions] = React.useState<string[]>([]);
@@ -6219,6 +6224,17 @@ function SurveyPublicView({ slug }: { slug: string }) {
   React.useEffect(() => {
     void loadSurvey();
   }, [loadSurvey]);
+
+  React.useEffect(() => {
+    fetch("/api/public/catalogs/tipodocumento/items")
+      .then((response) => (response.ok ? response.json() as Promise<{ items: CatalogItem[] }> : Promise.reject()))
+      .then((payload) => {
+        const items = payload.items.length > 0 ? payload.items : fallbackDocumentTypeOptions;
+        setDocumentTypeOptions(items);
+        setDocumentType((current) => items.some((item) => item.name === current) ? current : items[0].name);
+      })
+      .catch(() => setDocumentTypeOptions(fallbackDocumentTypeOptions));
+  }, []);
 
   React.useEffect(() => {
     const timer = window.setInterval(() => void loadSurvey(), 4000);
@@ -6243,16 +6259,6 @@ function SurveyPublicView({ slug }: { slug: string }) {
   if (!survey) return <PublicMessage title="Encuesta interactiva" message={message} />;
   if (!question) return <PublicMessage title={survey.title} message="La encuesta aun no tiene preguntas activas." />;
 
-  function getParticipantKey() {
-    const storageKey = `survey-participant-${slug}`;
-    let value = window.localStorage.getItem(storageKey);
-    if (!value) {
-      value = crypto.randomUUID();
-      window.localStorage.setItem(storageKey, value);
-    }
-    return value;
-  }
-
   function toggleOption(optionId: string) {
     if (!question) return;
     const maxAnswers = question.allow_multiple_answers ? Math.max(question.max_answers_per_participant, 1) : 1;
@@ -6266,12 +6272,12 @@ function SurveyPublicView({ slug }: { slug: string }) {
 
   async function submitVote(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!question || selectedOptions.length === 0) return;
+    if (!question || selectedOptions.length === 0 || !participant) return;
     setSubmitting(true);
     const response = await fetch(`/api/public/surveys/${slug}/questions/${question.id}/votes`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ optionIds: selectedOptions, participantKey: getParticipantKey() })
+      body: JSON.stringify({ optionIds: selectedOptions, documentType, documentNumber })
     });
     const payload = (await response.json().catch(() => null)) as { ok?: boolean; message?: string; survey?: EventSurvey } | null;
     setSubmitting(false);
@@ -6284,7 +6290,80 @@ function SurveyPublicView({ slug }: { slug: string }) {
     setShowForm(false);
   }
 
+  async function identify(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSubmitting(true);
+    setMessage("");
+    setRegistrationUrl("");
+    setParticipant(null);
+    const response = await fetch(`/api/public/surveys/${slug}/identify`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ documentType, documentNumber })
+    });
+    const payload = (await response.json().catch(() => null)) as {
+      ok?: boolean;
+      canParticipate?: boolean;
+      participant?: PublicParticipant | null;
+      registrationUrl?: string;
+      attendanceUrl?: string;
+      message?: string;
+    } | null;
+    setSubmitting(false);
+
+    if (!response.ok || !payload?.ok) {
+      setMessage(payload?.message ?? "No se pudo validar el documento.");
+      return;
+    }
+
+    if (!payload.canParticipate) {
+      setRegistrationUrl(payload.registrationUrl ?? payload.attendanceUrl ?? "");
+      setMessage("Aun no encontramos su registro en este evento. Registre sus datos una sola vez para participar en esta encuesta y acceder a otros contenidos.");
+      return;
+    }
+
+    setParticipant(payload.participant ?? null);
+    setMessage("");
+  }
+
   const optionRows = question.options ?? [];
+
+  if (!participant) {
+    return (
+      <main className="survey-public-page">
+        <section className="survey-public-stage survey-identify-stage">
+          <p className="eyebrow">{cleanText(survey.event_title)}</p>
+          <h1>{cleanText(survey.title)}</h1>
+          <div className="survey-identify-panel">
+            <p>Para participar en esta encuesta debe estar registrado en el evento. Identifíquese.</p>
+            <form className="question-identify-form" onSubmit={identify}>
+              <label>
+                Tipo de documento
+                <select value={documentType} onChange={(event) => setDocumentType(event.target.value)} required>
+                  {documentTypeOptions.map((item) => (
+                    <option key={item.id} value={item.name}>{cleanText(item.name)}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Número de documento
+                <input value={documentNumber} onChange={(event) => setDocumentNumber(event.target.value)} required />
+              </label>
+              <button className="button survey-submit-button" type="submit" disabled={submitting}>
+                {submitting ? "Validando..." : "Continuar"}
+              </button>
+            </form>
+            {message ? <p className="survey-identify-message">{message}</p> : null}
+            {registrationUrl ? (
+              <a className="button private-register-button survey-registration-link" href={registrationUrl}>
+                Registrarme al evento
+              </a>
+            ) : null}
+          </div>
+        </section>
+      </main>
+    );
+  }
 
   return (
     <main className="survey-public-page">
