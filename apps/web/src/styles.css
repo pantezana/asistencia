@@ -2635,6 +2635,33 @@ textarea {
   line-height: 1.35;
 }
 
+.survey-form-actions {
+  gap: 18px;
+  margin-top: 28px;
+}
+
+.survey-submit-button,
+.survey-return-button {
+  font-size: 19px;
+  min-height: 58px;
+  min-width: 230px;
+  padding: 0 32px;
+}
+
+.survey-submit-button {
+  background: #2563eb;
+  box-shadow: 0 12px 26px rgba(37, 99, 235, 0.18);
+}
+
+.survey-submit-button:hover {
+  background: #1d4ed8;
+}
+
+.survey-return-button {
+  border-color: #94a3b8;
+  box-shadow: 0 10px 22px rgba(28, 43, 64, 0.08);
+}
+
 .survey-navigation {
   align-items: center;
   display: flex;
@@ -2697,6 +2724,16 @@ textarea {
 
   .survey-option-choice {
     padding: 18px 20px;
+  }
+
+  .survey-form-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .survey-submit-button,
+  .survey-return-button {
+    min-width: 100%;
   }
 
   .survey-navigation {

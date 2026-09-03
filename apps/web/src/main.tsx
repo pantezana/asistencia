@@ -6330,21 +6330,23 @@ function SurveyPublicView({ slug }: { slug: string }) {
               })}
             </div>
             {question.allow_multiple_answers ? <span className="field-hint">Seleccionadas {selectedOptions.length} / {question.max_answers_per_participant}</span> : null}
-            <div className="actions centered-actions">
-              <button className="button" disabled={submitting || selectedOptions.length === 0} type="submit">Registrar respuesta</button>
-              <button className="secondary-button" type="button" onClick={() => setShowForm(false)}>Regresar a resultados</button>
+            <div className="actions centered-actions survey-form-actions">
+              <button className="button survey-submit-button" disabled={submitting || selectedOptions.length === 0} type="submit">Registrar respuesta</button>
+              <button className="secondary-button survey-return-button" type="button" onClick={() => setShowForm(false)}>Regresar a resultados</button>
             </div>
           </form>
         )}
 
-        <div className="survey-navigation">
-          <button className="secondary-button" type="button" disabled={currentIndex === 0} onClick={() => setCurrentIndex((value) => Math.max(value - 1, 0))}>
-            Pregunta anterior
-          </button>
-          <button className="button secondary" type="button" disabled={currentIndex >= questions.length - 1} onClick={() => setCurrentIndex((value) => Math.min(value + 1, questions.length - 1))}>
-            Siguiente pregunta
-          </button>
-        </div>
+        {!showForm ? (
+          <div className="survey-navigation">
+            <button className="secondary-button" type="button" disabled={currentIndex === 0} onClick={() => setCurrentIndex((value) => Math.max(value - 1, 0))}>
+              Pregunta anterior
+            </button>
+            <button className="button secondary" type="button" disabled={currentIndex >= questions.length - 1} onClick={() => setCurrentIndex((value) => Math.min(value + 1, questions.length - 1))}>
+              Siguiente pregunta
+            </button>
+          </div>
+        ) : null}
       </section>
     </main>
   );
