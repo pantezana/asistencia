@@ -2705,6 +2705,15 @@ textarea {
   margin-top: 14px;
 }
 
+.survey-nav-primary {
+  background: #2563eb;
+  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.16);
+}
+
+.survey-nav-primary:hover {
+  background: #1d4ed8;
+}
+
 .survey-identify-stage {
   max-width: min(1300px, 96vw);
 }

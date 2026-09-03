@@ -6418,10 +6418,20 @@ function SurveyPublicView({ slug }: { slug: string }) {
 
         {!showForm ? (
           <div className="survey-navigation">
-            <button className="secondary-button" type="button" disabled={currentIndex === 0} onClick={() => setCurrentIndex((value) => Math.max(value - 1, 0))}>
+            <button
+              className={currentIndex === questions.length - 1 && questions.length > 1 ? "button survey-nav-primary" : "secondary-button"}
+              type="button"
+              disabled={currentIndex === 0}
+              onClick={() => setCurrentIndex((value) => Math.max(value - 1, 0))}
+            >
               Pregunta anterior
             </button>
-            <button className="button secondary" type="button" disabled={currentIndex >= questions.length - 1} onClick={() => setCurrentIndex((value) => Math.min(value + 1, questions.length - 1))}>
+            <button
+              className={currentIndex < questions.length - 1 ? "button survey-nav-primary" : "button secondary"}
+              type="button"
+              disabled={currentIndex >= questions.length - 1}
+              onClick={() => setCurrentIndex((value) => Math.min(value + 1, questions.length - 1))}
+            >
               Siguiente pregunta
             </button>
           </div>
