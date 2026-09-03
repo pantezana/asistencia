@@ -2431,12 +2431,12 @@ textarea {
 .survey-public-page {
   background: #f5f9fe;
   min-height: 100vh;
-  padding: 28px 18px 76px;
+  padding: 26px 10px 76px;
 }
 
 .survey-public-stage {
   margin: 0 auto;
-  max-width: 1240px;
+  max-width: min(1760px, 96vw);
 }
 
 .survey-public-stage > .eyebrow,
@@ -2446,10 +2446,10 @@ textarea {
 
 .survey-public-stage > h1 {
   color: #253246;
-  font-size: clamp(24px, 4vw, 42px);
+  font-size: clamp(24px, 3vw, 42px);
   line-height: 1.08;
   margin: 10px auto 18px;
-  max-width: 920px;
+  max-width: 1220px;
 }
 
 .survey-progress {
@@ -2457,7 +2457,7 @@ textarea {
   display: flex;
   gap: 12px;
   justify-content: center;
-  margin-bottom: 20px;
+  margin-bottom: 18px;
 }
 
 .survey-results-panel,
@@ -2467,17 +2467,17 @@ textarea {
   border-radius: 8px;
   box-shadow: none;
   margin: 0 auto;
-  max-width: 1160px;
+  max-width: min(1640px, 94vw);
   padding: 10px 0 0;
 }
 
 .survey-results-panel h2,
 .survey-vote-form h2 {
   color: #07111f;
-  font-size: clamp(34px, 5vw, 58px);
-  line-height: 1.05;
-  margin: 0 auto 14px;
-  max-width: 1080px;
+  font-size: clamp(34px, 4vw, 62px);
+  line-height: 1.06;
+  margin: 0 auto 16px;
+  max-width: min(1500px, 92vw);
   text-align: center;
 }
 
@@ -2492,7 +2492,7 @@ textarea {
 .survey-register-button {
   background: #0f766e;
   font-size: 17px;
-  margin: 10px 0 30px;
+  margin: 10px 0 34px;
   min-height: 54px;
   padding: 0 30px;
 }
@@ -2509,14 +2509,15 @@ textarea {
 }
 
 .survey-bar-chart {
-  background: #ffffff;
-  border: 1px solid #d8e5f5;
+  background: transparent;
+  border: 0;
   border-radius: 8px;
-  box-shadow: 0 16px 38px rgba(28, 43, 64, 0.08);
+  box-shadow: none;
   display: grid;
-  gap: 22px;
-  margin-top: 8px;
-  padding: 28px;
+  gap: 28px;
+  margin: 8px auto 0;
+  max-width: min(1540px, 92vw);
+  padding: 0;
 }
 
 .survey-bar-row {
@@ -2535,7 +2536,7 @@ textarea {
 .survey-bar-label strong,
 .survey-legend-row strong {
   color: #15202f;
-  font-size: 18px;
+  font-size: 22px;
   line-height: 1.35;
 }
 
@@ -2543,14 +2544,14 @@ textarea {
 .survey-legend-row span {
   color: #40516a;
   flex: 0 0 auto;
-  font-size: 17px;
+  font-size: 20px;
   font-weight: 800;
 }
 
 .survey-bar-track {
   background: #e9f1fb;
   border-radius: 999px;
-  height: 28px;
+  height: 36px;
   overflow: hidden;
 }
 
@@ -2564,15 +2565,16 @@ textarea {
 
 .survey-pie-layout {
   align-items: center;
-  background: #ffffff;
-  border: 1px solid #d8e5f5;
+  background: transparent;
+  border: 0;
   border-radius: 8px;
-  box-shadow: 0 16px 38px rgba(28, 43, 64, 0.08);
+  box-shadow: none;
   display: grid;
-  gap: 42px;
-  grid-template-columns: minmax(360px, 520px) 1fr;
-  margin-top: 8px;
-  padding: 34px;
+  gap: 54px;
+  grid-template-columns: minmax(520px, 700px) minmax(520px, 1fr);
+  margin: 8px auto 0;
+  max-width: min(1580px, 94vw);
+  padding: 0;
 }
 
 .survey-pie {
@@ -2580,26 +2582,27 @@ textarea {
   border: 14px solid #ffffff;
   border-radius: 50%;
   box-shadow: 0 22px 48px rgba(28, 43, 64, 0.16);
+  max-width: 680px;
   width: 100%;
 }
 
 .survey-legend {
   display: grid;
-  gap: 18px;
+  gap: 22px;
 }
 
 .survey-color-dot {
   border-radius: 999px;
-  flex: 0 0 18px;
-  height: 18px;
-  width: 18px;
+  flex: 0 0 22px;
+  height: 22px;
+  width: 22px;
 }
 
 .survey-option-choice-list {
   display: grid;
-  gap: 14px;
-  margin: 24px auto 16px;
-  max-width: 980px;
+  gap: 18px;
+  margin: 28px auto 18px;
+  max-width: min(1420px, 92vw);
 }
 
 .survey-option-choice {
@@ -2611,7 +2614,7 @@ textarea {
   cursor: pointer;
   display: flex;
   gap: 16px;
-  padding: 20px 22px;
+  padding: 26px 30px;
 }
 
 .survey-option-choice.selected {
@@ -2621,13 +2624,13 @@ textarea {
 }
 
 .survey-option-choice input {
-  height: 22px;
-  width: 22px;
+  height: 26px;
+  width: 26px;
 }
 
 .survey-option-choice span {
   color: #15202f;
-  font-size: 20px;
+  font-size: 24px;
   font-weight: 800;
   line-height: 1.35;
 }
@@ -2666,7 +2669,8 @@ textarea {
 
   .survey-bar-chart,
   .survey-pie-layout {
-    padding: 20px;
+    max-width: 100%;
+    padding: 0;
   }
 
   .survey-bar-label,
@@ -2679,12 +2683,20 @@ textarea {
   .survey-bar-label strong,
   .survey-legend-row strong,
   .survey-option-choice span {
-    font-size: 17px;
+    font-size: 18px;
+  }
+
+  .survey-bar-track {
+    height: 28px;
   }
 
   .survey-pie {
     margin: 0 auto;
-    max-width: 420px;
+    max-width: min(520px, 90vw);
+  }
+
+  .survey-option-choice {
+    padding: 18px 20px;
   }
 
   .survey-navigation {
