@@ -155,6 +155,22 @@ Funciones iniciales:
 
 Los supervisores solo podrán operar sobre sus propios eventos.
 
+### Encuestas interactivas
+
+El sistema debe permitir crear encuestas interactivas asociadas a un evento o a una sesion especifica.
+
+Reglas generales:
+
+- Una encuesta contiene una o muchas preguntas.
+- Cada pregunta contiene opciones cerradas de respuesta.
+- Cada pregunta puede ser de eleccion unica o seleccion multiple limitada.
+- Los resultados se muestran por pregunta en grafico de barras o circular.
+- El enlace publico debe permitir responder y navegar por preguntas.
+- Los resultados deben actualizarse dinamicamente.
+- Los votos individuales deben guardarse para reportes y analisis posteriores.
+
+La especificacion completa esta en `docs/especificacion-encuestas-interactivas.md`.
+
 ### Recursos privados del tablero
 
 El tablero del evento debe permitir que los enlaces configurados como informacion del evento o informacion de sesiones tengan visibilidad `publica` o `privada`.

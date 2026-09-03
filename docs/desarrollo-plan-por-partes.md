@@ -189,3 +189,34 @@ Documento base:
 
 - `docs/especificacion-tablero-evento.md`
 - `docs/especificacion-visibilidad-recursos-tablero.md`
+
+## Parte 12. Encuestas interactivas
+
+Objetivo:
+
+- Crear encuestas interactivas por evento.
+- Permitir asociar una encuesta a todo el evento o a una sesion.
+- Configurar titulo, nombre navegador, enlace corto y estado.
+- Agregar varias preguntas cerradas por encuesta.
+- Configurar preguntas de eleccion unica o seleccion multiple limitada.
+- Configurar opciones de respuesta por pregunta.
+- Mostrar resultados por pregunta en grafico de barras o circular.
+- Publicar un enlace unico para participantes.
+- Permitir registrar respuestas desde la vista publica.
+- Navegar entre preguntas de la encuesta.
+- Actualizar los resultados dinamicamente.
+- Guardar votos individuales y resultados agregados.
+
+Reglas relevantes:
+
+- La encuesta `open` acepta respuestas.
+- La encuesta `closed` muestra resultados, pero no acepta nuevas respuestas.
+- La encuesta `archived` sale de la operacion publica habitual.
+- El enlace corto solo debe editarse libremente mientras no existan votos registrados.
+- Cada pregunta debe tener al menos dos opciones activas.
+- Si una pregunta permite multiples respuestas, debe configurarse un maximo de seleccionables.
+- Las opciones con votos no deben eliminarse fisicamente; deben inactivarse.
+
+Documento base:
+
+- `docs/especificacion-encuestas-interactivas.md`
