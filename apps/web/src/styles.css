@@ -1553,7 +1553,8 @@ textarea {
 
 .board-participant-instructions {
   margin: 2px auto 0;
-  max-width: 980px;
+  max-width: 1180px;
+  width: 100%;
 }
 
 .participant-board-stage {

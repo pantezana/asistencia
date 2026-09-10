@@ -5953,7 +5953,7 @@ function BoardParticipantView({ slug }: { slug: string }) {
           <p className="eyebrow">{board.event_title}</p>
           <h1>{board.title}</h1>
           {board.instructions?.length ? (
-            <div className="instruction-card-row board-participant-instructions">
+            <div className="instruction-card-row compact board-participant-instructions">
               {board.instructions.map((instruction) => (
                 <article className="instruction-card" key={instruction.id ?? instruction.sort_order}>
                   {instruction.language_label ? <strong>{instruction.language_label}</strong> : null}
