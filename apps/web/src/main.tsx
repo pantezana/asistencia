@@ -5952,8 +5952,18 @@ function BoardParticipantView({ slug }: { slug: string }) {
         <section className="board-presenter-stage participant-board-stage">
           <p className="eyebrow">{board.event_title}</p>
           <h1>{board.title}</h1>
+          {board.instructions?.length ? (
+            <div className="instruction-card-row board-participant-instructions">
+              {board.instructions.map((instruction) => (
+                <article className="instruction-card" key={instruction.id ?? instruction.sort_order}>
+                  {instruction.language_label ? <strong>{instruction.language_label}</strong> : null}
+                  <div dangerouslySetInnerHTML={{ __html: instruction.content_html }} />
+                </article>
+              ))}
+            </div>
+          ) : null}
           <div className="actions centered-actions board-view-action">
-            <button className="button board-view-button" type="button" onClick={() => setShowBoard(false)}>Registrar Respuesta</button>
+            <button className="button board-view-button" type="button" onClick={() => setShowBoard(false)}>Registrar respuesta</button>
           </div>
           <div className="board-toolbar">
             <strong>{total} notas</strong>

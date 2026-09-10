@@ -1535,15 +1535,25 @@ textarea {
 }
 
 .board-view-action {
-  margin-top: 6px;
+  margin-top: 10px;
 }
 
 .board-view-button {
   background: #0f766e;
-  box-shadow: 0 10px 22px rgba(15, 118, 110, 0.18);
-  font-size: 18px;
-  min-height: 52px;
-  padding: 0 28px;
+  box-shadow: 0 14px 28px rgba(15, 118, 110, 0.24);
+  font-size: 20px;
+  min-height: 62px;
+  padding: 0 36px;
+}
+
+.board-view-button:hover {
+  background: #0b5f59;
+  transform: translateY(-1px);
+}
+
+.board-participant-instructions {
+  margin: 2px auto 0;
+  max-width: 980px;
 }
 
 .participant-board-stage {
@@ -2843,6 +2853,15 @@ textarea {
     justify-content: center;
     text-align: center;
     width: 100%;
+  }
+
+  .board-participant-instructions {
+    grid-template-columns: 1fr;
+  }
+
+  .board-view-button {
+    font-size: 19px;
+    min-width: min(100%, 360px);
   }
 
   .dashboard-public-page {
