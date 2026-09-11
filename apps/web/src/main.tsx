@@ -6034,12 +6034,13 @@ function BoardParticipantView({ slug }: { slug: string }) {
               </label>
               <label>
                 País
-                <select value={form.countryId} onChange={(event) => setForm((current) => ({ ...current, countryId: event.target.value }))} required>
-                  <option value="">Seleccione</option>
-                  {countries.map((country) => (
-                    <option key={country.id} value={country.id}>{country.name}</option>
-                  ))}
-                </select>
+                <SearchableSelect
+                  onChange={(value) => setForm((current) => ({ ...current, countryId: value }))}
+                  options={countries}
+                  placeholder="Buscar país"
+                  required
+                  value={form.countryId}
+                />
                 {selectedCountry ? (
                   <span className="country-preview">
                     <FlagMark countryName={selectedCountry.name} />
