@@ -1612,9 +1612,15 @@ textarea {
 .wheel-grid {
   align-items: start;
   display: grid;
-  gap: 22px;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 270px), 1fr));
+  gap: 38px 48px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   justify-content: center;
+  margin: 0 auto;
+  max-width: 1100px;
+}
+
+.wheel-item:only-child {
+  grid-column: 1 / -1;
 }
 
 .wheel-item {
@@ -1632,10 +1638,10 @@ textarea {
 }
 
 .wheel-disc {
-  aspect-ratio: 1;
+  aspect-ratio: 380 / 455;
   display: block;
   height: auto;
-  max-width: 310px;
+  max-width: 440px;
   width: 100%;
 }
 
@@ -1671,13 +1677,13 @@ textarea {
   gap: 6px 12px;
   justify-content: center;
   margin-top: 14px;
-  max-width: 310px;
+  max-width: 440px;
 }
 
 .wheel-option-legend span {
   align-items: center;
   display: inline-flex;
-  font-size: 12px;
+  font-size: 14px;
   gap: 5px;
   overflow-wrap: anywhere;
 }
@@ -3030,7 +3036,11 @@ textarea {
   }
 
   .wheel-grid {
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+    grid-template-columns: 1fr;
+  }
+
+  .wheel-item:only-child {
+    grid-column: auto;
   }
 
   .wheel-board-button {

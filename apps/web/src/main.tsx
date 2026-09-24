@@ -6068,6 +6068,25 @@ function WheelAdminSection({ eventId, sessions }: { eventId: string; sessions: A
 
 const wheelColors = ["#2563eb", "#0f766e", "#e07a12", "#be4b72", "#6d58a9", "#159895", "#b35d2b", "#3f7f4c"];
 
+function wheelLabelLines(value: string, count: number) {
+  const limit = count > 16 ? 6 : count > 10 ? 9 : count > 6 ? 12 : 18;
+  let remaining = value.trim().replace(/\s+/g, " ");
+  const lines: string[] = [];
+  while (remaining && lines.length < 2) {
+    if (remaining.length <= limit) {
+      lines.push(remaining);
+      remaining = "";
+      break;
+    }
+    const space = remaining.lastIndexOf(" ", limit);
+    const cut = space > 0 ? space : limit;
+    lines.push(remaining.slice(0, cut));
+    remaining = remaining.slice(cut).trim();
+  }
+  if (remaining) lines[1] = `${lines[1].slice(0, limit - 1)}…`;
+  return lines;
+}
+
 function WheelDisc({ wheel, now }: { wheel: EventWheel; now: number }) {
   const count = wheel.options.length;
   const progress = wheel.spin_status === "spinning" && wheel.spin_started_at && wheel.spin_ends_at
@@ -6077,29 +6096,38 @@ function WheelDisc({ wheel, now }: { wheel: EventWheel; now: number }) {
     ? wheel.start_angle + (wheel.end_angle - wheel.start_angle) * eased
     : wheel.spin_status === "selected" ? wheel.end_angle : 0;
   const point = (degrees: number, radius: number) => ({
-    x: 150 + radius * Math.cos((degrees - 90) * Math.PI / 180),
-    y: 150 + radius * Math.sin((degrees - 90) * Math.PI / 180)
+    x: 190 + radius * Math.cos((degrees - 90) * Math.PI / 180),
+    y: 190 + radius * Math.sin((degrees - 90) * Math.PI / 180)
   });
   return (
-    <svg className="wheel-disc" viewBox="0 0 300 300" role="img" aria-label={`Ruleta ${wheel.title}`}>
-      {wheel.options.map((option, index) => {
-        const start = point(index * 360 / count, 140);
-        const end = point((index + 1) * 360 / count, 140);
-        const middle = point((index + 0.5) * 360 / count, count > 12 ? 102 : 94);
-        return (
-          <g key={index}>
-            <path d={`M 150 150 L ${start.x} ${start.y} A 140 140 0 ${360 / count > 180 ? 1 : 0} 1 ${end.x} ${end.y} Z`} fill={wheelColors[index % wheelColors.length]} stroke="white" strokeWidth="2" />
-            <text x={middle.x} y={middle.y} textAnchor="middle" dominantBaseline="middle" fill="white" fontSize={count > 12 ? 9 : count > 6 ? 11 : 14} fontWeight="700">
-              {option.length > (count > 12 ? 9 : 16) ? `${option.slice(0, count > 12 ? 8 : 15)}…` : option}
-            </text>
-            <title>{option}</title>
-          </g>
-        );
-      })}
-      <g transform={`rotate(${angle} 150 150)`}>
-        <path d="M 150 12 L 139 159 L 150 148 L 161 159 Z" fill="#111827" stroke="white" strokeWidth="2" />
+    <svg className="wheel-disc" viewBox="0 0 380 455" role="img" aria-label={`Ruleta ${wheel.title}`}>
+      <path d="M 154 336 L 226 336 L 250 418 L 130 418 Z" fill="#24436a" />
+      <path d="M 190 336 L 226 336 L 250 418 L 190 418 Z" fill="#17365c" />
+      <rect x="93" y="413" width="194" height="24" rx="3" fill="#17365c" />
+      <circle cx="190" cy="190" r="174" fill="#17365c" />
+      <circle cx="190" cy="190" r="167" fill="#f8fafc" />
+      <g transform={`rotate(${-angle} 190 190)`}>
+        {wheel.options.map((option, index) => {
+          const start = point(index * 360 / count, 160);
+          const end = point((index + 1) * 360 / count, 160);
+          const midAngle = (index + 0.5) * 360 / count;
+          const middle = point(midAngle, count > 16 ? 120 : count > 10 ? 110 : 102);
+          const labelRotation = midAngle - 90 + (midAngle > 180 && midAngle < 360 ? 180 : 0);
+          const lines = wheelLabelLines(option, count);
+          return (
+            <g key={index}>
+              <path d={`M 190 190 L ${start.x} ${start.y} A 160 160 0 ${360 / count > 180 ? 1 : 0} 1 ${end.x} ${end.y} Z`} fill={wheelColors[index % wheelColors.length]} stroke="white" strokeWidth="2" />
+              <text transform={`translate(${middle.x} ${middle.y}) rotate(${labelRotation})`} textAnchor="middle" fill="white" fontSize={count > 16 ? 8 : count > 10 ? 10 : count > 6 ? 12 : 15} fontWeight="700" paintOrder="stroke" stroke="rgba(15, 23, 42, .35)" strokeWidth="2">
+                {lines.map((line, lineIndex) => <tspan key={lineIndex} x="0" dy={lineIndex === 0 ? (lines.length > 1 ? -3 : 4) : 15}>{line}</tspan>)}
+              </text>
+              <title>{option}</title>
+            </g>
+          );
+        })}
       </g>
-      <circle cx="150" cy="150" r="12" fill="#111827" stroke="white" strokeWidth="3" />
+      <circle cx="190" cy="190" r="22" fill="#17365c" stroke="#f8fafc" strokeWidth="5" />
+      <circle cx="190" cy="190" r="8" fill="#f8fafc" />
+      <path d="M 174 12 L 206 12 L 190 70 Z" fill="#dc5b30" stroke="#17365c" strokeWidth="3" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -6380,7 +6408,7 @@ function BoardParticipantView({ slug, wheelContext }: { slug: string; wheelConte
       <section className="board-public-stage">
         <p className="eyebrow">{board.event_title}</p>
         <h1>{board.title}</h1>
-        <div className="instruction-card-row">
+        <div className="instruction-card-row compact board-participant-instructions">
           {board.instructions?.map((instruction) => (
             <article className="instruction-card" key={instruction.id ?? instruction.sort_order}>
               {instruction.language_label ? <strong>{instruction.language_label}</strong> : null}
