@@ -6134,7 +6134,7 @@ function WheelDisc({ wheel, now }: { wheel: EventWheel; now: number }) {
 
 function WheelPublicView({ slug, presenter = false }: { slug: string; presenter?: boolean }) {
   const [activity, setActivity] = React.useState<WheelActivity | null>(null);
-  const [section, setSection] = React.useState<"wheels" | "board">("wheels");
+  const [section, setSection] = React.useState<"wheels" | "board">(presenter ? "wheels" : "board");
   const [page, setPage] = React.useState(0);
   const [clockOffset, setClockOffset] = React.useState(0);
   const [now, setNow] = React.useState(Date.now());
@@ -6395,7 +6395,7 @@ function BoardParticipantView({ slug, wheelContext }: { slug: string; wheelConte
           ) : null}
           {wheelContext ? (
             <div className="actions centered-actions">
-              <button className="secondary-button" onClick={wheelContext.onReturn} type="button">Regresar a las ruletas</button>
+              <button className="secondary-button board-flow-secondary-button" onClick={wheelContext.onReturn} type="button">Ver Ruletas</button>
             </div>
           ) : null}
         </section>
@@ -6458,7 +6458,7 @@ function BoardParticipantView({ slug, wheelContext }: { slug: string; wheelConte
           </form>
         ) : null}
         <div className="actions centered-actions board-view-action">
-          <button className="secondary-button" type="button" onClick={() => { setPage(1); setShowBoard(true); }}>
+          <button className="secondary-button board-flow-secondary-button" type="button" onClick={() => { setPage(1); setShowBoard(true); }}>
             Regresar a pizarra de respuestas
           </button>
         </div>

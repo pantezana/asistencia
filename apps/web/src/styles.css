@@ -1752,6 +1752,15 @@ textarea {
   color: #2563eb;
 }
 
+.board-flow-secondary-button {
+  font-size: 18px;
+  min-height: 58px;
+  min-width: min(100%, 240px);
+  padding: 12px 28px;
+  text-align: center;
+  white-space: normal;
+}
+
 .rich-label {
   display: grid;
   font-weight: 800;

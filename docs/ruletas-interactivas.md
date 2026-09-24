@@ -11,13 +11,13 @@ Una dinámica pertenece a un evento y, opcionalmente, a una sesión. Tiene un t�
 
 ## Giro y sincronización
 
-- El servidor elige una opción mediante un generador aleatorio criptográfico, guarda el valor, el índice, los ángulos y las horas de inicio y fin. El navegador anima la flecha con desaceleración durante el tiempo configurado.
+- El servidor elige una opción mediante un generador aleatorio criptográfico, guarda el valor, el índice, los ángulos y las horas de inicio y fin. El navegador anima el disco con desaceleración bajo una flecha fija durante el tiempo configurado.
 - Ambos enlaces consultan el mismo estado cada segundo. Si alguien entra durante el giro, ve el movimiento en curso. Al finalizar se destaca el valor seleccionado. Recargar conserva la posición y el resultado.
 - Un giro nuevo reemplaza la selección anterior de esa ruleta. Mientras gira, no se permite iniciar otro giro de la misma ruleta ni editar la configuración de la dinámica. Cambiar las opciones de una ruleta terminada reinicia su selección.
 
 ## Navegación y respuestas
 
-- La primera vista contiene las ruletas. Se muestran hasta cuatro por página y la paginación permite navegar por las demás.
-- El botón «Ir a la pregunta y respuestas» abre la pizarra asociada. Allí aparecen la pregunta, las etiquetas de idioma, los resultados seleccionados y las notas con bandera. Se muestran hasta 24 notas por página, en cuatro filas de seis en escritorio.
-- «Registrar respuesta» abre el formulario de nombre, apellido, país y nota. El formulario regresa a la pizarra y esta regresa a las ruletas.
+- El enlace del participante abre la pizarra para destacar la pregunta y las respuestas. El enlace del administrador abre las ruletas para dirigir los giros. Se muestran hasta cuatro ruletas por página, en dos filas de dos en escritorio; la paginación permite navegar por las demás.
+- En la pizarra aparecen la pregunta, las etiquetas de idioma, los resultados seleccionados y las notas con bandera. Se muestran hasta 24 notas por página, en cuatro filas de seis en escritorio. «Ver Ruletas» permite consultar los giros y desde allí volver a la pregunta y las respuestas.
+- «Registrar respuesta» abre el formulario de nombre, apellido, país y nota. «Regresar a pizarra de respuestas» vuelve a las notas.
 - Las notas permanecen en la pizarra si una ruleta vuelve a girar; el resultado visible siempre refleja la última selección de cada ruleta.
