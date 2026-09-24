@@ -1034,7 +1034,7 @@ export async function listEventBoards(db: D1Database, eventId: string) {
       `SELECT b.*, COUNT(n.id) AS note_count
        FROM event_boards b
        LEFT JOIN event_board_notes n ON n.board_id = b.id AND n.status = 'active'
-       WHERE b.event_id = ?
+       WHERE b.event_id = ? AND NOT EXISTS (SELECT 1 FROM event_wheel_activities a WHERE a.board_id = b.id)
        GROUP BY b.id
        ORDER BY b.created_at DESC`
     )

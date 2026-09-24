@@ -94,6 +94,8 @@ import {
   userCanManageEvent
 } from "./db";
 import type { AppContext } from "./types";
+import { changeWheelActivityStatus, createWheelActivity, getWheelActivity, listWheelActivities, spinWheel, updateWheelActivity } from "./wheel";
+import type { WheelActivityInput } from "./wheel";
 
 const app = new Hono<AppContext>();
 
@@ -594,12 +596,33 @@ app.get("/api/public/question-presenter/:slug/summary", async (c) => {
   return c.json({ ok: true, question, summary: summary.results, selectionGroups: selectionGroups?.results ?? [] });
 });
 
+app.get("/api/public/wheels/:slug", async (c) => {
+  const activity = await getWheelActivity(c.env.DB, c.req.param("slug"), false);
+  if (!activity || activity.status === "archived") return c.json({ ok: false, message: "Ruleta no disponible." }, 404);
+  c.header("Cache-Control", "no-store");
+  return c.json({ ok: true, activity, server_now: Date.now() });
+});
+
+app.get("/api/public/wheel-presenter/:slug", async (c) => {
+  const activity = await getWheelActivity(c.env.DB, c.req.param("slug"), true);
+  if (!activity || activity.status === "archived") return c.json({ ok: false, message: "Ruleta no disponible." }, 404);
+  c.header("Cache-Control", "no-store");
+  return c.json({ ok: true, activity, server_now: Date.now() });
+});
+
+app.post("/api/public/wheel-presenter/:slug/wheels/:wheelId/spin", async (c) => {
+  const result = await spinWheel(c.env.DB, c.req.param("slug"), c.req.param("wheelId"));
+  c.header("Cache-Control", "no-store");
+  return c.json(result, result.ok ? 200 : 409);
+});
+
 app.get("/api/public/boards/:slug", async (c) => {
   const board = await getPublicBoardByParticipantSlug(c.env.DB, c.req.param("slug"));
   if (!board || board.status === "archived" || board.status === "draft") {
     return c.json({ ok: false, message: "Pizarra no disponible." }, 404);
   }
-  return c.json({ ok: true, board });
+  const { presenter_slug: _presenterSlug, ...publicBoard } = board;
+  return c.json({ ok: true, board: publicBoard });
 });
 
 app.post("/api/public/boards/:slug/notes", async (c) => {
@@ -635,7 +658,8 @@ app.get("/api/public/boards/:slug/notes", async (c) => {
   const page = Number(c.req.query("page") ?? "1");
   const pageSize = Number(c.req.query("pageSize") ?? "48");
   const notes = await listBoardNotes(c.env.DB, board.id, page, pageSize);
-  return c.json({ ok: true, board, ...notes });
+  const { presenter_slug: _presenterSlug, ...publicBoard } = board;
+  return c.json({ ok: true, board: publicBoard, ...notes });
 });
 
 app.get("/api/public/board-presenter/:slug", async (c) => {
@@ -1147,6 +1171,36 @@ app.post("/api/admin/events/:eventId/questions/:questionId/participant-cloud", a
   const ok = await updateEventQuestionParticipantCloud(c.env.DB, eventId, c.req.param("questionId"), Boolean(body?.show));
   if (!ok) return c.json({ ok: false, message: "Pregunta no encontrada." }, 404);
   return c.json({ ok: true });
+});
+
+app.get("/api/admin/events/:eventId/wheels", async (c) => {
+  const eventId = c.req.param("eventId");
+  if (!await userCanManageEvent(c.env.DB, eventId, c.get("user"))) return c.json({ ok: false, message: "Evento no autorizado." }, 404);
+  return c.json({ ok: true, activities: await listWheelActivities(c.env.DB, eventId) });
+});
+
+app.post("/api/admin/events/:eventId/wheels", async (c) => {
+  const eventId = c.req.param("eventId");
+  if (!await userCanManageEvent(c.env.DB, eventId, c.get("user"))) return c.json({ ok: false, message: "Evento no autorizado." }, 404);
+  const body = await c.req.json<WheelActivityInput>().catch(() => null);
+  const result = await createWheelActivity(c.env.DB, eventId, c.get("user"), body ?? {});
+  return c.json(result, result.ok ? 201 : 400);
+});
+
+app.put("/api/admin/events/:eventId/wheels/:activityId", async (c) => {
+  const eventId = c.req.param("eventId");
+  if (!await userCanManageEvent(c.env.DB, eventId, c.get("user"))) return c.json({ ok: false, message: "Evento no autorizado." }, 404);
+  const body = await c.req.json<WheelActivityInput>().catch(() => null);
+  const result = await updateWheelActivity(c.env.DB, eventId, c.req.param("activityId"), body ?? {});
+  return c.json(result, result.ok ? 200 : 400);
+});
+
+app.post("/api/admin/events/:eventId/wheels/:activityId/status", async (c) => {
+  const eventId = c.req.param("eventId");
+  if (!await userCanManageEvent(c.env.DB, eventId, c.get("user"))) return c.json({ ok: false, message: "Evento no autorizado." }, 404);
+  const body = await c.req.json<{ status?: string }>().catch(() => null);
+  const ok = await changeWheelActivityStatus(c.env.DB, eventId, c.req.param("activityId"), body?.status ?? "");
+  return c.json({ ok }, ok ? 200 : 400);
 });
 
 app.get("/api/admin/events/:eventId/boards", async (c) => {

@@ -290,6 +290,40 @@ type EventBoardNote = {
   created_at: string;
 };
 
+type EventWheel = {
+  id: string;
+  title: string;
+  duration_seconds: number;
+  options: string[];
+  sort_order: number;
+  spin_status: "initial" | "spinning" | "selected";
+  spin_started_at: number | null;
+  spin_ends_at: number | null;
+  start_angle: number;
+  end_angle: number;
+  selected_index: number | null;
+  selected_value: string | null;
+};
+
+type WheelActivity = {
+  id: string;
+  title: string;
+  browser_title: string | null;
+  event_title?: string;
+  session_id: string | null;
+  participant_slug: string;
+  presenter_slug: string;
+  board_participant_slug: string;
+  question: string;
+  status: string;
+  note_count?: number;
+  instructions: EventBoardInstruction[];
+  max_note_length: number;
+  allow_multiple_notes: number;
+  max_notes_per_participant: number;
+  wheels: EventWheel[];
+};
+
 type EventSurveyOption = {
   id?: string;
   question_id?: string;
@@ -732,6 +766,14 @@ async function downloadQrPdf(qrUrl: string, slug: string) {
 
 function App() {
   const path = window.location.pathname;
+
+  if (path.startsWith("/r/p/")) {
+    return <WheelPublicView slug={path.replace("/r/p/", "")} presenter />;
+  }
+
+  if (path.startsWith("/r/")) {
+    return <WheelPublicView slug={path.replace("/r/", "")} />;
+  }
 
   if (path.startsWith("/q/p/")) {
     return <QuestionPresenterView slug={path.replace("/q/p/", "")} />;
@@ -3245,6 +3287,8 @@ function AdminShell() {
               </div>
             </div>
           ) : null}
+
+          {selectedEvent ? <WheelAdminSection eventId={selectedEvent.id} sessions={sessions} /> : null}
 
           {selectedEvent ? (
             <div className="admin-form-panel">
@@ -5845,7 +5889,317 @@ function QuestionPresenterView({ slug }: { slug: string }) {
   );
 }
 
-function BoardParticipantView({ slug }: { slug: string }) {
+type WheelDraft = {
+  title: string;
+  browserTitle: string;
+  sessionId: string;
+  participantSlug: string;
+  question: string;
+  maxNoteLength: string;
+  allowMultipleNotes: boolean;
+  maxNotesPerParticipant: string;
+  instructions: Array<{ languageLabel: string; contentHtml: string }>;
+  wheels: Array<{ id?: string; title: string; durationSeconds: string; options: string[] }>;
+};
+
+function emptyWheelDraft(): WheelDraft {
+  return {
+    title: "", browserTitle: "", sessionId: "", participantSlug: "", question: "",
+    maxNoteLength: "800", allowMultipleNotes: false, maxNotesPerParticipant: "1",
+    instructions: [{ languageLabel: "Español", contentHtml: "<p></p>" }],
+    wheels: [{ title: "", durationSeconds: "8", options: ["", ""] }]
+  };
+}
+
+function WheelAdminSection({ eventId, sessions }: { eventId: string; sessions: AdminSession[] }) {
+  const [activities, setActivities] = React.useState<WheelActivity[]>([]);
+  const [draft, setDraft] = React.useState<WheelDraft>(emptyWheelDraft);
+  const [editingId, setEditingId] = React.useState<string | null>(null);
+  const [message, setMessage] = React.useState("");
+  const [saving, setSaving] = React.useState(false);
+
+  const load = React.useCallback(async () => {
+    const response = await fetch(`/api/admin/events/${eventId}/wheels`, { credentials: "include" });
+    const payload = await response.json() as { activities?: WheelActivity[] };
+    if (response.ok) setActivities(payload.activities ?? []);
+  }, [eventId]);
+
+  React.useEffect(() => {
+    void load();
+    setDraft(emptyWheelDraft());
+    setEditingId(null);
+  }, [load]);
+
+  function edit(activity: WheelActivity) {
+    setEditingId(activity.id);
+    setDraft({
+      title: activity.title,
+      browserTitle: activity.browser_title ?? "",
+      sessionId: activity.session_id ?? "",
+      participantSlug: activity.participant_slug,
+      question: activity.question,
+      maxNoteLength: String(activity.max_note_length),
+      allowMultipleNotes: Boolean(activity.allow_multiple_notes),
+      maxNotesPerParticipant: String(activity.max_notes_per_participant ?? 1),
+      instructions: activity.instructions.map((instruction) => ({ languageLabel: instruction.language_label ?? "", contentHtml: instruction.content_html })),
+      wheels: activity.wheels.map((wheel) => ({ id: wheel.id, title: wheel.title, durationSeconds: String(wheel.duration_seconds), options: [...wheel.options] }))
+    });
+    setMessage("");
+  }
+
+  function changeInstruction(index: number, field: "languageLabel" | "contentHtml", value: string) {
+    setDraft((current) => ({ ...current, instructions: current.instructions.map((item, itemIndex) => itemIndex === index ? { ...item, [field]: value } : item) }));
+  }
+
+  function changeWheel(index: number, changes: Partial<WheelDraft["wheels"][number]>) {
+    setDraft((current) => ({ ...current, wheels: current.wheels.map((item, itemIndex) => itemIndex === index ? { ...item, ...changes } : item) }));
+  }
+
+  async function save(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSaving(true);
+    setMessage("");
+    const response = await fetch(`/api/admin/events/${eventId}/wheels${editingId ? `/${editingId}` : ""}`, {
+      method: editingId ? "PUT" : "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...draft,
+        sessionId: draft.sessionId || null,
+        maxNoteLength: Number(draft.maxNoteLength),
+        maxNotesPerParticipant: Number(draft.maxNotesPerParticipant),
+        instructions: draft.instructions.map((item, index) => ({ ...item, sortOrder: index + 1 })),
+        wheels: draft.wheels.map((item) => ({ ...item, durationSeconds: Number(item.durationSeconds) }))
+      })
+    });
+    const payload = await response.json() as { ok?: boolean; message?: string };
+    setSaving(false);
+    if (!response.ok || !payload.ok) {
+      setMessage(payload.message ?? "No se pudo guardar la dinámica.");
+      return;
+    }
+    setEditingId(null);
+    setDraft(emptyWheelDraft());
+    await load();
+    setMessage("Dinámica de ruletas guardada correctamente.");
+  }
+
+  async function changeStatus(activity: WheelActivity, status: string) {
+    const response = await fetch(`/api/admin/events/${eventId}/wheels/${activity.id}/status`, {
+      method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status })
+    });
+    if (response.ok) {
+      await load();
+      setMessage("Estado actualizado.");
+    } else setMessage("No se pudo actualizar el estado.");
+  }
+
+  return (
+    <div className="admin-form-panel">
+      <div className="detail-heading"><div><p className="eyebrow">Dinámica en vivo</p><h3>Ruletas interactivas</h3></div></div>
+      <form className="builder-card" onSubmit={(event) => void save(event)}>
+        <h4>{editingId ? "Editar dinámica" : "Crear dinámica"}</h4>
+        <div className="builder-grid">
+          <label>Título general<input required value={draft.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} /></label>
+          <label>Nombre Navegador<input value={draft.browserTitle} onChange={(event) => setDraft((current) => ({ ...current, browserTitle: event.target.value }))} /></label>
+          <label>Sesión asociada<select value={draft.sessionId} onChange={(event) => setDraft((current) => ({ ...current, sessionId: event.target.value }))}>
+            <option value="">Todo el evento</option>{sessions.map((session) => <option key={session.id} value={session.id}>{session.title}</option>)}
+          </select></label>
+          <label>Enlace corto<input value={draft.participantSlug} onChange={(event) => setDraft((current) => ({ ...current, participantSlug: event.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-" ) }))} placeholder="Opcional" /></label>
+          <label className="full-width">Pregunta<input required value={draft.question} onChange={(event) => setDraft((current) => ({ ...current, question: event.target.value }))} /></label>
+          <label>Máximo caracteres por respuesta<input type="number" min="20" max="5000" value={draft.maxNoteLength} onChange={(event) => setDraft((current) => ({ ...current, maxNoteLength: event.target.value }))} /></label>
+          <label>Máximo respuestas por participante<input type="number" min="1" value={draft.maxNotesPerParticipant} disabled={!draft.allowMultipleNotes} onChange={(event) => setDraft((current) => ({ ...current, maxNotesPerParticipant: event.target.value }))} /></label>
+          <label className="check-field"><input type="checkbox" checked={draft.allowMultipleNotes} onChange={(event) => setDraft((current) => ({ ...current, allowMultipleNotes: event.target.checked }))} />Permitir más de una respuesta</label>
+        </div>
+        <div className="instruction-editor-list">
+          {draft.instructions.map((instruction, index) => (
+            <div className="instruction-editor" key={index}>
+              <label>Etiqueta / idioma<input value={instruction.languageLabel} onChange={(event) => changeInstruction(index, "languageLabel", event.target.value)} /></label>
+              <RichEditable value={instruction.contentHtml} onChange={(value) => changeInstruction(index, "contentHtml", value)} placeholder="Pregunta traducida o instrucción" />
+              <button className="text-button danger" disabled={draft.instructions.length === 1} type="button" onClick={() => setDraft((current) => ({ ...current, instructions: current.instructions.filter((_, itemIndex) => itemIndex !== index) }))}>Quitar etiqueta</button>
+            </div>
+          ))}
+        </div>
+        <div className="actions"><button className="secondary-button" type="button" onClick={() => setDraft((current) => ({ ...current, instructions: [...current.instructions, { languageLabel: "", contentHtml: "<p></p>" }] }))}>Agregar idioma</button></div>
+        <div className="wheel-admin-list">
+          {draft.wheels.map((wheel, index) => (
+            <section className="wheel-admin-item" key={wheel.id ?? index}>
+              <div className="mini-section-heading"><strong>Ruleta {index + 1}</strong><button className="text-button danger" disabled={draft.wheels.length === 1} type="button" onClick={() => setDraft((current) => ({ ...current, wheels: current.wheels.filter((_, itemIndex) => itemIndex !== index) }))}>Quitar ruleta</button></div>
+              <div className="builder-grid">
+                <label>Título Ruleta<input required value={wheel.title} onChange={(event) => changeWheel(index, { title: event.target.value })} /></label>
+                <label>Duración del giro (segundos)<input type="number" min="3" max="60" required value={wheel.durationSeconds} onChange={(event) => changeWheel(index, { durationSeconds: event.target.value })} /></label>
+              </div>
+              <div className="wheel-option-grid">
+                {wheel.options.map((option, optionIndex) => (
+                  <label key={optionIndex}>Opción {optionIndex + 1}<span className="wheel-option-input"><input required maxLength={80} value={option} onChange={(event) => changeWheel(index, { options: wheel.options.map((value, itemIndex) => itemIndex === optionIndex ? event.target.value : value) })} /><button className="text-button danger" disabled={wheel.options.length === 2} type="button" onClick={() => changeWheel(index, { options: wheel.options.filter((_, itemIndex) => itemIndex !== optionIndex) })} aria-label={`Quitar opción ${optionIndex + 1}`}>×</button></span></label>
+                ))}
+              </div>
+              <button className="secondary-button" disabled={wheel.options.length >= 24} type="button" onClick={() => changeWheel(index, { options: [...wheel.options, ""] })}>Agregar opción</button>
+            </section>
+          ))}
+        </div>
+        <div className="actions">
+          <button className="secondary-button" disabled={draft.wheels.length >= 100} type="button" onClick={() => setDraft((current) => ({ ...current, wheels: [...current.wheels, { title: "", durationSeconds: "8", options: ["", ""] }] }))}>Agregar ruleta</button>
+          <button className="button" disabled={saving} type="submit">{saving ? "Guardando..." : editingId ? "Guardar cambios" : "Crear ruletas"}</button>
+          {editingId ? <button className="secondary-button" type="button" onClick={() => { setEditingId(null); setDraft(emptyWheelDraft()); }}>Cancelar</button> : null}
+        </div>
+      </form>
+      {message ? <p className={message.includes("correctamente") || message.includes("actualizado") ? "form-success" : "form-error"}>{message}</p> : null}
+      <div className="question-list">
+        {activities.map((activity) => (
+          <div className="question-card" key={activity.id}>
+            <div><strong>{activity.title}</strong><span>{activity.wheels.length} ruletas · {activity.note_count ?? 0} respuestas · {activity.status}</span>
+              <a href={`/r/${activity.participant_slug}`}>{window.location.origin}/r/{activity.participant_slug}</a>
+              <a href={`/r/p/${activity.presenter_slug}`}>{window.location.origin}/r/p/{activity.presenter_slug}</a>
+            </div>
+            <div className="row-actions">
+              <button className="button secondary table-action" type="button" onClick={() => edit(activity)}>Editar</button>
+              <button className="button secondary table-action" type="button" onClick={() => void changeStatus(activity, "open")}>Abrir</button>
+              <button className="button secondary table-action" type="button" onClick={() => void changeStatus(activity, "closed")}>Cerrar</button>
+              <button className="button secondary table-action" type="button" onClick={() => void changeStatus(activity, "archived")}>Archivar</button>
+            </div>
+          </div>
+        ))}
+        {!activities.length ? <p className="blocked-message">No hay ruletas para este evento.</p> : null}
+      </div>
+    </div>
+  );
+}
+
+const wheelColors = ["#2563eb", "#0f766e", "#e07a12", "#be4b72", "#6d58a9", "#159895", "#b35d2b", "#3f7f4c"];
+
+function WheelDisc({ wheel, now }: { wheel: EventWheel; now: number }) {
+  const count = wheel.options.length;
+  const progress = wheel.spin_status === "spinning" && wheel.spin_started_at && wheel.spin_ends_at
+    ? Math.min(1, Math.max(0, (now - wheel.spin_started_at) / (wheel.spin_ends_at - wheel.spin_started_at))) : 0;
+  const eased = 1 - Math.pow(1 - progress, 4);
+  const angle = wheel.spin_status === "spinning"
+    ? wheel.start_angle + (wheel.end_angle - wheel.start_angle) * eased
+    : wheel.spin_status === "selected" ? wheel.end_angle : 0;
+  const point = (degrees: number, radius: number) => ({
+    x: 150 + radius * Math.cos((degrees - 90) * Math.PI / 180),
+    y: 150 + radius * Math.sin((degrees - 90) * Math.PI / 180)
+  });
+  return (
+    <svg className="wheel-disc" viewBox="0 0 300 300" role="img" aria-label={`Ruleta ${wheel.title}`}>
+      {wheel.options.map((option, index) => {
+        const start = point(index * 360 / count, 140);
+        const end = point((index + 1) * 360 / count, 140);
+        const middle = point((index + 0.5) * 360 / count, count > 12 ? 102 : 94);
+        return (
+          <g key={index}>
+            <path d={`M 150 150 L ${start.x} ${start.y} A 140 140 0 ${360 / count > 180 ? 1 : 0} 1 ${end.x} ${end.y} Z`} fill={wheelColors[index % wheelColors.length]} stroke="white" strokeWidth="2" />
+            <text x={middle.x} y={middle.y} textAnchor="middle" dominantBaseline="middle" fill="white" fontSize={count > 12 ? 9 : count > 6 ? 11 : 14} fontWeight="700">
+              {option.length > (count > 12 ? 9 : 16) ? `${option.slice(0, count > 12 ? 8 : 15)}…` : option}
+            </text>
+            <title>{option}</title>
+          </g>
+        );
+      })}
+      <g transform={`rotate(${angle} 150 150)`}>
+        <path d="M 150 12 L 139 159 L 150 148 L 161 159 Z" fill="#111827" stroke="white" strokeWidth="2" />
+      </g>
+      <circle cx="150" cy="150" r="12" fill="#111827" stroke="white" strokeWidth="3" />
+    </svg>
+  );
+}
+
+function WheelPublicView({ slug, presenter = false }: { slug: string; presenter?: boolean }) {
+  const [activity, setActivity] = React.useState<WheelActivity | null>(null);
+  const [section, setSection] = React.useState<"wheels" | "board">("wheels");
+  const [page, setPage] = React.useState(0);
+  const [clockOffset, setClockOffset] = React.useState(0);
+  const [now, setNow] = React.useState(Date.now());
+  const [message, setMessage] = React.useState("");
+  const [busyWheelId, setBusyWheelId] = React.useState<string | null>(null);
+  const endpoint = presenter ? `/api/public/wheel-presenter/${slug}` : `/api/public/wheels/${slug}`;
+
+  const load = React.useCallback(async () => {
+    try {
+      const response = await fetch(endpoint, { cache: "no-store" });
+      const payload = await response.json() as { ok?: boolean; activity?: WheelActivity; server_now?: number; message?: string };
+      if (!response.ok || !payload.activity) { setMessage(payload.message ?? "Ruleta no disponible."); return; }
+      setActivity(payload.activity);
+      if (payload.server_now) setClockOffset(payload.server_now - Date.now());
+      setMessage("");
+    } catch {
+      setMessage("No se pudo actualizar la ruleta. Reintentando...");
+    }
+  }, [endpoint]);
+
+  React.useEffect(() => {
+    void load();
+    const refresh = window.setInterval(() => void load(), 1000);
+    const animate = window.setInterval(() => setNow(Date.now()), 40);
+    return () => { window.clearInterval(refresh); window.clearInterval(animate); };
+  }, [load]);
+
+  React.useEffect(() => {
+    if (!activity) return;
+    const original = document.title;
+    document.title = activity.browser_title || activity.title;
+    return () => { document.title = original; };
+  }, [activity?.browser_title, activity?.title]);
+
+  async function spin(wheelId: string) {
+    if (!presenter || busyWheelId) return;
+    setBusyWheelId(wheelId);
+    try {
+      const response = await fetch(`${endpoint}/wheels/${wheelId}/spin`, { method: "POST" });
+      const payload = await response.json() as { ok?: boolean; activity?: WheelActivity; server_now?: number; message?: string };
+      if (!response.ok || !payload.activity) { setMessage(payload.message ?? "No se pudo iniciar el giro."); return; }
+      setActivity(payload.activity);
+      if (payload.server_now) setClockOffset(payload.server_now - Date.now());
+      setMessage("");
+    } catch {
+      setMessage("No se pudo iniciar el giro. Intente de nuevo.");
+    } finally {
+      setBusyWheelId(null);
+    }
+  }
+
+  if (!activity) return <PublicMessage title="Ruletas interactivas" message={message || "Cargando ruletas..."} />;
+  const selections = activity.wheels.filter((wheel) => wheel.spin_status === "selected" && wheel.selected_value)
+    .map((wheel) => ({ title: wheel.title, value: wheel.selected_value! }));
+  if (section === "board") {
+    return <BoardParticipantView slug={activity.board_participant_slug} wheelContext={{ selections, onReturn: () => setSection("wheels") }} />;
+  }
+
+  const pageCount = Math.max(1, Math.ceil(activity.wheels.length / 4));
+  return (
+    <main className="wheel-public-page">
+      <section className="wheel-public-stage">
+        <p className="eyebrow">{activity.event_title}</p>
+        <h1>{activity.title}</h1>
+        <div className="wheel-grid">
+          {activity.wheels.slice(page * 4, (page + 1) * 4).map((wheel) => (
+            <section className="wheel-item" key={wheel.id}>
+              <h2>{wheel.title}</h2>
+              <WheelDisc wheel={wheel} now={now + clockOffset} />
+              <div className="wheel-result" aria-live="polite">
+                {wheel.spin_status === "selected" ? <><span>Seleccionado</span><strong>{wheel.selected_value}</strong></> :
+                  wheel.spin_status === "spinning" ? <span>Girando...</span> : <span>Esperando el primer giro</span>}
+              </div>
+              {presenter ? <button className="button wheel-start-button" disabled={activity.status !== "open" || wheel.spin_status === "spinning" || Boolean(busyWheelId)} type="button" onClick={() => void spin(wheel.id)}>{wheel.spin_status === "selected" ? "Girar de nuevo" : "Iniciar giro"}</button> : null}
+              <div className="wheel-option-legend">
+                {wheel.options.map((option, index) => <span key={index}><i style={{ backgroundColor: wheelColors[index % wheelColors.length] }} />{option}</span>)}
+              </div>
+            </section>
+          ))}
+        </div>
+        {pageCount > 1 ? <div className="presenter-pagination">
+          <button disabled={page === 0} onClick={() => setPage((value) => Math.max(0, value - 1))} type="button">Anterior</button>
+          <span>{page + 1} / {pageCount}</span>
+          <button disabled={page >= pageCount - 1} onClick={() => setPage((value) => Math.min(pageCount - 1, value + 1))} type="button">Siguiente</button>
+        </div> : null}
+        <button className="button wheel-board-button" type="button" onClick={() => setSection("board")}>Ir a la pregunta y respuestas</button>
+        {message ? <p className="form-error">{message}</p> : null}
+      </section>
+    </main>
+  );
+}
+
+function BoardParticipantView({ slug, wheelContext }: { slug: string; wheelContext?: { selections: Array<{ title: string; value: string }>; onReturn: () => void } }) {
   const [board, setBoard] = React.useState<EventBoard | null>(null);
   const [countries, setCountries] = React.useState<CatalogItem[]>([]);
   const [form, setForm] = React.useState({ firstName: "", lastName: "", countryId: "", noteHtml: "" });
@@ -5870,7 +6224,7 @@ function BoardParticipantView({ slug }: { slug: string }) {
   }, [slug]);
 
   const loadPublicNotes = React.useCallback(async () => {
-    const response = await fetch(`/api/public/boards/${slug}/notes?page=${page}&pageSize=48`);
+    const response = await fetch(`/api/public/boards/${slug}/notes?page=${page}&pageSize=${wheelContext ? 24 : 48}`);
     const payload = (await response.json().catch(() => null)) as {
       ok?: boolean;
       board?: EventBoard;
@@ -5962,6 +6316,15 @@ function BoardParticipantView({ slug }: { slug: string }) {
               ))}
             </div>
           ) : null}
+          {wheelContext?.selections.length ? (
+            <div className="wheel-selection-list" aria-label="Resultados de las ruletas">
+              {wheelContext.selections.map((selection) => (
+                <div className="wheel-selection" key={selection.title}>
+                  <span>{selection.title}</span><strong>{selection.value}</strong>
+                </div>
+              ))}
+            </div>
+          ) : null}
           <div className="actions centered-actions board-view-action">
             <button className="button board-view-button" type="button" onClick={() => setShowBoard(false)}>Registrar respuesta</button>
           </div>
@@ -6000,6 +6363,11 @@ function BoardParticipantView({ slug }: { slug: string }) {
               <button type="button" disabled={page === 1} onClick={() => setPage((current) => Math.max(1, current - 1))}>Anterior</button>
               <span>{page} / {totalPages}</span>
               <button type="button" disabled={page >= totalPages} onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>Siguiente</button>
+            </div>
+          ) : null}
+          {wheelContext ? (
+            <div className="actions centered-actions">
+              <button className="secondary-button" onClick={wheelContext.onReturn} type="button">Regresar a las ruletas</button>
             </div>
           ) : null}
         </section>
