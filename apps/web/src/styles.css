@@ -1487,9 +1487,12 @@ textarea {
 .board-presenter-stage {
   display: grid;
   gap: 18px;
+  grid-template-columns: minmax(0, 1fr);
   margin: 0 auto;
   max-width: 1180px;
+  min-width: 0;
   text-align: center;
+  width: 100%;
 }
 
 .board-public-stage h1,
@@ -1515,6 +1518,8 @@ textarea {
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
   color: #1f2937;
   line-height: 1.45;
+  min-width: 0;
+  overflow-wrap: anywhere;
   padding: 16px;
 }
 
@@ -1530,6 +1535,7 @@ textarea {
   border-radius: 8px;
   display: grid;
   gap: 14px;
+  min-width: 0;
   padding: 18px;
   text-align: left;
 }
@@ -1709,6 +1715,8 @@ textarea {
   flex-wrap: wrap;
   gap: 12px;
   justify-content: center;
+  min-width: 0;
+  width: 100%;
 }
 
 .wheel-selection {
@@ -1718,6 +1726,8 @@ textarea {
   display: grid;
   gap: 4px;
   min-width: min(100%, 200px);
+  max-width: 100%;
+  overflow-wrap: anywhere;
   padding: 12px 18px;
 }
 
@@ -2005,6 +2015,59 @@ textarea {
 }
 
 @media (max-width: 800px) {
+  .board-public-page,
+  .board-presenter-page {
+    padding: 24px 14px;
+  }
+
+  .board-public-stage,
+  .board-presenter-stage {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .board-public-stage h1,
+  .board-presenter-stage h1 {
+    font-size: 30px;
+    overflow-wrap: anywhere;
+  }
+
+  .board-public-stage > *,
+  .board-presenter-stage > * {
+    min-width: 0;
+  }
+
+  .board-public-stage > .eyebrow,
+  .board-presenter-stage > .eyebrow {
+    overflow-wrap: anywhere;
+  }
+
+  .instruction-card-row.compact {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .instruction-card {
+    padding: 14px;
+  }
+
+  .board-note-form {
+    padding: 14px;
+  }
+
+  .builder-grid > * {
+    min-width: 0;
+  }
+
+  .wheel-selection-list {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .wheel-selection {
+    margin: 0 auto;
+    min-width: 0;
+    width: 100%;
+  }
+
   .app-shell {
     grid-template-columns: 1fr;
   }
